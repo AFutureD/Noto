@@ -3,12 +3,14 @@ enum HotKeyCommand: String, CaseIterable, Sendable {
     case showNotes
     case createNote
     case searchNotes
+    case toggleKeepOnTop
 
     var title: String {
         switch self {
         case .showNotes: "Show Notes"
         case .createNote: "Create Note"
         case .searchNotes: "Search Notes"
+        case .toggleKeepOnTop: "Keep on Top"
         }
     }
 
@@ -17,6 +19,7 @@ enum HotKeyCommand: String, CaseIterable, Sendable {
         case .showNotes: "Shows the note window, or puts it away."
         case .createNote: "Starts a new Untitled note."
         case .searchNotes: "Opens the note switcher."
+        case .toggleKeepOnTop: "Keeps the note window above other windows, or stops."
         }
     }
 }

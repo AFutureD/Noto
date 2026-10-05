@@ -14,6 +14,7 @@ final class NoteSwitcherWindowController: NSObject, NSWindowDelegate {
 
     func show(under host: NSWindow) {
         let panel = ensurePanel()
+        panel.staysOnTop = (host as? NotesPanel)?.staysOnTop ?? false
         anchor(panel, under: host)
         if panel.parent !== host {
             panel.parent?.removeChildWindow(panel)

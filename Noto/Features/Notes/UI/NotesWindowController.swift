@@ -145,7 +145,8 @@ final class NotesWindowController: NSObject, NSWindowDelegate {
             "w": { [weak panel] in panel?.performClose(nil) }
         ]
         panel.optionCommandChords = [
-            "t": { [weak coordinator] in coordinator?.toggleFormattingBar() }
+            "t": { [weak coordinator] in coordinator?.toggleFormattingBar() },
+            "p": { [weak coordinator] in coordinator?.toggleKeepOnTop() }
         ]
         panel.setFrameAutosaveName(Self.frameAutosaveName)
         if !panel.setFrameUsingName(Self.frameAutosaveName) { panel.center() }
@@ -162,6 +163,7 @@ final class NotesWindowController: NSObject, NSWindowDelegate {
         }
         self.panel = panel
         observeTitle()
+        observeKeepsOnTop()
         return panel
     }
 
@@ -203,6 +205,15 @@ final class NotesWindowController: NSObject, NSWindowDelegate {
                 self.observeTitle()
                 if let panel = self.panel { self.seatTrafficLights(in: panel) }
             }
+        }
+    }
+
+    /// Re-armed like the title, so the setting, the chord and the hotkey all land on the open panel.
+    private func observeKeepsOnTop() {
+        withObservationTracking {
+            panel?.staysOnTop = coordinator.keepsOnTop
+        } onChange: { [weak self] in
+            Task { @MainActor in self?.observeKeepsOnTop() }
         }
     }
 

@@ -1,7 +1,7 @@
 # Noto
 
-A native macOS Markdown note app: an unlimited collection of plain `.md` files in one floating editor
-that renders the Markdown in place, with three global shortcuts. SwiftUI + AppKit, running as a
+A native macOS Markdown note app: an unlimited collection of plain `.md` files in one editor window
+that renders the Markdown in place, with four global shortcuts. SwiftUI + AppKit, running as a
 menu-bar agent (`LSUIElement`) with an optional Dock icon. Zero third-party dependencies.
 
 Noto was extracted from the Notes feature of [Tinycast](https://github.com/abue-ammar/tinycast) and is
@@ -39,7 +39,7 @@ keyboard layout. Full reasoning in [standards.md](docs/standards.md#posture).
 | `Noto/Platform/` | system shims: `AppPaths`, `ActivationPolicy`, `FolderPicker`, `Signposts`, `NotificationToken`, … |
 | `Noto/Windows/` | `AppWindowController`, the titled window Settings opens in |
 | `Noto/Features/Notes/` | the note collection and editor, split `Model/` `Service/` `UI/` |
-| `Noto/Features/HotKeys/` | the three global shortcuts and their recorder, split `Model/` `Service/` `UI/` |
+| `Noto/Features/HotKeys/` | the four global shortcuts and their recorder, split `Model/` `Service/` `UI/` |
 | `Noto/Features/Settings/` | `NotoSettings` (every preference) and `SettingsView` |
 | `Tests/` | the standalone harnesses — one Swift file each, no XCTest target |
 | `Scripts/` | `run-tests.sh` and `lint.sh` |

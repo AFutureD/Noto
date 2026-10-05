@@ -267,7 +267,7 @@ The window:
 
 ### Hotkeys
 
-- Each of the three recorders starts empty on a clean install and reads "Record Hotkey"
+- Each of the four recorders starts empty on a clean install and reads "Record Hotkey"
 - Clicking a recorder shows the callout above it with the `⌥ A` example; holding modifiers shows them
   live with "Add a key"; a full combo saves, closes the callout and shows as keycaps
 - Show Notes toggles the window from any app; Create Note and Search Notes each do what their menu
@@ -288,6 +288,10 @@ The window:
 
 - Settings… opens from the menu bar item and with ⌘,; a second request raises the same window; Escape
   and the red light close it; it reopens centred
+- Keep on Top is off on a clean install. Click a different app, and its window can cover the note window
+- With Keep on Top on, the note window stays above other windows and shows on each Space
+- Each control changes the state immediately: the Settings row, the menu bar item, ⌥⌘P and the global
+  shortcut. The check mark in the menu bar menu agrees with the state
 - Each font setting applies to the open note immediately: Text Font, CJK Font, Code Font and Size
 - With Text Font `Menlo` and CJK Font `Songti SC`, Latin text is Menlo and Han text is Songti
 - With Text Font `Monaco`, italic text slants and bold text is heavier

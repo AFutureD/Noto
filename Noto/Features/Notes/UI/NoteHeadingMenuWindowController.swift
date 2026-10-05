@@ -13,6 +13,7 @@ final class NoteHeadingMenuWindowController {
 
     func show(above host: NSWindow) {
         let panel = ensurePanel()
+        panel.staysOnTop = (host as? NotesPanel)?.staysOnTop ?? false
         anchor(panel, above: host)
         if panel.parent !== host {
             panel.parent?.removeChildWindow(panel)

@@ -1,6 +1,6 @@
 # Noto
 
-Plain Markdown notes in one floating window for macOS.
+Plain Markdown notes in one window for macOS.
 
 Noto keeps an unlimited collection of `.md` files and edits them in a single always-on-top editor that
 formats the Markdown as you write. It lives in the menu bar, needs no account, and has no database:
@@ -8,16 +8,17 @@ the files are the notes.
 
 ## Features
 
-- One floating note window that stays visible when you click another app, and remembers its size and
-  position.
+- One note window that remembers its size and position.
+- Keep on Top is an option. When it is on, the note window stays above other windows and shows on
+  every Space. It is off by default.
 - Markdown rendered in place: headings, bold, italic, strikethrough, inline code, links, bullet,
   numbered and task lists, quotes, code blocks and rules. The line you are editing shows its raw
   Markdown; every other line stays formatted. What is saved, searched and copied is the text you typed.
 - A formatting bar with a button for each shortcut, and a heading menu.
 - A note switcher with fuzzy title search and full-text search, inline rename and Move to Trash.
 - An untitled note shows its first line as its title until you name it.
-- Three global shortcuts — Show Notes, Create Note, Search Notes — recorded in Settings. None is bound
-  until you record one.
+- Four global shortcuts: Show Notes, Create Note, Search Notes and Keep on Top. Record them in
+  Settings. A shortcut has no key until you record one.
 - A menu bar item, and an optional Dock icon (Settings > App > Show in Dock).
 - Autosave 300 ms after you stop typing.
 - Render Markdown can be turned off for a plain-text editor.
@@ -39,6 +40,7 @@ In the note window:
 | esc | Close the find bar, the heading menu or the switcher, then hide the window |
 | ⌘⌫ | Move the selected switcher row to the Trash |
 | ⌥⌘T | Show or hide the formatting buttons |
+| ⌥⌘P | Set Keep on Top on or off |
 | ⌘, | Open Settings |
 | ⌘Q | Quit Noto, after saving the open note |
 

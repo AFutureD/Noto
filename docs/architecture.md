@@ -100,6 +100,7 @@ to `UserDefaults` in its `didSet`. The keys are that file's private `Key` enum:
 | `showsFormattingBar` | `notesShowsFormattingBar` | on |
 | `notesFolder` | `notesFolder` | nil — the default folder in Application Support |
 | `showsInDock` | `showsInDock` | off |
+| `keepsOnTop` | `notesKeepsOnTop` | off |
 | `fonts` | `notesTextFont`, `notesCJKFont`, `notesCodeFont`, `notesFontSize` | nil — see [notes.md](features/notes.md#fonts) |
 | `shortcuts` | `hotKeys` | empty — see [hotkeys.md](features/hotkeys.md#persistence) |
 
@@ -117,7 +118,7 @@ driven imperatively from AppKit.
 - The main menu — shaped by `NotoApp`'s `.commands`: Settings… (⌘,) replaces the app-settings group,
   and New Note (⌘N), Show Notes and Search Notes replace the new-item group. It is declared, not
   assigned to `NSApp.mainMenu`, because SwiftUI rebuilds the menu on any scene change.
-- The note window — a persistent, titled, non-activating `NotesPanel` at `.floating`, managed by
+- The note window — a persistent, titled, non-activating `NotesPanel`, managed by
   `NotesWindowController`. The user owns its size and AppKit autosaves the frame; its TextKit 2 editor
   renders Markdown over the literal source and stays visible on focus loss. Its hosting view sets
   `sizingOptions = []` so SwiftUI never drives the window size.

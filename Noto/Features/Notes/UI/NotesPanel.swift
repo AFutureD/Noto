@@ -13,6 +13,10 @@ final class NotesPanel: NSPanel {
     /// False for the heading menu, so the editor keeps its caret, reveal and chords beneath it.
     var acceptsKey = true
     var onMouseDown: (() -> Void)?
+    /// Above other windows and on every Space; off, an ordinary window on the Space it is shown on.
+    var staysOnTop = false {
+        didSet { applyStaysOnTop() }
+    }
 
     private let acceptsMain: Bool
 
@@ -24,10 +28,8 @@ final class NotesPanel: NSPanel {
             backing: .buffered,
             defer: false
         )
-        isFloatingPanel = true
         hidesOnDeactivate = false
-        level = .floating
-        collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        applyStaysOnTop()
         isMovableByWindowBackground = false
         isOpaque = false
         backgroundColor = .clear
@@ -66,6 +68,12 @@ final class NotesPanel: NSPanel {
             return
         }
         onEscape?()
+    }
+
+    private func applyStaysOnTop() {
+        isFloatingPanel = staysOnTop
+        level = staysOnTop ? .floating : .normal
+        collectionBehavior = [staysOnTop ? .canJoinAllSpaces : .moveToActiveSpace, .fullScreenAuxiliary]
     }
 
     override func cancelOperation(_ sender: Any?) {

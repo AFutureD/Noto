@@ -51,6 +51,13 @@ struct SettingsView: View {
                 }
             }
 
+            Section("Window") {
+                Toggle(isOn: $settings.keepsOnTop) {
+                    Text("Keep on Top")
+                    Text("Stays above other windows and shows on every Space.")
+                }
+            }
+
             Section("App") {
                 Toggle(isOn: $settings.showsInDock) {
                     Text("Show in Dock")

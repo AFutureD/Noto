@@ -1,6 +1,6 @@
 # Notes
 
-Notes is an unlimited local collection of plain Markdown files in one persistent floating editor, which
+Notes is an unlimited local collection of plain Markdown files in one persistent editor window, which
 renders the Markdown in place. One window edits one active note at a time; a title-bar button opens the
 searchable switcher, and the menu bar item, the main menu, global shortcuts and the Dock icon can show,
 search, or extend the collection. Notes is the app: there is no switch that turns it off.
@@ -108,7 +108,7 @@ Every route lands on `AppCore.run(_:)` or straight on the coordinator:
 
 | Entry point | Reaches |
 | --- | --- |
-| Menu bar item (`MenuBarMenu`) | `AppCore.run` for all three |
+| Menu bar item (`MenuBarMenu`) | `AppCore.run` for the three commands; Keep on Top writes the setting |
 | Main menu, File (`NotoApp`) | New Note ⌘N and Search Notes through `AppCore.run`; Show Notes calls `show()` |
 | Global shortcuts (`HotKeyManager`) | `AppCore.run`; see [hotkeys.md](hotkeys.md) |
 | Dock icon click | `AppCore.handleReopen` → `show()` |
@@ -122,9 +122,9 @@ flushes without delaying the order-out — but only while that app is still the 
 a window the user has already left behind leaves them in whatever app they moved to.
 Command-Q quits Noto: `AppDelegate.applicationShouldTerminate` awaits the draft's flush first.
 
-All three windows are one `NotesPanel`, a non-activating floating panel that owns the Escape rule and
+All three windows are one `NotesPanel`, a non-activating panel that owns the Escape rule and
 reads ⌘⌫. They differ only in style mask, key acceptance and the chords their controller installs: the
-note window claims ⌘N, ⌘P, ⌘O, ⌘F and ⌘W in `commandChords` and ⌥⌘T in `optionCommandChords`; the
+note window claims ⌘N, ⌘P, ⌘O, ⌘F and ⌘W in `commandChords` and ⌥⌘T and ⌥⌘P in `optionCommandChords`; the
 switcher reads ⌘N plus ⌘W and ⌘P as dismissals; the heading menu never becomes key.
 
 AppKit draws the note window's frame and traffic lights; `NotesView` draws the rest of the chrome. Its
@@ -309,6 +309,27 @@ An empty note shows a `Start writing…` placeholder at the text container's ori
 character count comes straight off `NSTextStorage.length` and sits in a footer under the editor, or at
 the leading end of the formatting bar's band while the bar shows. Both belong to the editor surface,
 so neither appears when no note is active.
+
+### Keep on Top
+
+Settings > Window > Keep on Top is `NotoSettings.keepsOnTop` (key `notesKeepsOnTop`). It is off when
+absent.
+
+| State | Window level | Spaces |
+| --- | --- | --- |
+| Off | `.normal`. Other windows can cover the note window. | The window moves to the Space where you show it. |
+| On | `.floating`. The note window stays above other windows. | The window shows on every Space. |
+
+Four controls change the setting:
+
+- The Keep on Top row in Settings.
+- The Keep on Top item in the menu bar menu. A check mark shows the state.
+- ⌥⌘P in the note window.
+- The Keep on Top global shortcut. See [hotkeys.md](hotkeys.md).
+
+`NotesPanel.staysOnTop` applies the level and the Space behaviour.
+`NotesWindowController.observeKeepsOnTop` copies the setting to the open panel, thus a change applies
+immediately. The switcher and the heading menu take the value of the note window when they open.
 
 ### Fonts
 

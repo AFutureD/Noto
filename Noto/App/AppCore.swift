@@ -57,6 +57,7 @@ final class AppCore {
         case .showNotes: notesCoordinator.toggle()
         case .createNote: notesCoordinator.createNote()
         case .searchNotes: notesCoordinator.searchNotes()
+        case .toggleKeepOnTop: notesCoordinator.toggleKeepOnTop()
         }
     }
 

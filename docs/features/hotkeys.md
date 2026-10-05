@@ -1,9 +1,9 @@
 # Hotkeys
 
-Three global shortcuts, in-house, zero dependencies. `Noto/Features/HotKeys/` holds:
+Four global shortcuts, in-house, zero dependencies. `Noto/Features/HotKeys/` holds:
 
-- `HotKeyCommand` (`Model/`) — the three commands a shortcut can run: `showNotes`, `createNote`,
-  `searchNotes`, each with the title and subtitle its Settings row shows.
+- `HotKeyCommand` (`Model/`) — the four commands a shortcut can run: `showNotes`, `createNote`,
+  `searchNotes` and `toggleKeepOnTop`, each with the title and subtitle its Settings row shows.
 - `KeyShortcut` (`Service/`) — a Sendable value, Carbon key code plus modifiers, with layout-aware
   glyphs through `ASCIIKeyboardLayout` (`UCKeyTranslate`).
 - `HotKeyCenter` (`Service/`) — the Carbon `RegisterEventHotKey` layer, pausable.
@@ -18,14 +18,14 @@ there, the same funnel the menu bar item uses.
 
 ## Invariants
 
-- There are exactly three bindable commands, and none has a default. A command absent from
+- There are exactly four bindable commands, and none has a default. A command absent from
   `NotoSettings.shortcuts` is unbound and registers nothing.
 - `HotKeyCommand`'s raw value is the persisted key and the `HotKeyCenter` registration id, so the two
   cannot drift. Renaming a case orphans its stored shortcut.
 - Only key combos are bindable: one key plus at least one of ⌘, ⌥, ⌃ or 🌐, or a bare function key
   (F1 to F20). ⇧ alone does not qualify. There are no modifier-only shortcuts, no double-taps and no
   Hyper key, so there is no event tap and Noto needs no Accessibility permission.
-- Conflicts are checked among Noto's own three commands only. A combo another app or the system
+- Conflicts are checked among Noto's own four commands only. A combo another app or the system
   already holds still records; Carbon refuses the registration, `HotKeyCenter` logs it, and the
   binding stays visible but does not fire.
 - `KeyShortcut`'s hand-written `init(from:)` is a correctness seam, not a format one: it routes every
@@ -44,6 +44,7 @@ there, the same funnel the menu bar item uses.
 | `showNotes` | `NotesCoordinator.toggle()` — shows the note window, or hides a visible one |
 | `createNote` | `NotesCoordinator.createNote()` |
 | `searchNotes` | `NotesCoordinator.searchNotes()` |
+| `toggleKeepOnTop` | `NotesCoordinator.toggleKeepOnTop()`. It changes `NotoSettings.keepsOnTop`. |
 
 `HotKeyManager.setShortcut(_:for:)` writes the setting and re-registers that one command; passing nil
 unbinds it. `HotKeyCenter.register` drops any previous registration under the same id first, so no

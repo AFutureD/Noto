@@ -8,7 +8,7 @@ Read this before touching any view body, `Theme` value, or the panel chrome.
 
 ## The look, in one paragraph
 
-The note window is a floating panel whose surface is the OS glass under a 40% black scrim — there is
+The note window is a panel whose surface is the OS glass under a 40% black scrim — there is
 no gray chrome. Everything on that surface is white at a fixed alpha ramp. There are no hard-edged
 bars, strips or dividers: the title band and the bottom band are just regions of the same surface.
 Floating controls (the title-bar capsule, the formatting bar, the switcher, the heading menu, the
@@ -156,7 +156,8 @@ beats hover when a row or a button is both.
 
 Source: `Noto/Features/Notes/UI/`.
 
-`NotesPanel` is a titled, resizable, non-activating panel at `.floating` — AppKit draws the traffic
+`NotesPanel` is a titled, resizable, non-activating panel. Its level is `.floating` only when Keep on
+Top is on. AppKit draws the traffic
 lights and the resize — with a transparent background, and it deliberately does not dismiss on
 resign-key. `NotesView`'s root applies `panelScrim` → `GlassEffectView()` → one continuous `panel`
 corner clip. The clip is larger than the theme frame's own corner, so it is what shows;
@@ -310,9 +311,9 @@ resizable, centred on each open — with real traffic lights and a lifecycle who
 share the note window's look: it is one stock `Form` with `.formStyle(.grouped)`, so the cards,
 headers, row insets and hairlines are all system-drawn and it reads as macOS System Settings does.
 
-- Five sections: Editor (Render Markdown, Show Formatting Bar), Fonts (Text Font, CJK Font, Code Font,
-  Size, Reset to Defaults), Storage (Notes Folder), App (Show in Dock), Shortcuts (one row per
-  `HotKeyCommand`).
+- Six sections: Editor (Render Markdown, Show Formatting Bar), Fonts (Text Font, CJK Font, Code Font,
+  Size, Reset to Defaults), Storage (Notes Folder), Window (Keep on Top), App (Show in Dock), Shortcuts (one
+  row per `HotKeyCommand`).
 - A font row is a `Picker` of family names from `FontCatalog`. Its first item is the system choice.
   `FontCatalog` reads the families off the main thread, and the menus fill when it completes.
   The CJK menu shows only families with Han characters. The code menu shows only fixed-pitch families.

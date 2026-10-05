@@ -77,6 +77,7 @@ final class NotesCoordinator {
     var activeTitle: String { store.activeTitle }
     var rendersMarkdown: Bool { settings.rendersMarkdown }
     var fonts: NoteFontSettings { settings.fonts }
+    var keepsOnTop: Bool { settings.keepsOnTop }
     var showsFormattingBar: Bool { settings.rendersMarkdown && settings.showsFormattingBar }
     var isSearching: Bool { store.isSearching }
     var visibleNotes: [NoteSummary] {
@@ -108,6 +109,10 @@ final class NotesCoordinator {
     /// The Dock icon and the main menu only ever bring the panel forward.
     func show() {
         request(.editor)
+    }
+
+    func toggleKeepOnTop() {
+        settings.keepsOnTop.toggle()
     }
 
     func createNote() {

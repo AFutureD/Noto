@@ -9,6 +9,7 @@ final class NotoSettings {
         static let showsFormattingBar = "notesShowsFormattingBar"
         static let notesFolder = "notesFolder"
         static let showsInDock = "showsInDock"
+        static let keepsOnTop = "notesKeepsOnTop"
         static let shortcuts = "hotKeys"
         static let textFont = "notesTextFont"
         static let cjkFont = "notesCJKFont"
@@ -30,6 +31,10 @@ final class NotoSettings {
     }
     var showsInDock: Bool {
         didSet { defaults.set(showsInDock, forKey: Key.showsInDock) }
+    }
+    /// Off, the note window is an ordinary window that other windows can cover.
+    var keepsOnTop: Bool {
+        didSet { defaults.set(keepsOnTop, forKey: Key.keepsOnTop) }
     }
     var fonts: NoteFontSettings {
         didSet {
@@ -55,6 +60,7 @@ final class NotoSettings {
         showsFormattingBar = defaults.object(forKey: Key.showsFormattingBar) as? Bool ?? true
         notesFolder = defaults.string(forKey: Key.notesFolder)
         showsInDock = defaults.bool(forKey: Key.showsInDock)
+        keepsOnTop = defaults.bool(forKey: Key.keepsOnTop)
         fonts = NoteFontSettings(
             textFamily: defaults.string(forKey: Key.textFont),
             cjkFamily: defaults.string(forKey: Key.cjkFont),
