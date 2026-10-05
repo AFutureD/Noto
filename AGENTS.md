@@ -97,6 +97,22 @@ feature's doc, under its own `## Invariants`.
 - A new preference is a property on `NotoSettings` with its key in that file's `Key` enum. Window
   state that is not a preference rides `UserDefaults` from `AppCore` instead.
 
+## Documentation language
+
+Write all documentation in ASD-STE100 Simplified Technical English. This rule applies to `AGENTS.md`,
+`README.md`, `NOTICE.md` and each file in `docs/`.
+
+- Use one word for one meaning. Use the same word for the same thing each time.
+- Use the active voice. Use the imperative for instructions.
+- Write short sentences: a maximum of 20 words for an instruction, 25 words for a description.
+- Give one instruction in each sentence. Put a condition before the instruction it controls.
+- Use the simple present, the simple past or the simple future tense. Do not use the `-ing` form as
+  a verb.
+- Do not use idioms, metaphors or noun clusters of more than three words.
+- Use a vertical list for a sequence of steps or a set of items.
+
+Names of types, files, settings and commands are technical names. Write them as the code writes them.
+
 ## Before you finish
 
 Each item is explained in [testing.md](docs/testing.md#definition-of-done).
@@ -106,3 +122,4 @@ Each item is explained in [testing.md](docs/testing.md#definition-of-done).
 - `./Scripts/lint.sh` is clean.
 - `grep -rln 'import AppKit\|import SwiftUI\|import Cocoa' Noto/Features/*/Model/` returns nothing.
 - Any doc your change made wrong is fixed in the same change.
+- Each doc sentence you added or changed obeys [Documentation language](#documentation-language).
