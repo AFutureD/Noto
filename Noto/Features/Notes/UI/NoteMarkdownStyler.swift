@@ -14,28 +14,41 @@ enum NoteMarkdownStyler {
     }
 
     /// The literal editor's attributes, and the base every rendered line starts from.
-    static let literal: Attributes = [
-        .font: NoteMarkdownTypography.body,
-        .foregroundColor: NSColor(Theme.Colors.noteText)
-    ]
+    private(set) static var literal = makeLiteral()
 
     private static let hidden: Attributes = [
         .font: NoteMarkdownTypography.hidden,
         .foregroundColor: NSColor.clear
     ]
-    private static let hiddenEmptyListMarker: Attributes = [
-        .font: NoteMarkdownTypography.body,
-        .foregroundColor: NSColor.clear
-    ]
-
-    private static let listSlot = NoteCheckboxGeometry.slot(
-        bodyPointSize: NoteMarkdownTypography.body.pointSize)
+    private static var hiddenEmptyListMarker = makeHiddenEmptyListMarker()
+    private static var listSlot = makeListSlot()
     private static let quoteStep = Theme.Size.markdownQuoteBar + Theme.Spacing.lg
     private static let codeInset = Theme.Spacing.lg
     /// Space after each list item, kept when revealed so moving the caret never shifts the rows.
     private static let listItemSpacing = Theme.Spacing.md
     /// Only these get a `.link` attribute, and only these are opened when one is clicked.
     static let openableSchemes: Set<String> = ["http", "https", "mailto"]
+
+    /// The one way to change the editor's fonts: the attributes built from them are rebuilt here.
+    static func apply(_ fonts: NoteFontSettings) -> Bool {
+        guard NoteMarkdownTypography.apply(fonts) else { return false }
+        literal = makeLiteral()
+        hiddenEmptyListMarker = makeHiddenEmptyListMarker()
+        listSlot = makeListSlot()
+        return true
+    }
+
+    private static func makeLiteral() -> Attributes {
+        [.font: NoteMarkdownTypography.body, .foregroundColor: NSColor(Theme.Colors.noteText)]
+    }
+
+    private static func makeHiddenEmptyListMarker() -> Attributes {
+        [.font: NoteMarkdownTypography.body, .foregroundColor: NSColor.clear]
+    }
+
+    private static func makeListSlot() -> CGFloat {
+        NoteCheckboxGeometry.slot(bodyPointSize: NoteMarkdownTypography.body.pointSize)
+    }
 
     /// Colours the fragment draws with are resolved now, under the caller's drawing appearance.
     static func style(
@@ -50,7 +63,7 @@ enum NoteMarkdownStyler {
         case .blank, .paragraph:
             break
         case .heading(let level):
-            base[.font] = NoteMarkdownTypography.heading(level)
+            base.merge(NoteMarkdownTypography.headingLook(level)) { $1 }
             base[.paragraphStyle] = paragraph {
                 $0.paragraphSpacingBefore =
                     index == 0 ? 0 : level <= 2 ? Theme.Spacing.xl : Theme.Spacing.md
@@ -122,11 +135,12 @@ enum NoteMarkdownStyler {
     ) -> [(range: NSRange, attributes: Attributes)] {
         var runs: [(range: NSRange, attributes: Attributes)] = []
         for (position, inline) in inlines.enumerated() {
-            let font = spanFont(inlines[...position], lineFont: lineFont)
-            var markerLook = isRevealed ? revealedMarker.merging([.font: font]) { $1 } : hidden
+            let look = spanLook(inlines[...position], lineFont: lineFont)
+            let font = look[.font] as? NSFont ?? lineFont
+            var markerLook = isRevealed ? revealedMarker.merging(look) { $1 } : hidden
             switch inline.kind {
             case .strong, .emphasis, .strongEmphasis:
-                runs.append((inline.contentRange, [.font: font]))
+                runs.append((inline.contentRange, look))
             case .strikethrough:
                 runs.append((inline.contentRange, [.strikethroughStyle: NSUnderlineStyle.single.rawValue]))
             case .code:
@@ -146,8 +160,8 @@ enum NoteMarkdownStyler {
     }
 
     /// The span's font: the line font plus the traits of every emphasis span enclosing it.
-    private static func spanFont(_ spans: ArraySlice<NoteMarkdown.Inline>, lineFont: NSFont) -> NSFont {
-        guard let span = spans.last else { return lineFont }
+    private static func spanLook(_ spans: ArraySlice<NoteMarkdown.Inline>, lineFont: NSFont) -> Attributes {
+        guard let span = spans.last else { return [.font: lineFont] }
         var traits: NSFontDescriptor.SymbolicTraits = []
         for outer in spans where NSIntersectionRange(outer.range, span.range) == span.range {
             switch outer.kind {
@@ -157,7 +171,8 @@ enum NoteMarkdownStyler {
             default: break
             }
         }
-        return traits.isEmpty ? lineFont : NoteMarkdownTypography.adding(traits, to: lineFont)
+        return traits.isEmpty
+            ? [.font: lineFont] : NoteMarkdownTypography.emphasized(lineFont, with: traits)
     }
 
     /// A revealed link is plain coloured text, so a click places the caret to edit its URL.
@@ -261,7 +276,8 @@ enum NoteMarkdownStyler {
     ) -> NoteBlockDecoration {
         NoteBlockDecoration(
             shape: shape, fill: color(fill), ink: color(ink),
-            bodyPointSize: NoteMarkdownTypography.body.pointSize)
+            bodyPointSize: NoteMarkdownTypography.body.pointSize,
+            labelFontName: NoteMarkdownTypography.labelFontName)
     }
 
     /// Pins a dynamic token to the current drawing appearance; the fragment cannot resolve one.

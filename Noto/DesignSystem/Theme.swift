@@ -78,7 +78,7 @@ enum Theme {
         static let menuRowHeight: CGFloat = menuIcon + Spacing.md * 2
         static let menuRowSpacing: CGFloat = 1
         static let menuIcon: CGFloat = 20
-        static let settingsWindow = CGSize(width: 520, height: 500)
+        static let settingsWindow = CGSize(width: 520, height: 640)
     }
 
     enum Duration {

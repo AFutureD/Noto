@@ -10,6 +10,10 @@ final class NotoSettings {
         static let notesFolder = "notesFolder"
         static let showsInDock = "showsInDock"
         static let shortcuts = "hotKeys"
+        static let textFont = "notesTextFont"
+        static let cjkFont = "notesCJKFont"
+        static let codeFont = "notesCodeFont"
+        static let fontSize = "notesFontSize"
     }
 
     @ObservationIgnored private let defaults: UserDefaults
@@ -27,6 +31,15 @@ final class NotoSettings {
     var showsInDock: Bool {
         didSet { defaults.set(showsInDock, forKey: Key.showsInDock) }
     }
+    var fonts: NoteFontSettings {
+        didSet {
+            guard fonts != oldValue else { return }
+            defaults.set(fonts.textFamily, forKey: Key.textFont)
+            defaults.set(fonts.cjkFamily, forKey: Key.cjkFont)
+            defaults.set(fonts.codeFamily, forKey: Key.codeFont)
+            defaults.set(fonts.size, forKey: Key.fontSize)
+        }
+    }
     /// Unbound commands are absent; nothing is bound until the user records a shortcut.
     var shortcuts: [HotKeyCommand: KeyShortcut] {
         didSet {
@@ -42,6 +55,12 @@ final class NotoSettings {
         showsFormattingBar = defaults.object(forKey: Key.showsFormattingBar) as? Bool ?? true
         notesFolder = defaults.string(forKey: Key.notesFolder)
         showsInDock = defaults.bool(forKey: Key.showsInDock)
+        fonts = NoteFontSettings(
+            textFamily: defaults.string(forKey: Key.textFont),
+            cjkFamily: defaults.string(forKey: Key.cjkFont),
+            codeFamily: defaults.string(forKey: Key.codeFont),
+            size: (defaults.object(forKey: Key.fontSize) as? Double)
+                .map { min(max($0, NoteFontSettings.sizeRange.lowerBound), NoteFontSettings.sizeRange.upperBound) })
         let stored = defaults.data(forKey: Key.shortcuts)
             .flatMap { try? JSONDecoder().decode([String: KeyShortcut].self, from: $0) }
         shortcuts = (stored ?? [:]).reduce(into: [:]) { shortcuts, entry in

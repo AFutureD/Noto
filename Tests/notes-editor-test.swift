@@ -29,6 +29,7 @@ struct NotesEditorTests {
         testTaskRuleCheckboxesAndLinks()
         testTasks()
         testTaskEdits()
+        testCustomFonts()
         print(failures == 0 ? "Notes editor tests passed" : "\(failures) tests failed")
         exit(failures == 0 ? 0 : 1)
     }
@@ -831,6 +832,91 @@ struct NotesEditorTests {
             return true
         }
         return fragments
+    }
+
+    private static func testCustomFonts() {
+        let installed = Set(NSFontManager.shared.availableFontFamilies)
+        guard installed.isSuperset(of: ["Menlo", "Monaco", "Songti SC"]) else {
+            print("SKIP: custom font checks need Menlo, Monaco and Songti SC")
+            return
+        }
+        defer { _ = NoteMarkdownStyler.apply(.standard) }
+        let source = "Plain 你好 **粗体 bold** *lean*\n\n1. one\n\n`code 字`"
+        let text = source as NSString
+        let input = NoteEditorInput(id: NoteID(rawValue: "Fonts.md"), source: source, epoch: 1)
+        let editor = makeEditor(input: input, rendersMarkdown: true)
+        editor.textView.setSelectedRange(NSRange(location: text.length, length: 0))
+        let standardSize = NoteMarkdownTypography.body.pointSize
+        let standardIndent = headIndent(in: editor.textView, at: text.range(of: "one").location)
+        check("the standard fonts name no label font", NoteMarkdownTypography.labelFontName == nil)
+
+        editor.coordinator.setFonts(
+            NoteFontSettings(textFamily: "Menlo", cjkFamily: "Songti SC", codeFamily: "Monaco", size: 20))
+        let plain = text.range(of: "Plain").location
+        check("a font change restyles the text already on screen", font(in: editor.textView, at: plain)?.familyName == "Menlo")
+        check("the size setting is the body size", font(in: editor.textView, at: plain)?.pointSize == 20)
+        check("typing continues in the chosen font", (editor.textView.typingAttributes[.font] as? NSFont)?.familyName == "Menlo")
+        check("Latin text is drawn by the text family", drawnFamily(in: editor.textView, at: plain) == "Menlo")
+        check(
+            "CJK text is drawn by the CJK family",
+            drawnFamily(in: editor.textView, at: text.range(of: "你好").location) == "Songti SC")
+        let boldCJK = text.range(of: "粗体").location
+        check(
+            "bold reaches the cascaded CJK face",
+            drawnFont(in: editor.textView, at: boldCJK)?.fontDescriptor.symbolicTraits.contains(.bold) == true
+                && drawnFamily(in: editor.textView, at: boldCJK) == "Songti SC")
+        let lean = text.range(of: "lean").location
+        check(
+            "a family with an italic face uses it",
+            font(in: editor.textView, at: lean)?.fontDescriptor.symbolicTraits.contains(.italic) == true
+                && editor.textView.textStorage?.attribute(.obliqueness, at: lean, effectiveRange: nil) == nil)
+        let code = text.range(of: "code").location
+        check("inline code is drawn by the code family", drawnFamily(in: editor.textView, at: code) == "Monaco")
+        check(
+            "CJK inside code is drawn by the CJK family",
+            drawnFamily(in: editor.textView, at: text.range(of: "字").location) == "Songti SC")
+        check(
+            "list indents scale with the body size",
+            headIndent(in: editor.textView, at: text.range(of: "one").location) > standardIndent)
+        check("an ordered number is drawn in the text family", NoteMarkdownTypography.labelFontName?.hasPrefix("Menlo") == true)
+
+        editor.coordinator.setFonts(NoteFontSettings(textFamily: "Monaco"))
+        check(
+            "a family with no italic face is slanted instead",
+            editor.textView.textStorage?.attribute(.obliqueness, at: lean, effectiveRange: nil) != nil
+                && font(in: editor.textView, at: lean)?.familyName == "Monaco")
+        check(
+            "a family with no bold face is stroked instead",
+            editor.textView.textStorage?.attribute(.strokeWidth, at: text.range(of: "bold").location, effectiveRange: nil) != nil)
+
+        editor.coordinator.setFonts(NoteFontSettings(textFamily: "No Such Family"))
+        check(
+            "a family that is not installed falls back to the system font",
+            font(in: editor.textView, at: plain) == NSFont.systemFont(ofSize: standardSize))
+
+        editor.coordinator.setFonts(.standard)
+        check(
+            "the standard settings restore the system fonts",
+            font(in: editor.textView, at: plain) == NSFont.systemFont(ofSize: standardSize)
+                && headIndent(in: editor.textView, at: text.range(of: "one").location) == standardIndent)
+    }
+
+    private static func headIndent(in textView: NSTextView, at location: Int) -> CGFloat {
+        let style = textView.textStorage?.attribute(.paragraphStyle, at: location, effectiveRange: nil)
+        return (style as? NSParagraphStyle)?.headIndent ?? 0
+    }
+
+    /// The font Core Text picks for the glyph, which is the cascade's choice, not the attribute.
+    private static func drawnFont(in textView: NSTextView, at location: Int) -> NSFont? {
+        guard let storage = textView.textStorage else { return nil }
+        let piece = storage.attributedSubstring(from: NSRange(location: location, length: 1))
+        let runs = CTLineGetGlyphRuns(CTLineCreateWithAttributedString(piece)) as? [CTRun]
+        guard let run = runs?.first else { return nil }
+        return (CTRunGetAttributes(run) as NSDictionary)[kCTFontAttributeName] as? NSFont
+    }
+
+    private static func drawnFamily(in textView: NSTextView, at location: Int) -> String? {
+        drawnFont(in: textView, at: location)?.familyName
     }
 
     private static func font(in textView: NSTextView, at location: Int) -> NSFont? {

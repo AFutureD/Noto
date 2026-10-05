@@ -36,6 +36,8 @@ search, or extend the collection. Notes is the app: there is no switch that turn
   clamps it to the floor below which the title bar's own parts collide.
 - Notes code asks through `NotesDialogs`, never builds an alert itself. The coordinator names the
   question; `NotesDialogs.alerts` is the one place an `NSAlert` is constructed.
+- The editor gets each font from `NoteMarkdownTypography`. Only `NoteMarkdownStyler.apply` changes the
+  fonts, because it also builds the attributes again.
 
 ## Storage and identity
 
@@ -307,6 +309,59 @@ An empty note shows a `Start writing…` placeholder at the text container's ori
 character count comes straight off `NSTextStorage.length` and sits in a footer under the editor, or at
 the leading end of the formatting bar's band while the bar shows. Both belong to the editor surface,
 so neither appears when no note is active.
+
+### Fonts
+
+Settings > Fonts sets four values. `NotoSettings.fonts` holds them as one `NoteFontSettings`.
+
+| Setting | Member | UserDefaults key | When absent |
+| --- | --- | --- | --- |
+| Text Font | `textFamily` | `notesTextFont` | the system font |
+| CJK Font | `cjkFamily` | `notesCJKFont` | the fallback that macOS selects |
+| Code Font | `codeFamily` | `notesCodeFont` | the system monospaced font |
+| Size | `size` | `notesFontSize` | the `title3` size |
+
+- The text family draws body text, headings and ordered list numbers.
+- The code family draws inline code, code blocks and tables.
+- The size is the body size. Headings, list indents, bullets and checkboxes scale with it.
+- The size range is 10 to 32 points.
+- If a family is not installed, the editor uses the system font. The setting keeps its value.
+
+`NotesView` gives `notes.fonts` to `NoteEditorView`. `Coordinator.setFonts` calls
+`NoteMarkdownStyler.apply`, then `NoteMarkdownRenderer.reset()`. A font change applies to the open
+note immediately. It does not change the undo history and does not make the note dirty.
+
+#### The CJK family
+
+The CJK family is a font cascade, not a second font attribute. `NoteMarkdownTypography` adds the CJK
+family to the cascade list of each text font and each code font. Core Text uses the cascade for each
+character that the primary family does not have. Thus one `NSFont` is sufficient for a mixed line,
+and the literal editor uses the same font.
+
+- A bold font gets a bold cascade entry. The traits of a font descriptor do not apply to its cascade
+  list.
+- The primary family draws each character that it has. Thus a Latin family draws the curly quotes
+  and the ellipsis in CJK text.
+- If the text family has Han characters, the CJK family has no effect on body text.
+- The CJK font menu shows only the families that have Han characters.
+
+#### Missing faces
+
+Many families have no italic face, and some have no bold face. `Monaco`, `PingFang SC` and
+`Songti SC` are examples. `NoteMarkdownTypography.emphasized` and `headingLook` use the face when the
+family has it. If the family does not have it, they add a drawn substitute:
+
+- `.obliqueness` for italic.
+- A negative `.strokeWidth` for bold.
+
+#### Monospaced families
+
+- The code font menu shows only fixed-pitch families.
+- A fixed-pitch text family is permitted. Inline code then differs from body text only by its
+  background.
+- CJK characters do not align with Latin columns in most monospaced families. In `Menlo`, a Han
+  character is 1.66 times the width of a Latin character. Use a family with a 2:1 design to align
+  them.
 
 ## Autosave
 

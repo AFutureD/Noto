@@ -310,8 +310,13 @@ resizable, centred on each open — with real traffic lights and a lifecycle who
 share the note window's look: it is one stock `Form` with `.formStyle(.grouped)`, so the cards,
 headers, row insets and hairlines are all system-drawn and it reads as macOS System Settings does.
 
-- Four sections: Editor (Render Markdown, Show Formatting Bar), Storage (Notes Folder), App (Show in
-  Dock), Shortcuts (one row per `HotKeyCommand`).
+- Five sections: Editor (Render Markdown, Show Formatting Bar), Fonts (Text Font, CJK Font, Code Font,
+  Size, Reset to Defaults), Storage (Notes Folder), App (Show in Dock), Shortcuts (one row per
+  `HotKeyCommand`).
+- A font row is a `Picker` of family names from `FontCatalog`. Its first item is the system choice.
+  `FontCatalog` reads the families off the main thread, and the menus fill when it completes.
+  The CJK menu shows only families with Han characters. The code menu shows only fixed-pitch families.
+- If a stored family is not installed, its menu shows the name with "(Not Installed)".
 - A row is a stock control: `Toggle` or `LabeledContent`, each with a two-view label — the first view
   is the title, the second becomes the secondary line.
 - A shortcut row is the one exception: an `HStack` of the two-line label and the `ShortcutRecorder`,

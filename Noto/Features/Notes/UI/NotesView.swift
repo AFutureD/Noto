@@ -54,6 +54,7 @@ struct NotesView: View {
             NoteEditorView(
                 input: notes.editorInput,
                 rendersMarkdown: notes.rendersMarkdown,
+                fonts: notes.fonts,
                 onSourceChange: notes.updateSource,
                 onCharacterCountChange: notes.updateCharacterCount,
                 onFormattingChange: notes.updateFormatting,

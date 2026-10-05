@@ -21,6 +21,7 @@ the files are the notes.
 - A menu bar item, and an optional Dock icon (Settings > App > Show in Dock).
 - Autosave 300 ms after you stop typing.
 - Render Markdown can be turned off for a plain-text editor.
+- You can set the text font, the CJK font, the code font and the size.
 
 Images, tables and syntax highlighting are not rendered; they appear as text.
 

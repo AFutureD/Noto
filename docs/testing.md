@@ -66,7 +66,7 @@ suite takes about ten seconds, so in practice run both.
 | Harness | Guards |
 | --- | --- |
 | `notes-test` | all of `Noto/Features/Notes/Model/` and `Noto/Features/Notes/Service/`: the repository, the store's autosave, selection and relocation, derived titles, search with the real `FuzzyMatch`, the Markdown parser, every edit plan, the formatting reports, the reveal policy, switcher interaction and window placement |
-| `notes-editor-test` | the Notes editor, rendered and literal, with real TextKit 2 and AppKit editing objects: styling, reveal, layout fragments, keys, chords, checkboxes, links, undo and the character count. Also compiles `Noto/DesignSystem/Theme.swift` and `InterfaceMetrics.swift`, so a token those lose breaks it |
+| `notes-editor-test` | the Notes editor, rendered and literal, with real TextKit 2 and AppKit editing objects: styling, reveal, layout fragments, keys, chords, checkboxes, links, undo, the character count and custom fonts. Also compiles `Noto/DesignSystem/Theme.swift` and `InterfaceMetrics.swift`, so a token those lose breaks it |
 
 Nothing automated covers `Noto/Features/HotKeys/`, `Noto/Features/Settings/`, `Noto/App/`,
 `Noto/Windows/` or the Notes window chrome. A change there is verified by the manual sweep.
@@ -136,7 +136,7 @@ root, and keep this command and that list matching:
 N=Noto/Features/Notes
 swiftc -O -swift-version 6 Noto/Platform/{Signposts,Appearance,NotificationToken}.swift \
     Noto/DesignSystem/{Theme,InterfaceMetrics}.swift \
-    $N/Model/{NoteDocument,NoteMarkdown,NoteMarkdownParser,NoteInlineScanner}.swift \
+    $N/Model/{NoteDocument,NoteFontSettings,NoteMarkdown,NoteMarkdownParser,NoteInlineScanner}.swift \
     $N/Model/{NoteEditPlan,NoteEditAction,NoteFormatting,NoteMarkdownEditing,NoteRevealPolicy}.swift \
     $N/UI/{NoteMarkdownTypography,NoteBlockDecoration,NoteMarkdownStyler,NoteMarkdownRenderer}.swift \
     $N/UI/{NoteCheckboxGeometry,NoteBlockLayoutFragment,NoteLayoutFragmentProvider}.swift \
@@ -288,6 +288,10 @@ The window:
 
 - Settings… opens from the menu bar item and with ⌘,; a second request raises the same window; Escape
   and the red light close it; it reopens centred
+- Each font setting applies to the open note immediately: Text Font, CJK Font, Code Font and Size
+- With Text Font `Menlo` and CJK Font `Songti SC`, Latin text is Menlo and Han text is Songti
+- With Text Font `Monaco`, italic text slants and bold text is heavier
+- Reset to Defaults restores the system fonts, and it is disabled when no font setting is set
 - Render Markdown and Show Formatting Bar take effect in the open note immediately; Show Formatting Bar
   is disabled while Render Markdown is off
 - Choose… opens in front, and picking a folder switches the note window to that folder's notes with

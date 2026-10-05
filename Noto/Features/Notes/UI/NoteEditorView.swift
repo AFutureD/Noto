@@ -4,6 +4,7 @@ import SwiftUI
 struct NoteEditorView: NSViewRepresentable {
     let input: NoteEditorInput
     let rendersMarkdown: Bool
+    var fonts = NoteFontSettings.standard
     let onSourceChange: (String) -> Void
     let onCharacterCountChange: (NoteEditorInput, Int) -> Void
     let onFormattingChange: (NoteEditorInput, NoteFormatting) -> Void
@@ -38,6 +39,7 @@ struct NoteEditorView: NSViewRepresentable {
         context.coordinator.parent = self
         context.coordinator.update(input)
         context.coordinator.setRendersMarkdown(rendersMarkdown)
+        context.coordinator.setFonts(fonts)
     }
 
     @MainActor
@@ -62,6 +64,7 @@ struct NoteEditorView: NSViewRepresentable {
             input = parent.input
             renderer = NoteMarkdownRenderer(isEnabled: parent.rendersMarkdown)
             super.init()
+            _ = NoteMarkdownStyler.apply(parent.fonts)
             let center = NotificationCenter.default
             undoObservers = [
                 center.addObserver(of: editorUndoManager, for: .didUndoChange) { [weak self] _ in
@@ -116,6 +119,13 @@ struct NoteEditorView: NSViewRepresentable {
             renderer.isEnabled = rendersMarkdown
             renderer.reset()
             reportFormatting()
+        }
+
+        func setFonts(_ fonts: NoteFontSettings) {
+            guard NoteMarkdownStyler.apply(fonts), let textView else { return }
+            // The empty note's placeholder is drawn by the view itself, outside any restyle.
+            textView.needsDisplay = true
+            renderer.reset()
         }
 
         func textDidChange(_ notification: Notification) {

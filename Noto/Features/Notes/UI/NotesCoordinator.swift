@@ -76,6 +76,7 @@ final class NotesCoordinator {
 
     var activeTitle: String { store.activeTitle }
     var rendersMarkdown: Bool { settings.rendersMarkdown }
+    var fonts: NoteFontSettings { settings.fonts }
     var showsFormattingBar: Bool { settings.rendersMarkdown && settings.showsFormattingBar }
     var isSearching: Bool { store.isSearching }
     var visibleNotes: [NoteSummary] {

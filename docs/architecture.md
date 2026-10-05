@@ -16,6 +16,7 @@ hold them apart.
 │ Notes/Model/* — NoteMarkdown, NoteMarkdownParser, NoteInlineScanner,       │
 │ NoteMarkdownEditing, NoteEditAction, NoteEditPlan, NoteFormatting,         │
 │ NoteRevealPolicy, NoteTitle, NoteSearch, FuzzyMatch, NoteDocument,         │
+│ NoteFontSettings,                                                          │
 │ NoteSwitcherInteraction, NoteWindowPlacement · HotKeys/Model/HotKeyCommand │
 └──────────────────────────────────┬─────────────────────────────────────────┘
                                    │ consumed by
@@ -99,6 +100,7 @@ to `UserDefaults` in its `didSet`. The keys are that file's private `Key` enum:
 | `showsFormattingBar` | `notesShowsFormattingBar` | on |
 | `notesFolder` | `notesFolder` | nil — the default folder in Application Support |
 | `showsInDock` | `showsInDock` | off |
+| `fonts` | `notesTextFont`, `notesCJKFont`, `notesCodeFont`, `notesFontSize` | nil — see [notes.md](features/notes.md#fonts) |
 | `shortcuts` | `hotKeys` | empty — see [hotkeys.md](features/hotkeys.md#persistence) |
 
 Two more values are window state rather than preferences, so `AppCore` reads and writes them itself
@@ -207,7 +209,7 @@ Noto/
   DesignSystem/     Theme (the token source), InterfaceMetrics, BarButton, KeyCapChip, Tooltip,
                     SymbolImage, GlassEffectView, Scrolling/OverflowFade
   Platform/         system shims: AppPaths, AppDisplayName, ActivationPolicy, FolderPicker,
-                    ASCIIKeyboardLayout, Appearance, NotificationToken, Signposts
+                    FontCatalog, ASCIIKeyboardLayout, Appearance, NotificationToken, Signposts
   Windows/          AppWindowController, the titled window Settings opens in
   Assets.xcassets/  the app icon
   Info.plist        LSUIElement and the bundle keys; excluded from target membership
