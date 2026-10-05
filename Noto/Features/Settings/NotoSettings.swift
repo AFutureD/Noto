@@ -12,6 +12,7 @@ final class NotoSettings {
         static let keepsOnTop = "notesKeepsOnTop"
         static let shortcuts = "hotKeys"
         static let textFont = "notesTextFont"
+        static let headingFont = "notesHeadingFont"
         static let cjkFont = "notesCJKFont"
         static let codeFont = "notesCodeFont"
         static let fontSize = "notesFontSize"
@@ -40,6 +41,7 @@ final class NotoSettings {
         didSet {
             guard fonts != oldValue else { return }
             defaults.set(fonts.textFamily, forKey: Key.textFont)
+            defaults.set(fonts.headingFamily, forKey: Key.headingFont)
             defaults.set(fonts.cjkFamily, forKey: Key.cjkFont)
             defaults.set(fonts.codeFamily, forKey: Key.codeFont)
             defaults.set(fonts.size, forKey: Key.fontSize)
@@ -63,6 +65,7 @@ final class NotoSettings {
         keepsOnTop = defaults.bool(forKey: Key.keepsOnTop)
         fonts = NoteFontSettings(
             textFamily: defaults.string(forKey: Key.textFont),
+            headingFamily: defaults.string(forKey: Key.headingFont),
             cjkFamily: defaults.string(forKey: Key.cjkFont),
             codeFamily: defaults.string(forKey: Key.codeFont),
             size: (defaults.object(forKey: Key.fontSize) as? Double)

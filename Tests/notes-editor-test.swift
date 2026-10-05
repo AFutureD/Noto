@@ -836,12 +836,12 @@ struct NotesEditorTests {
 
     private static func testCustomFonts() {
         let installed = Set(NSFontManager.shared.availableFontFamilies)
-        guard installed.isSuperset(of: ["Menlo", "Monaco", "Songti SC"]) else {
-            print("SKIP: custom font checks need Menlo, Monaco and Songti SC")
+        guard installed.isSuperset(of: ["Menlo", "Monaco", "Courier New", "Songti SC"]) else {
+            print("SKIP: custom font checks need Menlo, Monaco, Courier New and Songti SC")
             return
         }
         defer { _ = NoteMarkdownStyler.apply(.standard) }
-        let source = "Plain 你好 **粗体 bold** *lean*\n\n1. one\n\n`code 字`"
+        let source = "Plain 你好 **粗体 bold** *lean*\n\n1. one\n\n`code 字`\n\n# Head 题"
         let text = source as NSString
         let input = NoteEditorInput(id: NoteID(rawValue: "Fonts.md"), source: source, epoch: 1)
         let editor = makeEditor(input: input, rendersMarkdown: true)
@@ -879,6 +879,20 @@ struct NotesEditorTests {
             "list indents scale with the body size",
             headIndent(in: editor.textView, at: text.range(of: "one").location) > standardIndent)
         check("an ordered number is drawn in the text family", NoteMarkdownTypography.labelFontName?.hasPrefix("Menlo") == true)
+
+        let head = text.range(of: "Head").location
+        check("a heading follows the text family when it has none", font(in: editor.textView, at: head)?.familyName == "Menlo")
+        editor.coordinator.setFonts(
+            NoteFontSettings(textFamily: "Menlo", headingFamily: "Courier New", cjkFamily: "Songti SC"))
+        check(
+            "a heading uses its own family, in bold",
+            font(in: editor.textView, at: head)?.familyName == "Courier New"
+                && font(in: editor.textView, at: head)?.fontDescriptor.symbolicTraits.contains(.bold) == true)
+        check("the heading family leaves body text alone", font(in: editor.textView, at: plain)?.familyName == "Menlo")
+        check(
+            "CJK in a heading is drawn by the CJK family",
+            drawnFamily(in: editor.textView, at: text.range(of: "题").location) == "Songti SC")
+        check("an ordered number stays in the text family", NoteMarkdownTypography.labelFontName?.hasPrefix("Menlo") == true)
 
         editor.coordinator.setFonts(NoteFontSettings(textFamily: "Monaco"))
         check(

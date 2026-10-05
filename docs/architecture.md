@@ -101,7 +101,7 @@ to `UserDefaults` in its `didSet`. The keys are that file's private `Key` enum:
 | `notesFolder` | `notesFolder` | nil — the default folder in Application Support |
 | `showsInDock` | `showsInDock` | off |
 | `keepsOnTop` | `notesKeepsOnTop` | off |
-| `fonts` | `notesTextFont`, `notesCJKFont`, `notesCodeFont`, `notesFontSize` | nil — see [notes.md](features/notes.md#fonts) |
+| `fonts` | `notesTextFont`, `notesHeadingFont`, `notesCJKFont`, `notesCodeFont`, `notesFontSize` | nil — see [notes.md](features/notes.md#fonts) |
 | `shortcuts` | `hotKeys` | empty — see [hotkeys.md](features/hotkeys.md#persistence) |
 
 Two more values are window state rather than preferences, so `AppCore` reads and writes them itself

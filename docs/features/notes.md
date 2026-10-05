@@ -333,16 +333,18 @@ immediately. The switcher and the heading menu take the value of the note window
 
 ### Fonts
 
-Settings > Fonts sets four values. `NotoSettings.fonts` holds them as one `NoteFontSettings`.
+Settings > Fonts sets five values. `NotoSettings.fonts` holds them as one `NoteFontSettings`.
 
 | Setting | Member | UserDefaults key | When absent |
 | --- | --- | --- | --- |
 | Text Font | `textFamily` | `notesTextFont` | the system font |
+| Heading Font | `headingFamily` | `notesHeadingFont` | the text family |
 | CJK Font | `cjkFamily` | `notesCJKFont` | the fallback that macOS selects |
 | Code Font | `codeFamily` | `notesCodeFont` | the system monospaced font |
 | Size | `size` | `notesFontSize` | the `title3` size |
 
-- The text family draws body text, headings and ordered list numbers.
+- The text family draws body text and ordered list numbers.
+- The heading family draws headings. Heading sizes and weights do not change with the family.
 - The code family draws inline code, code blocks and tables.
 - The size is the body size. Headings, list indents, bullets and checkboxes scale with it.
 - The size range is 10 to 32 points.
@@ -355,7 +357,7 @@ note immediately. It does not change the undo history and does not make the note
 #### The CJK family
 
 The CJK family is a font cascade, not a second font attribute. `NoteMarkdownTypography` adds the CJK
-family to the cascade list of each text font and each code font. Core Text uses the cascade for each
+family to the cascade list of each text font, each heading font and each code font. Core Text uses the cascade for each
 character that the primary family does not have. Thus one `NSFont` is sufficient for a mixed line,
 and the literal editor uses the same font.
 

@@ -105,21 +105,22 @@ enum NoteMarkdownTypography {
         init(_ settings: NoteFontSettings) {
             let bodySize = settings.size.map { CGFloat($0) } ?? standardBodySize
             let scale = bodySize / standardBodySize
-            let text = { (style: NSFont.TextStyle, weight: NSFont.Weight) in
+            let text = { (family: String?, style: NSFont.TextStyle, weight: NSFont.Weight) in
                 NoteMarkdownTypography.cascaded(
                     NoteMarkdownTypography.text(
-                        family: settings.textFamily, size: (size(style) * scale).rounded(), weight: weight),
+                        family: family, size: (size(style) * scale).rounded(), weight: weight),
                     onto: settings.cjkFamily)
             }
+            let headingFamily = settings.headingFamily ?? settings.textFamily
             let code = { (size: CGFloat) in
                 NoteMarkdownTypography.cascaded(
                     NoteMarkdownTypography.code(family: settings.codeFamily, size: size),
                     onto: settings.cjkFamily)
             }
-            body = text(.title3, .regular)
-            heading1 = text(.largeTitle, .bold)
-            heading2 = text(.title1, .bold)
-            heading3 = text(.title2, .semibold)
+            body = text(settings.textFamily, .title3, .regular)
+            heading1 = text(headingFamily, .largeTitle, .bold)
+            heading2 = text(headingFamily, .title1, .bold)
+            heading3 = text(headingFamily, .title2, .semibold)
             inlineCode = code(body.pointSize)
             codeBlock = code(body.pointSize - 1)
         }

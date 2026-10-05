@@ -292,7 +292,9 @@ The window:
 - With Keep on Top on, the note window stays above other windows and shows on each Space
 - Each control changes the state immediately: the Settings row, the menu bar item, ⌥⌘P and the global
   shortcut. The check mark in the menu bar menu agrees with the state
-- Each font setting applies to the open note immediately: Text Font, CJK Font, Code Font and Size
+- Each font setting applies to the open note immediately: Text Font, Heading Font, CJK Font, Code Font
+  and Size
+- With Heading Font set, headings use that family and body text does not change
 - With Text Font `Menlo` and CJK Font `Songti SC`, Latin text is Menlo and Han text is Songti
 - With Text Font `Monaco`, italic text slants and bold text is heavier
 - Reset to Defaults restores the system fonts, and it is disabled when no font setting is set

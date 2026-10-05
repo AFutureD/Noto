@@ -22,6 +22,9 @@ struct SettingsView: View {
                     title: "Text Font", standard: "System", families: families.all,
                     selection: $settings.fonts.textFamily)
                 FontFamilyPicker(
+                    title: "Heading Font", standard: "Same as Text", families: families.all,
+                    selection: $settings.fonts.headingFamily)
+                FontFamilyPicker(
                     title: "CJK Font", standard: "Automatic", families: families.cjk,
                     selection: $settings.fonts.cjkFamily)
                 FontFamilyPicker(
