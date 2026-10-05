@@ -1,0 +1,23 @@
+# macOS
+.DS_Store
+
+# Xcode
+DerivedData/
+*.xcworkspace/xcuserdata/
+*.xcuserdatad/
+*.xcuserstate
+
+# SourceKit-LSP / Swift tooling (machine-specific)
+buildServer.json
+.compile
+.swiftpm/
+.build/
+
+# Build output
+build/
+dist/
+
+# Temporary files
+*.swp
+*.tmp
+*.orig

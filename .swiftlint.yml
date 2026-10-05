@@ -1,0 +1,51 @@
+# SwiftLint is the only code-quality tool here — there is no formatter, deliberately.
+# So this config sticks to rules that catch defects, and stays quiet
+# about style a formatter would otherwise own. See docs/standards.md.
+
+included:
+  - Noto
+  - Tests
+
+# Noisy here, or actively wrong for this codebase.
+disabled_rules:
+  - todo                                      # tracked in issues, not by the linter
+  - trailing_whitespace                       # cosmetic, and nothing auto-fixes it on save
+  - identifier_name                           # rejects `id`, `dx`, `x` — all correct here
+  - type_body_length                          # a SwiftUI view is legitimately long
+  - function_body_length
+  - file_length
+  - cyclomatic_complexity
+  - nesting                                   # namespace enums are the house style
+  - large_tuple
+  - function_parameter_count                  # SwiftUI initialisers
+  - multiple_closures_with_trailing_closure   # fights SwiftUI
+  - opening_brace                             # ─┐ a formatter's job, and there is no formatter
+  - trailing_comma                            # ─┘ here, so these would just be standing noise
+  - empty_count
+
+# Each one prevents a real class of defect, not a style preference.
+opt_in_rules:
+  - first_where
+  - last_where
+  - contains_over_filter_count
+  - contains_over_first_not_nil
+  - optional_data_string_conversion
+  - implicitly_unwrapped_optional
+  - redundant_nil_coalescing
+  - toggle_bool
+  - static_over_final_class
+  - unneeded_parentheses_in_closure_argument
+  - weak_delegate
+
+# A `try!` is never acceptable. A `force_cast` sometimes is at an AppKit bridge, so it warns.
+force_try: error
+force_cast: warning
+
+type_name:
+  min_length: 2     # `ID` is the correct name for an Identifiable's ID
+
+# Warning-only: length is a judgement call, and a harness header comment is not a defect.
+line_length:
+  warning: 130
+  ignores_urls: true
+  ignores_comments: false

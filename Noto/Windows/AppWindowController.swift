@@ -1,0 +1,108 @@
+import AppKit
+import SwiftUI
+
+private final class AppWindow: NSWindow {
+    var closesOnEscape = false
+
+    override func cancelOperation(_ sender: Any?) {
+        if closesOnEscape { close() } else { super.cancelOperation(sender) }
+    }
+}
+
+/// Built on first show, torn down on close so its SwiftUI tree deallocates. Never quits the app.
+@MainActor
+final class AppWindowController: NSObject, NSWindowDelegate {
+    private let title: String
+    private let contentSize: CGSize
+    private let minimumSize: CGSize
+    private let isResizable: Bool
+    private let autosaveName: String?
+    private let activation: ActivationPolicy
+    private let closesOnEscape: Bool
+    private var window: NSWindow?
+
+    /// The opening size is also the resize floor unless a smaller `minimumSize` is named.
+    init(
+        title: String, contentSize: CGSize, minimumSize: CGSize? = nil, resizable: Bool = false,
+        autosaveName: String? = nil, activation: ActivationPolicy, closesOnEscape: Bool = false
+    ) {
+        self.title = title
+        self.contentSize = contentSize
+        self.minimumSize = minimumSize ?? contentSize
+        self.isResizable = resizable
+        self.autosaveName = autosaveName
+        self.activation = activation
+        self.closesOnEscape = closesOnEscape
+    }
+
+    /// Returns `true` when a window was built, `false` when an already-open one was re-raised.
+    @discardableResult
+    func show<Content: View>(@ViewBuilder content: () -> Content) -> Bool {
+        if let window {
+            raise(window)
+            return false
+        }
+        let hosting = NSHostingController(rootView: content())
+        // Keep the window's size authoritative: an unconstrained fill would drive the frame.
+        hosting.sizingOptions = []
+        let window = makeWindow(content: hosting)
+        self.window = window
+        activation.windowDidOpen(window)
+        raise(window)
+        return true
+    }
+
+    func close() {
+        window?.close()
+    }
+
+    // MARK: - NSWindowDelegate
+
+    func windowWillClose(_ notification: Notification) {
+        guard let window else { return }
+        self.window = nil
+        activation.windowDidClose(window)
+    }
+
+    // MARK: - Private
+
+    private func makeWindow(content: NSViewController) -> NSWindow {
+        var style: NSWindow.StyleMask = [.titled, .closable, .miniaturizable]
+        if isResizable { style.insert(.resizable) }
+        let window = AppWindow(
+            contentRect: NSRect(origin: .zero, size: contentSize),
+            styleMask: style,
+            backing: .buffered,
+            defer: false
+        )
+        window.title = title
+        window.closesOnEscape = closesOnEscape
+        window.isReleasedWhenClosed = false
+        // AppKit would otherwise resurrect the window at launch, before anything is wired up.
+        window.isRestorable = false
+        window.contentMinSize = minimumSize
+        window.delegate = self
+        window.contentViewController = content
+        // `contentViewController` resets the frame to the controller's fitting size.
+        window.setContentSize(contentSize)
+
+        if let autosaveName {
+            window.setFrameAutosaveName(autosaveName)
+            if !window.setFrameUsingName(autosaveName) { window.center() }
+        } else {
+            window.center()
+        }
+        return window
+    }
+
+    private func raise(_ window: NSWindow) {
+        if window.isMiniaturized { window.deminiaturize(nil) }
+        NSApp.activate(ignoringOtherApps: true)
+        window.makeKeyAndOrderFront(nil)
+        // `NSApp.activate` is async, so re-assert next turn — never onto a window closed since.
+        DispatchQueue.main.async { [weak self, weak window] in
+            guard let window, self?.window === window else { return }
+            window.makeKeyAndOrderFront(nil)
+        }
+    }
+}
