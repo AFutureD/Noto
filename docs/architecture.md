@@ -65,7 +65,7 @@ every feature draws on. Neither may depend on a feature.
 
 `AppCore.shared` (`Noto/App/AppCore.swift`) is a `@MainActor` singleton owning every long-lived thing in
 the app: `NotoSettings`, `NotesStore`, `HotKeyManager`, `ActivationPolicy`, the lazily-built
-`NotesCoordinator`, and the Settings `AppWindowController`.
+`NotesCoordinator`, and the `SettingsWindowController`.
 
 `AppDelegate.applicationDidFinishLaunching` calls `AppCore.shared.start()` and nothing else. That is the
 one wiring point, and `start()` reads as the app's whole boot sequence: apply the Dock preference,
@@ -126,8 +126,8 @@ driven imperatively from AppKit.
   window, managed by `NoteSwitcherWindowController` and `NoteHeadingMenuWindowController`. The switcher
   takes key and dismisses when it resigns it; the heading menu never becomes key, so the editor keeps
   its caret beneath it. See [features/notes.md](features/notes.md).
-- The Settings window — a plain titled `NSWindow` built by `Noto/Windows/AppWindowController.swift`,
-  hosting `SettingsView`. SwiftUI's `Settings` scene is unreliable for accessory apps, so this is
+- The Settings window — a titled `NSWindow` with a preference toolbar, built by
+  `Noto/Features/Settings/SettingsWindowController.swift`, hosting `SettingsView`. SwiftUI's `Settings` scene is unreliable for accessory apps, so this is
   deliberate. It is built on first show, torn down on close so its SwiftUI tree deallocates, closes on
   Escape, and never quits the app.
 - Dialogs — system `NSAlert`s, presented only through the injected `NotesDialogs`
@@ -139,7 +139,7 @@ Noto assigns no `NSApp.appearance`; every surface follows macOS.
 
 `ActivationPolicy` (`Noto/Platform/ActivationPolicy.swift`) is the only caller of
 `NSApp.setActivationPolicy`. The app is `.regular` when `showsInDock` is on or a titled window is open,
-and `.accessory` otherwise. `AppWindowController` reports its window's open and close to it; the note
+and `.accessory` otherwise. `SettingsWindowController` reports its window's open and close to it; the note
 panel does not, so with Show in Dock off the Dock icon appears only while Settings is open. Open
 windows are tracked by identity rather than a count, so a repeated open or close cannot strand the
 icon.
@@ -211,7 +211,6 @@ Noto/
                     SymbolImage, GlassEffectView, Scrolling/OverflowFade
   Platform/         system shims: AppPaths, AppDisplayName, ActivationPolicy, FolderPicker,
                     FontCatalog, ASCIIKeyboardLayout, Appearance, NotificationToken, Signposts
-  Windows/          AppWindowController, the titled window Settings opens in
   Assets.xcassets/  the app icon
   Info.plist        LSUIElement and the bundle keys; excluded from target membership
   Noto.entitlements sandbox off; read by code signing

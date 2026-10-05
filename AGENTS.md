@@ -37,10 +37,9 @@ keyboard layout. Full reasoning in [standards.md](docs/standards.md#posture).
 | `Noto/App/` | `NotoApp` (`@main`), `AppDelegate`, `AppCore` — the composition root — and `MenuBarItem` |
 | `Noto/DesignSystem/` | shared visual primitives; `Theme.swift` is the only design-token source |
 | `Noto/Platform/` | system shims: `AppPaths`, `ActivationPolicy`, `FolderPicker`, `Signposts`, `NotificationToken`, … |
-| `Noto/Windows/` | `AppWindowController`, the titled window Settings opens in |
 | `Noto/Features/Notes/` | the note collection and editor, split `Model/` `Service/` `UI/` |
 | `Noto/Features/HotKeys/` | the four global shortcuts and their recorder, split `Model/` `Service/` `UI/` |
-| `Noto/Features/Settings/` | `NotoSettings` (every preference) and `SettingsView` |
+| `Noto/Features/Settings/` | `NotoSettings` (every preference), `SettingsWindowController` and `SettingsView` |
 | `Tests/` | the standalone harnesses — one Swift file each, no XCTest target |
 | `Scripts/` | `run-tests.sh` and `lint.sh` |
 

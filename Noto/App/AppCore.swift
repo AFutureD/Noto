@@ -25,11 +25,8 @@ final class AppCore {
             UserDefaults.standard.set($0, forKey: Self.noteFormattingBarKey)
         })
 
-    @ObservationIgnored private lazy var settingsWindow = AppWindowController(
-        title: "\(Bundle.main.appDisplayName) Settings",
-        contentSize: Theme.Size.settingsWindow,
-        activation: activationPolicy,
-        closesOnEscape: true)
+    @ObservationIgnored private lazy var settingsWindow = SettingsWindowController(
+        activation: activationPolicy)
 
     private init() {
         let settings = NotoSettings()
@@ -62,8 +59,9 @@ final class AppCore {
     }
 
     func showSettings() {
-        settingsWindow.show {
+        settingsWindow.show { navigation in
             SettingsView()
+                .environment(navigation)
                 .environment(self)
                 .environment(settings)
                 .environment(hotKeys)

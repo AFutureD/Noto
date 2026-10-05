@@ -23,7 +23,7 @@ struct ShortcutRecorder: View {
             // An over-long shortcut truncates rather than resizing the field.
             .clipShape(shape)
             .contentShape(shape)
-            .onTapGesture { hotKeys.recordingCommand = isRecording ? nil : command }
+            .onTapGesture { toggleRecording() }
             .onHover { hovered = $0 }
             // Hand the callout this field's bounds while it's the open one.
             .anchorPreference(key: ShortcutRecorderAnchorKey.self, value: .bounds) {
@@ -34,6 +34,11 @@ struct ShortcutRecorder: View {
             .accessibilityElement(children: .combine)
             .accessibilityLabel("\(command.title) shortcut")
             .accessibilityAddTraits(.isButton)
+            .accessibilityAction { toggleRecording() }
+    }
+
+    private func toggleRecording() {
+        hotKeys.recordingCommand = isRecording ? nil : command
     }
 
     @ViewBuilder

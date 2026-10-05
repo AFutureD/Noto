@@ -19,7 +19,7 @@ the files are the notes.
 - An untitled note shows its first line as its title until you name it.
 - Four global shortcuts: Show Notes, Create Note, Search Notes and Keep on Top. Record them in
   Settings. A shortcut has no key until you record one.
-- A menu bar item, and an optional Dock icon (Settings > App > Show in Dock).
+- A menu bar item, and an optional Dock icon (Settings > General > Show in Dock).
 - Autosave 300 ms after you stop typing.
 - Render Markdown can be turned off for a plain-text editor.
 - You can set the text font, the heading font, the CJK font, the code font and the size.
@@ -88,7 +88,7 @@ writes the same notes and settings as a Release build. See [docs/development.md]
 ~/Library/Application Support/app.huanan.noto/Notes/
 ```
 
-Each note is one `.md` file and its filename is its title. Settings > Storage > Notes Folder points
+Each note is one `.md` file and its filename is its title. Settings > General > Notes folder points
 Noto at any other folder instead; nothing is moved when you change it. Only files directly in the
 folder count — subfolders, hidden files and links are ignored.
 

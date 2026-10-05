@@ -58,7 +58,7 @@ fit the table.
 | `Store` | Owns state and publishes it | `NotesStore` |
 | `Repository` | File semantics a `Store` does not imply — validation, unique-name claiming | `NotesRepository` |
 | `Coordinator` | A feature's action surface, called by `AppCore` and views | `NotesCoordinator` |
-| `Controller` | Owns one AppKit window or surface | `NotesWindowController`, `AppWindowController` |
+| `Controller` | Owns one AppKit window or surface | `NotesWindowController`, `SettingsWindowController` |
 | `Manager` | Owns a subsystem's lifecycle and its policy; started from `AppCore.start()` | `HotKeyManager` |
 | `Center` | The Carbon registration layer specifically | `HotKeyCenter` |
 | `Session` | Transient state for one in-progress interaction | `ShortcutCaptureSession` |
@@ -117,7 +117,7 @@ Swift 6 language mode: data-race violations are hard errors, and that is the des
 - Every escaping closure capturing `self` uses `[weak self]`, or `unowned` where the closure's owner
   cannot outlive the captured object (as the Notes window controllers hold their coordinator).
 - `DispatchQueue.main.async` is not a fix for an ordering problem. If order matters, make it explicit.
-  The one use, in `AppWindowController.raise`, re-asserts key status after an asynchronous
+  The one use, in `SettingsWindowController.raise`, re-asserts key status after an asynchronous
   `NSApp.activate`.
 - `NotesStore` uses `isolated deinit` — the idiom to copy for state that must be torn down on its
   actor.

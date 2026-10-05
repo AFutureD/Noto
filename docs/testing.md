@@ -69,7 +69,7 @@ suite takes about ten seconds, so in practice run both.
 | `notes-editor-test` | the Notes editor, rendered and literal, with real TextKit 2 and AppKit editing objects: styling, reveal, layout fragments, keys, chords, checkboxes, links, undo, the character count and custom fonts. Also compiles `Noto/DesignSystem/Theme.swift` and `InterfaceMetrics.swift`, so a token those lose breaks it |
 
 Nothing automated covers `Noto/Features/HotKeys/`, `Noto/Features/Settings/`, `Noto/App/`,
-`Noto/Windows/` or the Notes window chrome. A change there is verified by the manual sweep.
+`Noto/Features/Settings/` or the Notes window chrome. A change there is verified by the manual sweep.
 
 ### Purity checks
 
@@ -288,16 +288,18 @@ The window:
 
 - Settings… opens from the menu bar item and with ⌘,; a second request raises the same window; Escape
   and the red light close it; it reopens centred
+- The toolbar shows General, Editor and Shortcuts. Select each pane: the title changes, the window
+  height changes, and the top edge does not move
 - Keep on Top is off on a clean install. Click a different app, and its window can cover the note window
 - With Keep on Top on, the note window stays above other windows and shows on each Space
 - Each control changes the state immediately: the Settings row, the menu bar item, ⌥⌘P and the global
   shortcut. The check mark in the menu bar menu agrees with the state
-- Each font setting applies to the open note immediately: Text Font, Heading Font, CJK Font, Code Font
-  and Size
+- Each font setting applies to the open note immediately: Text font, Heading font, CJK font, Code font
+  and Text size
 - With Heading Font set, headings use that family and body text does not change
 - With Text Font `Menlo` and CJK Font `Songti SC`, Latin text is Menlo and Han text is Songti
 - With Text Font `Monaco`, italic text slants and bold text is heavier
-- Reset to Defaults restores the system fonts, and it is disabled when no font setting is set
+- Reset Fonts restores the system fonts, and it is disabled when no font setting is set
 - Render Markdown and Show Formatting Bar take effect in the open note immediately; Show Formatting Bar
   is disabled while Render Markdown is off
 - Choose… opens in front, and picking a folder switches the note window to that folder's notes with

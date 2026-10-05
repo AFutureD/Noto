@@ -107,7 +107,7 @@ bands), `shortcutPopoverLine 14`, `calloutCaretWidth 15`, `calloutCaretHeight 7`
 
 Markdown drawing: `markdownListMarker 20`, `markdownQuoteBar 2`, `hairline 1`.
 
-`settingsWindow 520×500`.
+`settingsWidth 600`, `settingsLabelColumn 180`, `settingsSlider 180`, `settingsPicker 220`.
 
 ### Duration and motion
 
@@ -304,28 +304,51 @@ Behaviour is in [features/hotkeys.md](features/hotkeys.md#recorder).
 
 ## The Settings window
 
-Source: `Noto/Features/Settings/SettingsView.swift`, `Noto/Windows/AppWindowController.swift`.
+Source: `Noto/Features/Settings/SettingsView.swift`,
+`Noto/Features/Settings/SettingsWindowController.swift`, `Noto/Features/Settings/SettingsPane.swift`.
 
-Settings runs in its own titled `NSWindow` — closable and miniaturizable, `settingsWindow` in size, not
-resizable, centred on each open — with real traffic lights and a lifecycle wholly its own. It does not
-share the note window's look: it is one stock `Form` with `.formStyle(.grouped)`, so the cards,
-headers, row insets and hairlines are all system-drawn and it reads as macOS System Settings does.
+The Settings window follows the layout of the iA Writer settings window. It is a standard macOS
+preferences window, and it does not use the look of the note window.
 
-- Six sections: Editor (Render Markdown, Show Formatting Bar), Fonts (Text Font, Heading Font, CJK
-  Font, Code Font, Size, Reset to Defaults), Storage (Notes Folder), Window (Keep on Top), App (Show
-  in Dock), Shortcuts (one row per `HotKeyCommand`).
+The window:
+
+- It is a titled `NSWindow` that you can close and minimize. You cannot resize it.
+- Its width is `settingsWidth`. Each pane sets the height.
+- A toolbar in the `.preference` style shows one item for each `SettingsPane`: General, Editor and
+  Shortcuts. Each item has a symbol and a label.
+- The window title is the name of the selected pane.
+- `SettingsView` reports the height of the pane after each layout. `SettingsWindowController.fit`
+  then sets the window height with an animation. The top edge of the window does not move.
+- Do not read the height from the hosting view after a pane change. It returns the height of the
+  pane before the change.
+- The pane is aligned to the top of the window, thus it does not move during the animation.
+- Escape closes the window. The window opens at the centre of the screen.
+
+A pane:
+
+- `SettingsRow` is one row. Its label is right-aligned in a column of `settingsLabelColumn` width,
+  and it ends with a colon. The controls are to the right of the label.
+- A switch is a checkbox with its title to the right. Do not use the switch style.
+- `SettingsCaption` is a secondary line below a control.
+- A `Divider` separates groups of rows.
+- A dependent control is disabled, not hidden. Show formatting bar is disabled while Render Markdown
+  is off.
+
+The panes:
+
+| Pane | Rows |
+| --- | --- |
+| General | Window (Keep on top), Dock (Show in Dock), Notes folder (Choose…, Use Default, the path) |
+| Editor | Text size, Text font, Heading font, CJK font, Code font, Defaults (Reset Fonts), Markdown (Render Markdown, Show formatting bar) |
+| Shortcuts | One row for each `HotKeyCommand`, with a `ShortcutRecorder` and the subtitle of the command |
+
+- Text size is a slider with a step of 1 point. The value shows to the right of the slider.
 - A font row is a `Picker` of family names from `FontCatalog`. Its first item is the system choice.
   `FontCatalog` reads the families off the main thread, and the menus fill when it completes.
   The CJK menu shows only families with Han characters. The code menu shows only fixed-pitch families.
 - If a stored family is not installed, its menu shows the name with "(Not Installed)".
-- A row is a stock control: `Toggle` or `LabeledContent`, each with a two-view label — the first view
-  is the title, the second becomes the secondary line.
-- A shortcut row is the one exception: an `HStack` of the two-line label and the `ShortcutRecorder`,
-  because `LabeledContent` in a grouped form swallows the recorder's click.
-- A dependent row is disabled rather than hidden, as Show Formatting Bar is while Render Markdown is
-  off.
-- The window activates the app, so `.help()` works there and the system controls behave natively.
-- The window title follows the build's name ("Noto Settings" / "Noto Dev Settings").
+- Each font menu has the width `settingsPicker`.
+- A `ShortcutRecorder` is not in a `LabeledContent`, because that container stops the click.
 
 ## Rules for agents working on the UI
 

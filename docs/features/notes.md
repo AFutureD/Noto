@@ -301,7 +301,7 @@ Settings > Editor > Render Markdown is `NotoSettings.rendersMarkdown` (UserDefau
 and no parsing. Flipping it restyles the open note without touching its undo history or marking it
 dirty.
 
-Settings > Editor > Show Formatting Bar is `NotoSettings.showsFormattingBar` (key
+Settings > Editor > Show formatting bar is `NotoSettings.showsFormattingBar` (key
 `notesShowsFormattingBar`), on when absent. It only takes effect while Render Markdown is on, and its
 row is disabled otherwise.
 
@@ -312,7 +312,7 @@ so neither appears when no note is active.
 
 ### Keep on Top
 
-Settings > Window > Keep on Top is `NotoSettings.keepsOnTop` (key `notesKeepsOnTop`). It is off when
+Settings > General > Keep on top is `NotoSettings.keepsOnTop` (key `notesKeepsOnTop`). It is off when
 absent.
 
 | State | Window level | Spaces |
@@ -322,7 +322,7 @@ absent.
 
 Four controls change the setting:
 
-- The Keep on Top row in Settings.
+- The Keep on top checkbox in Settings.
 - The Keep on Top item in the menu bar menu. A check mark shows the state.
 - ⌥⌘P in the note window.
 - The Keep on Top global shortcut. See [hotkeys.md](hotkeys.md).
@@ -333,7 +333,7 @@ immediately. The switcher and the heading menu take the value of the note window
 
 ### Fonts
 
-Settings > Fonts sets five values. `NotoSettings.fonts` holds them as one `NoteFontSettings`.
+Settings > Editor sets five font values. `NotoSettings.fonts` holds them as one `NoteFontSettings`.
 
 | Setting | Member | UserDefaults key | When absent |
 | --- | --- | --- | --- |
@@ -341,7 +341,7 @@ Settings > Fonts sets five values. `NotoSettings.fonts` holds them as one `NoteF
 | Heading Font | `headingFamily` | `notesHeadingFont` | the text family |
 | CJK Font | `cjkFamily` | `notesCJKFont` | the fallback that macOS selects |
 | Code Font | `codeFamily` | `notesCodeFont` | the system monospaced font |
-| Size | `size` | `notesFontSize` | the `title3` size |
+| Text size | `size` | `notesFontSize` | the `title3` size |
 
 - The text family draws body text and ordered list numbers.
 - The heading family draws headings. Heading sizes and weights do not change with the family.

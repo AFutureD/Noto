@@ -10,6 +10,7 @@ enum Theme {
         static let md: CGFloat = 8
         static let lg: CGFloat = 10
         static let xl: CGFloat = 12
+        static let xxl: CGFloat = 20
     }
 
     enum Radius {
@@ -78,7 +79,11 @@ enum Theme {
         static let menuRowHeight: CGFloat = menuIcon + Spacing.md * 2
         static let menuRowSpacing: CGFloat = 1
         static let menuIcon: CGFloat = 20
-        static let settingsWindow = CGSize(width: 520, height: 640)
+        /// The Settings window's fixed width; each pane sets the height.
+        static let settingsWidth: CGFloat = 600
+        static let settingsLabelColumn: CGFloat = 180
+        static let settingsSlider: CGFloat = 180
+        static let settingsPicker: CGFloat = 220
     }
 
     enum Duration {
