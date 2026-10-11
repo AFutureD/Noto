@@ -10,7 +10,7 @@ licensed AGPL-3.0; see [NOTICE.md](NOTICE.md).
 
 ## Posture: latest-only, always
 
-Noto targets one macOS — the current stable release — and nothing else. macOS 26+, the Xcode 26
+Noto targets one macOS — the current stable release — and nothing else. macOS 26+, the Xcode 27
 toolchain, Swift 6 language mode with complete strict concurrency. There is no compatibility floor to
 defend, no shim layer and no deprecation debt.
 

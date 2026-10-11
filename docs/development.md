@@ -5,7 +5,8 @@ The local loop: set up, build, run. Verifying a change is [testing.md](testing.m
 ## Requirements
 
 - macOS 26 or later (Liquid Glass).
-- Xcode 26 or later — it provides the SwiftUI macro plugin and the SDK.
+- Xcode 27 or later — it provides the SwiftUI macro plugin, the SDK, and the `actool` that compiles
+  the Icon Composer icon.
 - For linting: `brew install swiftlint`.
 
 That is the whole setup. There is no project to generate. Xcode resolves the one package, Sparkle,

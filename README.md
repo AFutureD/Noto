@@ -72,7 +72,7 @@ to Applications. Noto needs macOS 26 on Apple Silicon. The app is signed and not
 
 ## Build and run
 
-Requires macOS 26 and Xcode 26 or later.
+Requires macOS 26 and Xcode 27 or later.
 
 ```sh
 open Noto.xcodeproj    # then ⌘R

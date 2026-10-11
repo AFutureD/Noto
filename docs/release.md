@@ -34,7 +34,8 @@ release must carry a larger number than the one before.
 ## What the workflow does
 
 The dispatcher sends the tag and the version to noto-releases as a `repository_dispatch` event.
-There, one job on `macos-26`:
+There, one job on the `xcode-27` runner, because only Xcode 27's `actool` compiles the Icon Composer
+icon:
 
 1. Checks out Noto at the tag and validates the version rule.
 2. Imports the Developer ID certificate into a temporary keychain.
