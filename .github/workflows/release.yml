@@ -1,0 +1,39 @@
+name: Release
+
+# A v* tag hands off to AFutureD/noto-releases, which builds, signs, notarises and
+# publishes Noto there. That repository is where people download from, and the
+# signing secrets live only there. See docs/release.md.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g. 0.1.0, no v prefix; the v tag must exist)'
+        required: true
+        type: string
+
+permissions: {}
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch to noto-releases
+        env:
+          # A fine-grained PAT with Contents read and write on AFutureD/noto-releases.
+          GH_TOKEN: ${{ secrets.RELEASES_REPO_TOKEN }}
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          else
+            VERSION="$INPUT_VERSION"
+          fi
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::Bad version: $VERSION"; exit 1; }
+          gh api --method POST repos/AFutureD/noto-releases/dispatches \
+            -f event_type=release \
+            -F "client_payload[ref]=v$VERSION" \
+            -F "client_payload[version]=$VERSION"
+          echo "Dispatched v$VERSION. Watch https://github.com/AFutureD/noto-releases/actions"

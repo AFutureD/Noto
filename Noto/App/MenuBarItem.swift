@@ -22,8 +22,15 @@ struct MenuBarMenu: View {
         Divider()
         Button("Settings…") { AppCore.shared.showSettings() }
             .keyboardShortcut(",")
+        Button(updatesTitle) { AppCore.shared.updates.checkForUpdates() }
+            .disabled(!AppCore.shared.updates.canCheckForUpdates)
         Divider()
         Button("Quit \(appName)") { NSApp.terminate(nil) }
             .keyboardShortcut("q")
+    }
+
+    /// Names the update a scheduled check found, which is the gentle reminder for a menu-bar agent.
+    private var updatesTitle: String {
+        AppCore.shared.updates.pendingVersion.map { "Update to \($0)…" } ?? "Check for Updates…"
     }
 }

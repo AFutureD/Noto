@@ -10,6 +10,7 @@ final class AppCore {
     let settings: NotoSettings
     let notesStore: NotesStore
     let hotKeys: HotKeyManager
+    let updates = UpdateCoordinator()
     @ObservationIgnored let activationPolicy = ActivationPolicy()
 
     /// Window state, not a preference: it rides `UserDefaults` like the active note's filename.
@@ -43,6 +44,7 @@ final class AppCore {
     func start() {
         activationPolicy.showsInDock = settings.showsInDock
         hotKeys.start { [weak self] in self?.run($0) }
+        updates.start()
         observeNotesFolder()
         observeShowsInDock()
         // A Dock app that launches to nothing looks broken; the menu-bar agent stays quiet.

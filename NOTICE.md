@@ -18,6 +18,9 @@ Abue Ammar, and is distributed under the same licence: the GNU Affero General Pu
 
 ## What changed
 
-The code was modified on extraction, starting in October 2026: Tinycast's launcher, palette and every
-other feature were removed, and an app shell, settings model, Settings window, menu bar item and Dock
-mode were written around what remained. Noto bundles no third-party code or data beyond the above.
+The code was modified on extraction, starting in October 2026: Tinycast's launcher, palette and
+every other feature were removed, and an app shell, settings model, Settings window, menu bar item
+and Dock mode were written around what remained. Beyond the above, Noto bundles one third-party
+framework: [Sparkle](https://sparkle-project.org), which installs updates. Sparkle is distributed
+under the MIT licence; see its
+[LICENSE](https://github.com/sparkle-project/Sparkle/blob/2.x/LICENSE).

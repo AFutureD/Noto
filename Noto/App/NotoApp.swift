@@ -19,6 +19,10 @@ struct NotoApp: App {
     /// Declared, not assigned to `NSApp.mainMenu`: SwiftUI rebuilds the menu on any scene change.
     @CommandsBuilder
     private var mainMenuCommands: some Commands {
+        CommandGroup(after: .appInfo) {
+            Button("Check for Updates…") { AppCore.shared.updates.checkForUpdates() }
+                .disabled(!AppCore.shared.updates.canCheckForUpdates)
+        }
         CommandGroup(replacing: .appSettings) {
             Button("Settings…") { AppCore.shared.showSettings() }
                 .keyboardShortcut(",")

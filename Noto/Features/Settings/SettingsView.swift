@@ -29,6 +29,7 @@ private struct GeneralSettingsPane: View {
 
     var body: some View {
         @Bindable var settings = settings
+        @Bindable var updates = core.updates
         SettingsRow("Window") {
             Toggle("Keep on top", isOn: $settings.keepsOnTop)
             SettingsCaption("The note window stays above other windows and shows on every Space.")
@@ -36,6 +37,13 @@ private struct GeneralSettingsPane: View {
         SettingsRow("Dock") {
             Toggle("Show in Dock", isOn: $settings.showsInDock)
             SettingsCaption("The menu bar item stays either way.")
+        }
+        Divider()
+        SettingsRow("Updates") {
+            Toggle("Check for updates automatically", isOn: $updates.checksAutomatically)
+            Button("Check Now", action: updates.checkForUpdates)
+                .disabled(!updates.canCheckForUpdates)
+            SettingsCaption("Version \(Bundle.main.appVersion)")
         }
         Divider()
         SettingsRow("Notes folder") {

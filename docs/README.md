@@ -13,6 +13,7 @@ contradicts the code is a defect, so fix it in the change that made it wrong.
 | [testing.md](testing.md) | How to verify a change: the definition of done, the harnesses, the purity check, the editor budget, the manual sweep | a harness moves, a budget changes, or a user-visible behaviour is added |
 | [development.md](development.md) | The local loop: requirements, build, Debug and Release, the project file, lint | the local toolchain or the project setup changes |
 | [ui.md](ui.md) | The design system: tokens, the Notes panel, glass, the shared controls, the Settings window | a token or a presentation rule changes |
+| [release.md](release.md) | How a version ships: the two repositories, the workflow, the version rule, the secrets | the workflow, a secret or the version rule changes |
 
 ## Features
 
@@ -20,7 +21,8 @@ One document per feature, covering its invariants and internals. Every one of th
 `## Invariants` section; read it before changing anything in that area.
 
 [notes](features/notes.md) ·
-[hotkeys](features/hotkeys.md)
+[hotkeys](features/hotkeys.md) ·
+[updates](features/updates.md)
 
 Settings has no document of its own: `NotoSettings` is described in
 [architecture.md](architecture.md#settings) and the window in [ui.md](ui.md#the-settings-window).

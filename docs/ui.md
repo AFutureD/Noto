@@ -338,7 +338,7 @@ The panes:
 
 | Pane | Rows |
 | --- | --- |
-| General | Window (Keep on top), Dock (Show in Dock), Notes folder (Choose…, Use Default, the path) |
+| General | Window (Keep on top), Dock (Show in Dock), Updates (Check for updates automatically, Check Now, the version), Notes folder (Choose…, Use Default, the path) |
 | Editor | Text size, Text font, Heading font, CJK font, Code font, Defaults (Reset Fonts), Markdown (Render Markdown, Show formatting bar) |
 | Shortcuts | One row for each `HotKeyCommand`, with a `ShortcutRecorder` and the subtitle of the command |
 

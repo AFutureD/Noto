@@ -28,5 +28,11 @@
 	<true/>
 	<key>NSHumanReadableCopyright</key>
 	<string>Derived from Tinycast. Licensed under AGPL-3.0.</string>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+	<key>SUFeedURL</key>
+	<string>https://github.com/AFutureD/noto-releases/releases/latest/download/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>+zALgF6WqwQeZ0iC39dGm4lP37f5IVRym0yJEgTgKOM=</string>
 </dict>
 </plist>

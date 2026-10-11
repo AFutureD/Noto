@@ -15,7 +15,8 @@ The mechanical bar, in one place so it cannot drift. All five pass before a chan
 | A clean build | the Debug `xcodebuild` below, zero warnings |
 | Docs still true | any doc your change made wrong, fixed in the same change |
 
-There is no CI: every item is on you, run locally. Each is expanded below; the manual sweep at the end
+No workflow runs these checks: every item is on you, run locally. The only workflow is the release
+build in [release.md](release.md). Each is expanded below; the manual sweep at the end
 of this file is the sixth, judged by what you touched.
 
 ## The harnesses
@@ -68,8 +69,9 @@ suite takes about ten seconds, so in practice run both.
 | `notes-test` | all of `Noto/Features/Notes/Model/` and `Noto/Features/Notes/Service/`: the repository, the store's autosave, selection and relocation, derived titles, search with the real `FuzzyMatch`, the Markdown parser, every edit plan, the formatting reports, the reveal policy, switcher interaction and window placement |
 | `notes-editor-test` | the Notes editor, rendered and literal, with real TextKit 2 and AppKit editing objects: styling, reveal, layout fragments, keys, chords, checkboxes, links, undo, the character count and custom fonts. Also compiles `Noto/DesignSystem/Theme.swift` and `InterfaceMetrics.swift`, so a token those lose breaks it |
 
-Nothing automated covers `Noto/Features/HotKeys/`, `Noto/Features/Settings/`, `Noto/App/`,
-`Noto/Features/Settings/` or the Notes window chrome. A change there is verified by the manual sweep.
+Nothing automated covers `Noto/Features/HotKeys/`, `Noto/Features/Settings/`,
+`Noto/Features/Updates/`, `Noto/App/` or the Notes window chrome. A change there is verified by the
+manual sweep.
 
 ### Purity checks
 
@@ -302,6 +304,8 @@ The window:
 - Reset Fonts restores the system fonts, and it is disabled when no font setting is set
 - Render Markdown and Show Formatting Bar take effect in the open note immediately; Show Formatting Bar
   is disabled while Render Markdown is off
+- Check Now opens Sparkle's update window, and Check for Updates… in the menu bar item is disabled
+  while it is open; Check for updates automatically survives quit and relaunch
 - Choose… opens in front, and picking a folder switches the note window to that folder's notes with
   nothing moved; the row shows the new path, `~`-abbreviated, and Use Default appears
 - Changing the folder with an unsaved edit saves that edit into the old folder first
@@ -310,7 +314,7 @@ The window:
 
 ### Menu bar and Dock
 
-- The menu bar item shows in both modes; each of its five items works, and its Quit quits
+- The menu bar item shows in both modes; each of its items works, and its Quit quits
 - With Show in Dock off: no Dock icon at launch and no window; the icon appears while Settings is open
   and goes when it closes; the note window alone never brings it
 - With Show in Dock off and Settings open, Quit from the Dock icon's menu closes Settings and Noto

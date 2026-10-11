@@ -2,7 +2,8 @@
 
 A native macOS Markdown note app: an unlimited collection of plain `.md` files in one editor window
 that renders the Markdown in place, with four global shortcuts. SwiftUI + AppKit, running as a
-menu-bar agent (`LSUIElement`) with an optional Dock icon. Zero third-party dependencies.
+menu-bar agent (`LSUIElement`) with an optional Dock icon. One third-party dependency, Sparkle,
+which updates the app.
 
 Noto was extracted from the Notes feature of [Tinycast](https://github.com/abue-ammar/tinycast) and is
 licensed AGPL-3.0; see [NOTICE.md](NOTICE.md).
@@ -28,7 +29,8 @@ Write code as if the platform released yesterday:
 
 Carbon is a deliberate capability-gap dependency rather than inertia: nothing modern registers a
 system-wide chord, and HIToolbox's TIS APIs remain the public way to read a key's glyph from the
-keyboard layout. Full reasoning in [standards.md](docs/standards.md#posture).
+keyboard layout. Sparkle is the other: macOS does not update an app that is not in the App Store.
+Full reasoning in [standards.md](docs/standards.md#posture).
 
 ## Where things are
 
@@ -40,8 +42,10 @@ keyboard layout. Full reasoning in [standards.md](docs/standards.md#posture).
 | `Noto/Features/Notes/` | the note collection and editor, split `Model/` `Service/` `UI/` |
 | `Noto/Features/HotKeys/` | the four global shortcuts and their recorder, split `Model/` `Service/` `UI/` |
 | `Noto/Features/Settings/` | `NotoSettings` (every preference), `SettingsWindowController` and `SettingsView` |
+| `Noto/Features/Updates/` | `UpdateCoordinator`, the owner of the Sparkle updater |
 | `Tests/` | the standalone harnesses — one Swift file each, no XCTest target |
 | `Scripts/` | `run-tests.sh` and `lint.sh` |
+| `.github/` | the release dispatcher; the build runs in [noto-releases](https://github.com/AFutureD/noto-releases) |
 
 | Read it before you | Doc |
 | --- | --- |
@@ -49,6 +53,7 @@ keyboard layout. Full reasoning in [standards.md](docs/standards.md#posture).
 | write Swift — naming, style, concurrency, comments | [standards.md](docs/standards.md) |
 | claim a change is done | [testing.md](docs/testing.md) |
 | build or run | [development.md](docs/development.md) |
+| ship a version | [release.md](docs/release.md) |
 | add or restyle any view | [ui.md](docs/ui.md) |
 | touch one feature's internals | [features/](docs/features/) — each opens with its invariants |
 
@@ -75,6 +80,9 @@ feature's doc, under its own `## Invariants`.
   what keeps the coordinator free of presentation.
 - Anything persisted stays keyed by `Bundle.main.bundleIdentifier`, so a Debug build never shares
   preferences or notes with an installed copy.
+- `SUPublicEDKey` in `Noto/Info.plist` pairs with the `SPARKLE_ED_PRIVATE_KEY` secret in
+  noto-releases. Never change one without the other: an installed Noto rejects a feed signed with
+  any other key.
 
 ## Conventions worth knowing up front
 
@@ -90,8 +98,9 @@ feature's doc, under its own `## Invariants`.
 - Debug and Release share one bundle id, `app.huanan.noto`; only the name differs (`Noto Dev.app`).
   A local run reads and writes the real preferences and the real notes folder, so treat them as such.
 - The project is edited directly. `Noto.xcodeproj` is the source of truth; there is no project
-  generator, no SwiftPM, and never `Bundle.module`. The `Noto/` folder is a file-system synchronized
-  group, so adding, moving or deleting a file under it needs no project edit. See
+  generator, no `Package.swift`, and never `Bundle.module`. Sparkle is a remote package reference in
+  the project, pinned by the committed `Package.resolved`. The `Noto/` folder is a file-system
+  synchronized group, so adding, moving or deleting a file under it needs no project edit. See
   [development.md](docs/development.md#the-project).
 - A new preference is a property on `NotoSettings` with its key in that file's `Key` enum. Window
   state that is not a preference rides `UserDefaults` from `AppCore` instead.

@@ -28,7 +28,8 @@ hold them apart.
                                    │ published through
 ┌─ OBSERVABLE STATE ───────────────▼─────────────────────────────────────────┐
 │ @MainActor @Observable: AppCore · NotoSettings · NotesStore ·              │
-│ NotesCoordinator · HotKeyManager · ShortcutCaptureSession                  │
+│ NotesCoordinator · HotKeyManager · ShortcutCaptureSession ·                │
+│ UpdateCoordinator (over Sparkle)                                           │
 └──────────────────────────────────┬─────────────────────────────────────────┘
                                    │ rendered by
 ┌─ VIEW ───────────────────────────▼─────────────────────────────────────────┐
@@ -63,14 +64,14 @@ every feature draws on. Neither may depend on a feature.
 
 ## Single-owner core
 
-`AppCore.shared` (`Noto/App/AppCore.swift`) is a `@MainActor` singleton owning every long-lived thing in
-the app: `NotoSettings`, `NotesStore`, `HotKeyManager`, `ActivationPolicy`, the lazily-built
-`NotesCoordinator`, and the `SettingsWindowController`.
+`AppCore.shared` (`Noto/App/AppCore.swift`) is a `@MainActor` singleton owning every long-lived
+thing in the app: `NotoSettings`, `NotesStore`, `HotKeyManager`, `UpdateCoordinator`,
+`ActivationPolicy`, the lazily-built `NotesCoordinator`, and the `SettingsWindowController`.
 
-`AppDelegate.applicationDidFinishLaunching` calls `AppCore.shared.start()` and nothing else. That is the
-one wiring point, and `start()` reads as the app's whole boot sequence: apply the Dock preference,
-start the hotkeys, observe the notes folder and the Dock preference, and — only with Show in Dock on —
-show the note window.
+`AppDelegate.applicationDidFinishLaunching` calls `AppCore.shared.start()` and nothing else. That is
+the one wiring point, and `start()` reads as the app's whole boot sequence: apply the Dock
+preference, start the hotkeys, start the updater, observe the notes folder and the Dock preference,
+and — only with Show in Dock on — show the note window.
 
 Feature actions live on that feature's coordinator, and a view must never reach past a coordinator
 into a store to mutate it. `AppCore` holds only the wiring: `run(_:)` maps a `HotKeyCommand` to a
@@ -80,9 +81,9 @@ click, and `flushNotesForTermination()` is what quit waits on.
 - `NotesView`, `NoteSwitcherView`, `NoteHeadingMenuView` and `NoteFormattingBar` receive only
   `NotesCoordinator` through `@Environment`.
 - `SettingsView` receives `AppCore`, `NotoSettings` and `HotKeyManager`. It uses `AppCore` as the
-  locator for `notesCoordinator` (Choose… and Use Default) and reads `notesStore.notesDirectory` to
-  render the path. Reading a store to render it is fine; deciding something with one is what the rule
-  forbids.
+  locator for `notesCoordinator` (Choose… and Use Default) and for `updates` (the Updates row), and
+  reads `notesStore.notesDirectory` to render the path. Reading a store to render it is fine;
+  deciding something with one is what the rule forbids.
 - The scene-level menus in `NotoApp` and `MenuBarItem.swift` call `AppCore.shared` directly, since a
   scene has no injected environment.
 
@@ -104,6 +105,10 @@ to `UserDefaults` in its `didSet`. The keys are that file's private `Key` enum:
 | `fonts` | `notesTextFont`, `notesHeadingFont`, `notesCJKFont`, `notesCodeFont`, `notesFontSize` | nil — see [notes.md](features/notes.md#fonts) |
 | `shortcuts` | `hotKeys` | empty — see [hotkeys.md](features/hotkeys.md#persistence) |
 
+One preference is not here. Check for updates automatically is Sparkle's own
+`SUEnableAutomaticChecks` default, read and written through `UpdateCoordinator.checksAutomatically`;
+see [features/updates.md](features/updates.md).
+
 Two more values are window state rather than preferences, so `AppCore` reads and writes them itself
 and hands them to their owners as closures: `notesActiveFileName` (the active note) and
 `notesFormattingBarExpanded`. AppKit autosaves the note window's frame under the name `Notes Window`.
@@ -113,11 +118,13 @@ and hands them to their owners as closures: `notesActiveFileName` (the active no
 `NotoApp` (`@main`) declares one `MenuBarExtra` scene and its `.commands`; everything else visible is
 driven imperatively from AppKit.
 
-- The menu bar item — `MenuBarLabel` (the `text.page` symbol) and `MenuBarMenu`: Show Notes, New Note,
-  Search Notes, Settings…, Quit. It stays in both Dock modes, so the app is always reachable.
-- The main menu — shaped by `NotoApp`'s `.commands`: Settings… (⌘,) replaces the app-settings group,
-  and New Note (⌘N), Show Notes and Search Notes replace the new-item group. It is declared, not
-  assigned to `NSApp.mainMenu`, because SwiftUI rebuilds the menu on any scene change.
+- The menu bar item — `MenuBarLabel` (the `text.page` symbol) and `MenuBarMenu`: Show Notes, New
+  Note, Search Notes, Keep on Top, Settings…, Check for Updates…, Quit. It stays in both Dock modes,
+  so the app is always reachable.
+- The main menu — shaped by `NotoApp`'s `.commands`: Check for Updates… follows About, Settings…
+  (⌘,) replaces the app-settings group, and New Note (⌘N), Show Notes and Search Notes replace the
+  new-item group. It is declared, not assigned to `NSApp.mainMenu`, because SwiftUI rebuilds the
+  menu on any scene change.
 - The note window — a persistent, titled, non-activating `NotesPanel`, managed by
   `NotesWindowController`. The user owns its size and AppKit autosaves the frame; its TextKit 2 editor
   renders Markdown over the literal source and stays visible on focus loss. Its hosting view sets
@@ -160,9 +167,10 @@ cannot veto the quit.
 
 ## Observation
 
-Six types are `@MainActor @Observable`: `AppCore`, `NotoSettings`, `NotesStore`, `NotesCoordinator`,
-`HotKeyManager` and `ShortcutCaptureSession`. Nothing uses `ObservableObject` or `@Published`, and
-views read state through `@Environment` rather than `@EnvironmentObject`.
+Seven types are `@MainActor @Observable`: `AppCore`, `NotoSettings`, `NotesStore`,
+`NotesCoordinator`, `HotKeyManager`, `ShortcutCaptureSession` and `UpdateCoordinator`. Nothing uses
+`ObservableObject` or `@Published`, and views read state through `@Environment` rather than
+`@EnvironmentObject`.
 
 Three things about this model are easy to get wrong:
 
@@ -209,8 +217,9 @@ Noto/
   App/              NotoApp (@main), AppDelegate, AppCore — the composition root — and MenuBarItem
   DesignSystem/     Theme (the token source), InterfaceMetrics, BarButton, KeyCapChip, Tooltip,
                     SymbolImage, GlassEffectView, Scrolling/OverflowFade
-  Platform/         system shims: AppPaths, AppDisplayName, ActivationPolicy, FolderPicker,
-                    FontCatalog, ASCIIKeyboardLayout, Appearance, NotificationToken, Signposts
+  Platform/         system shims: AppPaths, AppDisplayName, AppVersion, ActivationPolicy,
+                    FolderPicker, FontCatalog, ASCIIKeyboardLayout, Appearance, NotificationToken,
+                    Signposts
   Assets.xcassets/  the app icon
   Info.plist        LSUIElement and the bundle keys; excluded from target membership
   Noto.entitlements sandbox off; read by code signing
@@ -225,9 +234,11 @@ Noto/
         Service/    KeyShortcut, HotKeyCenter, HotKeyManager, ShortcutCaptureSession
         UI/         ShortcutRecorder, ShortcutRecorderPopover, CalloutShape, CalloutPlacement
     Settings/       NotoSettings, SettingsView
+    Updates/        UpdateCoordinator — the Sparkle updater's owner
 Noto.xcodeproj/     edited directly; Noto/ is a file-system synchronized group
 Tests/              the standalone harnesses, one Swift file each
 Scripts/            run-tests.sh, lint.sh
+.github/            the release dispatcher; the build runs in AFutureD/noto-releases
 ```
 
-`Settings/` stays flat: one model and one view do not need the three sub-folders.
+`Settings/` and `Updates/` stay flat: one model and one view do not need the three sub-folders.

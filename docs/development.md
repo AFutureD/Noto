@@ -8,9 +8,10 @@ The local loop: set up, build, run. Verifying a change is [testing.md](testing.m
 - Xcode 26 or later — it provides the SwiftUI macro plugin and the SDK.
 - For linting: `brew install swiftlint`.
 
-That is the whole setup. There is no package to resolve and no project to generate. Signing is
-automatic with the Apple Development identity of the team set in the target, and Noto asks for no
-permission — its hotkeys are Carbon registrations, so not even Accessibility.
+That is the whole setup. There is no project to generate. Xcode resolves the one package, Sparkle,
+on the first build, so that build needs the network. Signing is automatic with the Apple Development
+identity of the team set in the target, and Noto asks for no permission — its hotkeys are Carbon
+registrations, so not even Accessibility.
 
 ## Build & run
 
@@ -30,8 +31,9 @@ open "build/DerivedData/Build/Products/Debug/Noto Dev.app"
 Xcode, prefix with `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer` (the SwiftUI
 `@State`/`@FocusState` macros need Xcode's macOS platform).
 
-`-configuration Release` builds `build/DerivedData/Build/Products/Release/Noto.app` the same way, with
-the hardened runtime on. `build/` is git-ignored.
+`-configuration Release` builds `build/DerivedData/Build/Products/Release/Noto.app` the same way,
+with the hardened runtime on. `build/` is git-ignored. A release is not built here: see
+[release.md](release.md).
 
 The app is a menu-bar agent: a fresh launch shows only the `text.page` item in the menu bar, and no
 window until you pick Show Notes there.
@@ -66,6 +68,9 @@ it. There is no `Package.swift`, and `Bundle.module` must never be used.
   `project.pbxproj` diff.
 - `Noto/Info.plist` is the one membership exception: it is a build input (`INFOPLIST_FILE`), not a
   bundle resource. `Noto/Noto.entitlements` is consumed by signing (`CODE_SIGN_ENTITLEMENTS`).
+- Sparkle is the one package: a remote package reference in `project.pbxproj`, pinned in
+  `Noto.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved`, which is committed.
+  Change its version in Xcode's package editor and commit both files.
 - `Tests/` shows in the Xcode navigator but belongs to no target, and `Scripts/` is outside the project.
   Keep it that way: each harness has its own `@main`. The harnesses are compiled by
   `Scripts/run-tests.sh`, so a new shipped source that a harness needs is added to that script's list —
@@ -79,13 +84,16 @@ in `project.pbxproj`). The ones that define the app:
 | `PRODUCT_NAME` | `Noto Dev` | `Noto` |
 | `PRODUCT_BUNDLE_IDENTIFIER` | `app.huanan.noto` | `app.huanan.noto` |
 | `MACOSX_DEPLOYMENT_TARGET` | 26.0 | 26.0 |
+| `ARCHS` | arm64 | arm64 |
+| `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` | 0.1.0 / 0.1.0 | 0.1.0 / 0.1.0 — one number, see [release.md](release.md#the-version-rule) |
 | `SWIFT_VERSION` / `SWIFT_STRICT_CONCURRENCY` | 6.0 / `complete` | 6.0 / `complete` |
 | `CODE_SIGN_IDENTITY` / `CODE_SIGN_STYLE` | Apple Development / Automatic | Apple Development / Automatic |
 | `ENABLE_HARDENED_RUNTIME` | off | on |
 
 `Info.plist` takes its name, identifier, versions and minimum system from those settings and adds
-`LSUIElement`. The entitlements file turns the App Sandbox off: Noto reads and writes a folder the user
-names by path.
+`LSUIElement` and the three Sparkle keys (`SUFeedURL`, `SUPublicEDKey`, `SUEnableAutomaticChecks`).
+The entitlements file turns the App Sandbox off: Noto reads and writes a folder the user names by
+path.
 
 ## Editor
 

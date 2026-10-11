@@ -23,6 +23,8 @@ the files are the notes.
 - Autosave 300 ms after you stop typing.
 - Render Markdown can be turned off for a plain-text editor.
 - You can set the text font, the heading font, the CJK font, the code font and the size.
+- Noto updates itself. It checks for a new version once a day; Settings > General turns the check
+  off.
 
 Images, tables and syntax highlighting are not rendered; they appear as text.
 
@@ -61,6 +63,12 @@ While editing, with Render Markdown on:
 Return continues a list and ends it on an empty item; Tab and Shift-Tab indent and outdent items.
 Typing `[] ` at the start of a line starts a task, clicking a checkbox toggles it, and pasting a web
 address over selected text makes a link.
+
+## Install
+
+Download `Noto-<version>.dmg` from the
+[latest release](https://github.com/AFutureD/noto-releases/releases/latest), open it and drag Noto
+to Applications. Noto needs macOS 26 on Apple Silicon. The app is signed and notarised.
 
 ## Build and run
 
