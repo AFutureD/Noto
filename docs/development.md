@@ -66,6 +66,9 @@ it. There is no `Package.swift`, and `Bundle.module` must never be used.
   object version 77). Every file under it is a member of the target by being there: adding, renaming,
   moving or deleting a source file, or adding an asset, needs no project edit and produces no
   `project.pbxproj` diff.
+- `Noto/AppIcon.icon` is the app icon, an Icon Composer document.
+  `ASSETCATALOG_COMPILER_APPICON_NAME` names it, and `actool` compiles its layers into `Assets.car`
+  and an `AppIcon.icns`.
 - `Noto/Info.plist` is the one membership exception: it is a build input (`INFOPLIST_FILE`), not a
   bundle resource. `Noto/Noto.entitlements` is consumed by signing (`CODE_SIGN_ENTITLEMENTS`).
 - Sparkle is the one package: a remote package reference in `project.pbxproj`, pinned in
@@ -85,7 +88,7 @@ in `project.pbxproj`). The ones that define the app:
 | `PRODUCT_BUNDLE_IDENTIFIER` | `app.huanan.noto` | `app.huanan.noto` |
 | `MACOSX_DEPLOYMENT_TARGET` | 26.0 | 26.0 |
 | `ARCHS` | arm64 | arm64 |
-| `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` | 0.1.0 / 0.1.0 | 0.1.0 / 0.1.0 — one number, see [release.md](release.md#the-version-rule) |
+| `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` | the version | the version — one number, equal to the tag, see [release.md](release.md#the-version-rule) |
 | `SWIFT_VERSION` / `SWIFT_STRICT_CONCURRENCY` | 6.0 / `complete` | 6.0 / `complete` |
 | `CODE_SIGN_IDENTITY` / `CODE_SIGN_STYLE` | Apple Development / Automatic | Apple Development / Automatic |
 | `ENABLE_HARDENED_RUNTIME` | off | on |

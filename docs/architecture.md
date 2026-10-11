@@ -220,7 +220,8 @@ Noto/
   Platform/         system shims: AppPaths, AppDisplayName, AppVersion, ActivationPolicy,
                     FolderPicker, FontCatalog, ASCIIKeyboardLayout, Appearance, NotificationToken,
                     Signposts
-  Assets.xcassets/  the app icon
+  AppIcon.icon      the app icon, an Icon Composer document
+  Assets.xcassets/  empty; the catalog actool compiles the icon into
   Info.plist        LSUIElement and the bundle keys; excluded from target membership
   Noto.entitlements sandbox off; read by code signing
   Features/
