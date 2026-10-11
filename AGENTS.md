@@ -44,6 +44,7 @@ Full reasoning in [standards.md](docs/standards.md#posture).
 | `Noto/Features/Settings/` | `NotoSettings` (every preference), `SettingsWindowController` and `SettingsView` |
 | `Noto/Features/Updates/` | `UpdateCoordinator`, the owner of the Sparkle updater |
 | `Tests/` | the standalone harnesses — one Swift file each, no XCTest target |
+| `Resource/` | `Brand/` holds the Icon Composer source `Noto.icon` and the rendered icon; `Screenshots/` holds the README images |
 | `Scripts/` | `run-tests.sh` and `lint.sh` |
 | `.github/` | the release dispatcher; the build runs in [noto-releases](https://github.com/AFutureD/noto-releases) |
 
@@ -120,6 +121,8 @@ Write all documentation in ASD-STE100 Simplified Technical English. This rule ap
 - Use a vertical list for a sequence of steps or a set of items.
 
 Names of types, files, settings and commands are technical names. Write them as the code writes them.
+
+`README.zh-CN.md` is the Chinese translation of `README.md`. When you change one, change the other.
 
 ## Before you finish
 
