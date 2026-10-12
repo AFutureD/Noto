@@ -173,7 +173,9 @@ Rendering is attributes and drawing over the source.
 
 `Model/NoteMarkdownParser` splits the source on the same boundaries as `NSString.lineRange(for:)`, so
 one line is one TextKit paragraph. `NoteMarkdown` gives each line its kind, UTF-16 ranges for its
-content, block marker and task checkbox, and a list level from an indent stack. A source ending in a
+content, block marker and task checkbox, and a list level from an indent stack. A paragraph indented
+two or more columns under a list item continues that item: its level is the depth of the items it sits
+under, and the list goes on after it. A source ending in a
 terminator, and an empty source, get a final zero-length line, so a caret on the empty last row sits on
 a real line like any other. Inline spans are not stored: `NoteMarkdown.inlines(of:)` scans the one line
 asked for, which is all the styler, the editing rules and `NoteTitle` ever need.
@@ -181,7 +183,10 @@ asked for, which is all the styler, the editing rules and `NoteTitle` ever need.
 It covers headings 1 to 6 (4 to 6 look like 3), bold, italic, bold italic, strikethrough, highlight
 (`==text==`), inline code,
 links, bare `http` and `https` URLs, bullet, numbered and task lists with nesting, quotes, fenced code
-blocks and horizontal rules. Inline spans never cross a line. Images, underline, HTML, setext headings,
+blocks and horizontal rules. A numbered item's label is decimal digits, one letter or a roman numeral,
+then `.` or `)`. A lone `i`, `v`, `x`, `l`, `c`, `d` or `m` follows the style of the item before it at
+its level. When it starts a run, only `i` is a roman numeral. Inline spans never cross a line.
+Images, underline, HTML, setext headings,
 indented code, footnotes, reference links and blocks nested inside quotes stay plain text. A GFM table
 (a pipe row, a delimiter row with as many cells, then the pipe rows after it) also stays plain text, but
 is recognised so it gets no inline styling: it shows in the code font, with wrapped rows hanging under
@@ -237,9 +242,11 @@ after it. Nil means AppKit handles the key natively. `NoteTextView.performEdit` 
 `shouldChangeText`, `replaceCharacters` and `didChangeText`, so each gesture is one undo step and
 reaches autosave.
 
-- Return continues a list or quote and leaves it on an empty item. Tab and Shift-Tab nest list items
+- Return continues a list or quote and leaves it on an empty item. On a continuation line it keeps
+  the indentation, and leaves it when the line is empty. Tab and Shift-Tab nest list items
   by four spaces. Backspace at an item's content start outdents it, then removes its marker. These
-  edits renumber the ordered run they touch in the same undo step.
+  edits renumber the ordered run they touch in the same undo step, in the style of the run's first
+  item. Letters stop at `z` and roman numerals at `mmmcmxcix`; after that the label is decimal.
 - Typing `[] ` or `[ ] ` at the start of a paragraph makes `- [ ] `.
 - ⌥⌘C wraps the touched lines in a fenced block, or removes the fences of the block the selection is
   in. On an empty line it opens an empty block with the caret inside.

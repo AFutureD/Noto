@@ -8,7 +8,7 @@ struct NoteMarkdown: Sendable, Equatable {
             case paragraph
             case heading(level: Int)
             case bullet
-            case ordered(number: Int)
+            case ordered(number: Int, numbering: NoteListNumbering = .decimal)
             case task(checked: Bool)
             case quote(depth: Int)
             case rule
@@ -23,6 +23,11 @@ struct NoteMarkdown: Sendable, Equatable {
                 case .bullet, .ordered, .task: true
                 default: false
                 }
+            }
+
+            var isOrdered: Bool {
+                if case .ordered = self { return true }
+                return false
             }
 
             var isFenced: Bool {
@@ -42,8 +47,11 @@ struct NoteMarkdown: Sendable, Equatable {
         let markerRange: NSRange?
         /// The three characters `[ ]` or `[x]` of a task; nil otherwise.
         let checkboxRange: NSRange?
-        /// List nesting depth from the indent stack, 0 for top level and for non-list lines.
+        /// List depth from the indent stack: 0 at top level; on a paragraph, the item depth it continues.
         let level: Int
+
+        /// Text indented under a list item, which stays with that item.
+        var isListContinuation: Bool { kind == .paragraph && level > 0 }
     }
 
     struct Inline: Sendable, Equatable {

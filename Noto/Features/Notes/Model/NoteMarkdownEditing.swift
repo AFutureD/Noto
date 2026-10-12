@@ -55,6 +55,16 @@ enum NoteMarkdownEditing {
             else { return nil }
             let line = markdown.lines[index]
             let caret = selection.location
+            if line.isListContinuation || (line.kind == .blank && continuesList(before: index)) {
+                let indent = NSRange(line.range.location..<indentEnd(of: line))
+                guard indent.length > 0, caret >= NSMaxRange(indent) else { return nil }
+                guard line.kind != .blank else {
+                    return NoteEditPlan(
+                        range: indent, replacement: "",
+                        selection: NSRange(location: line.range.location, length: 0))
+                }
+                return inserting("\n" + text.substring(with: indent), at: caret)
+            }
             guard let marker = line.markerRange, caret >= line.contentRange.location else { return nil }
             let isEmptyItem = text.substring(with: line.contentRange).allSatisfy(\.isWhitespace)
             switch line.kind {
@@ -483,10 +493,9 @@ enum NoteMarkdownEditing {
         // MARK: - Lines
 
         /// A marker's digit run as the source writes it, which `007.` makes wider than its value.
-        private func digitsEnd(from start: Int) -> Int {
-            var index = start
-            while index < text.length, Unit.isDigit(text.character(at: index)) { index += 1 }
-            return index
+        /// An ordered item's number or letters: the marker without its indent, delimiter and space.
+        private func labelRange(of line: Line) -> NSRange {
+            NSRange(indentEnd(of: line)..<(line.contentRange.location - 2))
         }
 
         private func indentEnd(of line: Line) -> Int {
@@ -501,8 +510,15 @@ enum NoteMarkdownEditing {
             indexes.allSatisfy { markdown.lines[$0].kind.isList }
         }
 
+        /// Whether an indented blank line at `index` still sits inside a list.
+        private func continuesList(before index: Int) -> Bool {
+            markdown.lines[..<index].last { $0.kind != .blank }
+                .map { $0.kind.isList || $0.isListContinuation } ?? false
+        }
+
         private func previousListLine(before index: Int) -> Line? {
-            for line in markdown.lines[..<index].reversed() where line.kind != .blank {
+            for line in markdown.lines[..<index].reversed()
+            where line.kind != .blank && !line.isListContinuation {
                 return line.kind.isList ? line : nil
             }
             return nil
@@ -511,9 +527,10 @@ enum NoteMarkdownEditing {
         private func nextMarker(after line: Line) -> String {
             let start = indentEnd(of: line)
             switch line.kind {
-            case .ordered(let number):
-                let delimiter = text.substring(with: NSRange(location: digitsEnd(from: start), length: 1))
-                return "\(number + 1)\(delimiter) "
+            case .ordered(let number, let numbering):
+                let delimiterAt = NSMaxRange(labelRange(of: line))
+                let delimiter = text.substring(with: NSRange(location: delimiterAt, length: 1))
+                return numbering.label(number + 1) + delimiter + " "
             case .task:
                 return text.substring(with: NSRange(location: start, length: 1)) + " [ ] "
             default:
@@ -560,33 +577,31 @@ enum NoteMarkdownEditing {
                 range: NSRange(start..<end), replacement: replacement, selection: fixes.selection)
         }
 
-        /// Each level counts up from its first number; a shallower line restarts deeper counters.
+        /// Each level counts up from its first item in that item's style; a shallower line restarts deeper ones.
         private func renumbering(around range: NSRange) -> [Edit] {
             let lines = markdown.lines
             let touched = markdown.lineIndexes(intersecting: range)
             guard var first = touched.first, var last = touched.last else { return [] }
-            let continuesRun = { (line: Line) in line.kind.isList || line.kind == .blank }
+            let continuesRun = { (line: Line) in
+                line.kind.isList || line.kind == .blank || line.isListContinuation
+            }
             while first > 0, continuesRun(lines[first - 1]) { first -= 1 }
             while last + 1 < lines.count, continuesRun(lines[last + 1]) { last += 1 }
 
-            var nextNumber: [Int: Int] = [:]
+            var runs: [Int: (next: Int, numbering: NoteListNumbering)] = [:]
             var edits: [Edit] = []
-            for line in lines[first...last] {
+            for line in lines[first...last] where line.kind != .blank && !line.isListContinuation {
                 switch line.kind {
-                case .blank:
-                    continue
                 case .bullet, .task:
-                    nextNumber = nextNumber.filter { $0.key < line.level }
-                case .ordered(let number):
-                    nextNumber = nextNumber.filter { $0.key <= line.level }
-                    let expected = nextNumber[line.level] ?? number
-                    nextNumber[line.level] = expected + 1
-                    guard expected != number else { continue }
-                    let first = indentEnd(of: line)
-                    let digits = NSRange(first..<digitsEnd(from: first))
-                    edits.append(Edit(range: digits, replacement: String(expected)))
+                    runs = runs.filter { $0.key < line.level }
+                case .ordered(let number, let numbering):
+                    runs = runs.filter { $0.key <= line.level }
+                    let run = runs[line.level] ?? (number, numbering)
+                    runs[line.level] = (run.next + 1, run.numbering)
+                    guard run.next != number || run.numbering != numbering else { continue }
+                    edits.append(Edit(range: labelRange(of: line), replacement: run.numbering.label(run.next)))
                 default:
-                    nextNumber.removeAll()
+                    runs.removeAll()
                 }
             }
             return edits

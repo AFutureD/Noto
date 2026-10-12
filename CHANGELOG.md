@@ -5,6 +5,13 @@ and the versions follow the version rule in [release.md](docs/release.md#the-ver
 
 ## [Unreleased]
 
+### Added
+
+- Text indented under a list item is part of the item: it sits at the item's text, keeps the list
+  together and Return keeps its indentation.
+- Numbered lists accept letters (`a.`, `B)`) and roman numerals (`i.`, `IV)`). Return and renumbering
+  continue in the same style.
+
 ## [0.2.0] - 2026-10-12
 
 ### Added

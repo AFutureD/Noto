@@ -59,6 +59,8 @@ enum NoteMarkdownParser {
     }
 
     private static let maximumLevel = 6
+    /// Columns a paragraph needs under a list item to continue it rather than end the list.
+    private static let continuationIndent = 2
 
     /// The ASCII code units the grammar is written in; every delimiter is one UTF-16 unit.
     enum Unit {
@@ -91,6 +93,9 @@ enum NoteMarkdownParser {
 
         static func isSpaceOrTab(_ unit: UInt16) -> Bool { unit == space || unit == tab }
         static func isDigit(_ unit: UInt16) -> Bool { (zero...nine).contains(unit) }
+        static func isASCIILetterOrDigit(_ unit: UInt16) -> Bool {
+            isDigit(unit) || (0x41...0x5A).contains(unit) || (0x61...0x7A).contains(unit)
+        }
 
         static func isASCIIPunctuation(_ unit: UInt16) -> Bool {
             (0x21...0x2F).contains(unit) || (0x3A...0x40).contains(unit)
@@ -195,6 +200,7 @@ enum NoteMarkdownParser {
     /// Assigns list depth with an indent stack, so two-space, four-space and tab nesting all work.
     private static func leveled(_ lines: [NoteMarkdown.Line], indents: [Int]) -> [NoteMarkdown.Line] {
         var stack: [Int] = []
+        var runNumbering: [Int: NoteListNumbering] = [:]
         return lines.enumerated().map { index, line in
             switch line.kind {
             case .blank:
@@ -204,12 +210,29 @@ enum NoteMarkdownParser {
                 while let top = stack.last, top > indent { stack.removeLast() }
                 if stack.last.map({ $0 < indent }) ?? true { stack.append(indent) }
                 let level = min(stack.count - 1, maximumLevel)
-                guard level != line.level else { return line }
+                var kind = line.kind
+                if case .ordered(let number, let numbering) = kind {
+                    runNumbering = runNumbering.filter { $0.key <= level }
+                    let label = NoteListNumbering.disambiguated((number, numbering), after: runNumbering[level])
+                    kind = .ordered(number: label.number, numbering: label.numbering)
+                    runNumbering[level] = label.numbering
+                } else {
+                    runNumbering = runNumbering.filter { $0.key < level }
+                }
+                guard level != line.level || kind != line.kind else { return line }
                 return NoteMarkdown.Line(
-                    kind: line.kind, range: line.range, contentRange: line.contentRange,
+                    kind: kind, range: line.range, contentRange: line.contentRange,
                     markerRange: line.markerRange, checkboxRange: line.checkboxRange, level: level)
+            case .paragraph:
+                let indent = indents[index]
+                let depth = stack.filter { $0 < indent }.count
+                guard indent >= continuationIndent, depth > 0 else { fallthrough }
+                return NoteMarkdown.Line(
+                    kind: .paragraph, range: line.range, contentRange: line.contentRange,
+                    markerRange: nil, checkboxRange: nil, level: min(depth, maximumLevel))
             default:
                 stack.removeAll()
+                runNumbering.removeAll()
                 return line
             }
         }
@@ -323,15 +346,13 @@ enum NoteMarkdownParser {
                 }
                 return marked(.bullet, range: range, markerEnd: markerEnd)
             }
-            let digitsEnd = units[first..<end].firstIndex { !Unit.isDigit($0) } ?? end
-            let digits = digitsEnd - first
-            guard (1...9).contains(digits), digitsEnd < end else { return nil }
-            guard units[digitsEnd] == Unit.period || units[digitsEnd] == Unit.closeParen else {
-                return nil
-            }
-            guard digitsEnd + 1 < end, let markerEnd = separated(after: digitsEnd + 1) else { return nil }
-            let number = units[first..<digitsEnd].reduce(0) { $0 * 10 + Int($1 - Unit.zero) }
-            return marked(.ordered(number: number), range: range, markerEnd: markerEnd)
+            let labelEnd = units[first..<end].firstIndex { !Unit.isASCIILetterOrDigit($0) } ?? end
+            guard labelEnd < end, units[labelEnd] == Unit.period || units[labelEnd] == Unit.closeParen,
+                labelEnd + 1 < end, let markerEnd = separated(after: labelEnd + 1),
+                let label = NoteListNumbering.parse(String(decoding: units[first..<labelEnd], as: UTF16.self))
+            else { return nil }
+            return marked(
+                .ordered(number: label.number, numbering: label.numbering), range: range, markerEnd: markerEnd)
         }
 
         private func task(range: NSRange, bulletEnd: Int, markerEnd: Int) -> NoteMarkdown.Line? {

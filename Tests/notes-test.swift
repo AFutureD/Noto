@@ -712,6 +712,25 @@ struct NotesTests {
                     .task(checked: true), .quote(depth: 1), .quote(depth: 2), .rule
                 ])
         check(
+            "letters and roman numerals number a list; a lone ambiguous letter follows its run",
+            kinds("a. x\nB) y\nii. z\nIV. w\nab. no\niiii. no\na.x\ni. r\nv. r\nh. l\ni. l\nv. v")
+                == [
+                    .ordered(number: 1, numbering: .lowerLetter), .ordered(number: 2, numbering: .upperLetter),
+                    .ordered(number: 2, numbering: .lowerRoman), .ordered(number: 4, numbering: .upperRoman),
+                    .paragraph, .paragraph, .paragraph,
+                    .ordered(number: 1, numbering: .lowerRoman), .ordered(number: 5, numbering: .lowerRoman),
+                    .ordered(number: 8, numbering: .lowerLetter), .ordered(number: 9, numbering: .lowerLetter),
+                    .ordered(number: 22, numbering: .lowerLetter)
+                ])
+        check(
+            "a run of ambiguous letters is tracked per level and broken by a bullet",
+            kinds("i. a\n    a. b\n    i. c\nv. d\n- e\nv. f")
+                == [
+                    .ordered(number: 1, numbering: .lowerRoman), .ordered(number: 1, numbering: .lowerLetter),
+                    .ordered(number: 9, numbering: .lowerLetter), .ordered(number: 5, numbering: .lowerRoman),
+                    .bullet, .ordered(number: 22, numbering: .lowerLetter)
+                ])
+        check(
             "rules win over lists, and hashtags stay paragraphs",
             kinds("- - -\n***\n___\n#hashtag\n####### seven\n3.14 pi\n-\n#")
                 == [.rule, .rule, .rule, .paragraph, .paragraph, .paragraph, .paragraph, .heading(level: 1)])
@@ -755,6 +774,15 @@ struct NotesTests {
             "two-space, four-space and tab indentation nest by the indent stack",
             levels("- a\n  - b\n    - c\n- d") == [0, 1, 2, 0]
                 && levels("1. a\n    1. b\n\t- c") == [0, 1, 1])
+        let continued = NoteMarkdownParser.parse("- a\n  text\n\n    more\n    - b\n        deep\n  back\nout\n  no")
+        check(
+            "indented text under an item continues it at the item's depth, until an unindented line",
+            continued.lines.map(\.kind) == [
+                .bullet, .paragraph, .blank, .paragraph, .bullet, .paragraph, .paragraph, .paragraph, .paragraph
+            ] && continued.lines.map(\.level) == [0, 1, 0, 1, 1, 2, 1, 0, 0])
+        check(
+            "a one-space indent does not continue an item",
+            levels("- a\n b") == [0, 0])
         check("a blank line keeps list depth", levels("- a\n  - b\n\n  - c") == [0, 1, 0, 1])
         check("a paragraph resets list depth", levels("- a\n  - b\npara\n  - c") == [0, 1, 0, 0])
 
@@ -881,6 +909,11 @@ struct NotesTests {
     private static func testMarkdownEditing() {
         check("Return continues a bullet", edit(.newline, "- item|") == "- item\n- |")
         check("Return continues an ordered item", edit(.newline, "1. one|") == "1. one\n2. |")
+        check(
+            "Return continues a lettered or roman item in its style",
+            edit(.newline, "a. one|") == "a. one\nb. |" && edit(.newline, "B) one|") == "B) one\nC) |"
+                && edit(.newline, "i. one|") == "i. one\nii. |" && edit(.newline, "III. one|") == "III. one\nIV. |"
+                && edit(.newline, "z. one|") == "z. one\n27. |")
         check("Return keeps a parenthesis delimiter", edit(.newline, "3) c|") == "3) c\n4) |")
         check("Return continues a task unchecked", edit(.newline, "* [x] done|") == "* [x] done\n* [ ] |")
         check("Return moves text after the caret", edit(.newline, "- ab|cd") == "- ab\n- |cd")
@@ -888,6 +921,16 @@ struct NotesTests {
         check("Return on an empty item leaves the list", edit(.newline, "- a\n- |") == "- a\n|")
         check("Return on an empty nested item outdents", edit(.newline, "- a\n    - |") == "- a\n- |")
         check("Return continues a quote", edit(.newline, "> quote|") == "> quote\n> |")
+        check(
+            "Return keeps a continuation line's indentation, and leaves it when the line is empty",
+            edit(.newline, "- a\n    text|") == "- a\n    text\n    |"
+                && edit(.newline, "- a\n    |") == "- a\n|")
+        check(
+            "a continuation line keeps an ordered run together",
+            edit(.newline, "1. a|\n    text\n5. b") == "1. a\n2. |\n    text\n3. b")
+        check(
+            "Tab nests an item past a continuation line",
+            edit(.indent, "- a\n    text\n- b|") == "- a\n    text\n    - b|")
         check("Return on an empty quote leaves it", edit(.newline, "> a\n> |") == "> a\n|")
         check(
             "Return is native in a paragraph, in code and over a selection",
@@ -931,6 +974,11 @@ struct NotesTests {
         check(
             "a paragraph ends a run",
             edit(.newline, "1. a|\npara\n7. b") == "1. a\n2. |\npara\n7. b")
+        check(
+            "renumbering writes the first item's style over the run",
+            edit(.newline, "a. a|\nc. b") == "a. a\nb. |\nc. b"
+                && edit(.newline, "i. a|\nb. b\n3. c") == "i. a\nii. |\niii. b\niv. c"
+                && edit(.newline, "1. a|\nb. b") == "1. a\n2. |\n3. b")
         check(
             "renumbering keeps each item's delimiter",
             edit(.deleteBackward, "1. a\n2) |b\n3) c") == "1. a\n|b\n3) c")

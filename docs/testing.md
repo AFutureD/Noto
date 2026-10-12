@@ -142,11 +142,12 @@ root, and keep this command and that list matching:
 N=Noto/Features/Notes
 swiftc -O -swift-version 6 Noto/Platform/{Signposts,Appearance,NotificationToken}.swift \
     Noto/DesignSystem/{Theme,InterfaceMetrics}.swift \
-    $N/Model/{NoteDocument,NoteFontSettings,NoteHighlightColor,NoteMarkdown,NoteMarkdownParser}.swift \
+    $N/Model/{NoteDocument,NoteFontSettings,NoteHighlightColor,NoteMarkdown,NoteListNumbering}.swift \
+    $N/Model/NoteMarkdownParser.swift \
     $N/Model/NoteInlineScanner.swift \
     $N/Model/{NoteEditPlan,NoteEditAction,NoteFormatting,NoteMarkdownEditing,NoteRevealPolicy}.swift \
     $N/UI/{NoteMarkdownTypography,NoteBlockDecoration,NoteMarkdownStyler,NoteMarkdownRenderer}.swift \
-    $N/UI/{NoteCheckboxGeometry,NoteBlockLayoutFragment,NoteLayoutFragmentProvider}.swift \
+    $N/UI/{NoteListGeometry,NoteBlockLayoutFragment,NoteLayoutFragmentProvider}.swift \
     $N/UI/{NoteTextViewEditing,NoteTextView,NoteEditorView}.swift \
     Tests/notes-editor-performance.swift -o "$TMPDIR/notes-editor-performance"
 "$TMPDIR/notes-editor-performance"
