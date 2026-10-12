@@ -136,13 +136,13 @@ overrides, and MDTextKit builds the `NSFont`s.
 | `rowHover` | white 0.05 | black 0.045 | mouse-hover fill (always fainter than selection) |
 | `menuHover` | white 0.10 | black 0.09 | heading-menu row hover |
 | `separator` | white 0.10 | black 0.12 | a Markdown rule |
-| `controlSurface` | white 0.10 | black 0.08 | filled keycaps, inline code, checkboxes, table header rows, the tooltip tile |
+| `controlSurface` | white 0.10 | black 0.08 | filled keycaps, checkboxes, the tooltip tile |
 | `border` | white 0.20 | black 0.18 | outlined keycap borders, quote bars, code band and table borders |
 | `textSecondary` | white 0.60 | black 0.60 | secondary labels, quotes, list markers |
 | `textTertiary` | white 0.40 | black 0.42 | placeholders, the count, revealed markers |
 | `menuSymbol` | white 0.70 | black 0.70 | the heading menu's checkmark |
 | `noteText` | white 0.90 | black 0.85 | note body text and caret |
-| `cardFill` | white 0.05 | black 0.04 | code bands, table rows, the recorder field |
+| `cardFill` | white 0.05 | black 0.04 | code bands, inline code, table header and alternate rows, the recorder field |
 | `cardStroke` | white 0.10 | black 0.10 | the recorder field's border |
 | `tooltipShadow` | black 0.18 | black 0.18 | the tooltip tile's shadow |
 | `highlight` | yellow 0.35 | yellow 0.60 | the default background of a `==highlight==` span |
@@ -187,7 +187,7 @@ The editor is one MDTextKit surface, a TextKit 1 `NSTextView`. Its Markdown is t
 source, and MDTextKit styles it in place. Notes type sits one system text style above the rest of the
 app, because a note is for reading: body text is the title3 size in `noteText`, headings scale from it
 in the heading font's bold face, and the line height is 1.3 times the font size. Inline code is
-monospaced on `controlSurface`, a highlight draws `highlight` or the chosen colour behind its text, and
+monospaced on `cardFill`, a highlight draws `highlight` or the chosen colour behind its text, and
 links use the system link colour with a link icon after the label. A checked task dims to
 `textSecondary`. Inline markers show in `textTertiary` while the caret is in their construct and are
 hidden elsewhere.
@@ -196,7 +196,8 @@ MDTextKit draws the block chrome. A code band fills `cardFill` with a `border` e
 `border`, one per depth, and a callout is a box in its kind's tint. A rule is a line of `separator`
 across the column. A bullet is a `textSecondary` dot, ring or diamond by depth; a number stays text in
 `textSecondary`; a checkbox is a rounded `controlSurface` box with a `noteText` check when done. A
-table is a grid with `border` lines, `cardFill` rows and a `controlSurface` header row. A heading's
+table is a grid with `border` lines: its header and every second row are `cardFill`, the rows between
+them are the page itself, as in Bear. A heading's
 `#` marks are an attachment that shows three bars and the level while the caret is on the line.
 AppKit owns typing, selection, Find and marked text; MDTextKit owns undo.
 

@@ -78,8 +78,8 @@ enum NoteEditorTheme {
                     "separator": ["border color": NSColor(Theme.Colors.separator)],
                     "table": [
                         "border color": border,
-                        "cell background color": card,
-                        "cell alternate background color": surface
+                        "cell background color": NSColor.clear,
+                        "cell alternate background color": card
                     ]
                 ]
             ])
