@@ -14,14 +14,17 @@ struct NotesRepository: Sendable {
             case .invalidTitle(let title):
                 return "“\(title)” can't be used as a note title."
             case .unreadable(let fileURL):
-                return "The note isn't valid UTF-8. (\(fileURL.lastPathComponent))"
+                return "The note isn't valid UTF-8. (\(fileURL.deletingLastPathComponent().lastPathComponent))"
             case .invalidLocation(let fileURL):
-                return "The note file is outside the notes folder. (\(fileURL.path))"
+                return "The note is outside the notes folder. (\(fileURL.path))"
             case .io(let fileURL, let message):
                 return "Could not access \(fileURL.path): \(message)"
             }
         }
     }
+
+    /// A note is a folder named for its title; this file inside it holds the Markdown.
+    static let contentFileName = "text.md"
 
     let notesDirectory: URL
     private let trashOperation: TrashOperation
@@ -39,26 +42,27 @@ struct NotesRepository: Sendable {
     func list() throws(Failure) -> [NoteSummary] {
         try mappedError(at: notesDirectory) {
             try ensureDirectory()
-            let keys: Set<URLResourceKey> = [
-                .contentModificationDateKey, .isHiddenKey, .isRegularFileKey,
-                .isSymbolicLinkKey
+            let folderKeys: Set<URLResourceKey> = [.isDirectoryKey, .isHiddenKey, .isSymbolicLinkKey]
+            let fileKeys: Set<URLResourceKey> = [
+                .contentModificationDateKey, .isRegularFileKey, .isSymbolicLinkKey
             ]
             return try FileManager.default.contentsOfDirectory(
                 at: notesDirectory,
-                includingPropertiesForKeys: Array(keys),
+                includingPropertiesForKeys: Array(folderKeys),
                 options: [.skipsHiddenFiles]
             )
-            // An unreadable entry is skipped: one bad file must not hide the rest.
-            .compactMap { candidate -> NoteSummary? in
-                guard candidate.pathExtension.caseInsensitiveCompare("md") == .orderedSame,
-                    let values = try? candidate.resourceValues(forKeys: keys),
-                    values.isRegularFile == true, values.isSymbolicLink != true,
-                    values.isHidden != true,
-                    let url = try? validatedFileURL(candidate)
+            // An unreadable entry is skipped: one bad folder must not hide the rest.
+            .compactMap { folder -> NoteSummary? in
+                guard let folderValues = try? folder.resourceValues(forKeys: folderKeys),
+                    folderValues.isDirectory == true, folderValues.isSymbolicLink != true,
+                    folderValues.isHidden != true,
+                    let url = try? validatedFileURL(folder.appendingPathComponent(Self.contentFileName)),
+                    let values = try? url.resourceValues(forKeys: fileKeys),
+                    values.isRegularFile == true, values.isSymbolicLink != true
                 else { return nil }
-                let title = url.deletingPathExtension().lastPathComponent
+                let title = folder.lastPathComponent
                 return NoteSummary(
-                    id: NoteID(rawValue: url.lastPathComponent),
+                    id: NoteID(rawValue: title),
                     title: title,
                     firstLine: NoteTitle.isUnnamed(title) ? firstLine(of: url) : nil,
                     modifiedAt: values.contentModificationDate ?? .distantPast)
@@ -85,16 +89,16 @@ struct NotesRepository: Sendable {
             guard let source = String(data: data, encoding: .utf8) else {
                 throw Failure.unreadable(url)
             }
-            return NoteDocument(id: NoteID(rawValue: url.lastPathComponent), source: source)
+            return NoteDocument(id: NoteID(rawValue: url.deletingLastPathComponent().lastPathComponent), source: source)
         }
     }
 
     func create(title: String = "Untitled") throws(Failure) -> NoteDocument {
         try mappedError(at: notesDirectory) {
-            let url = try claimUniqueURL(base: try validatedTitle(title)) {
-                try writeNewFileAtomically(Data(), to: $0)
+            let folder = try claimUniqueFolder(base: try validatedTitle(title)) {
+                try createNoteFolder(at: $0, source: Data())
             }
-            return try load(NoteID(rawValue: url.lastPathComponent))
+            return try load(NoteID(rawValue: folder.lastPathComponent))
         }
     }
 
@@ -110,8 +114,8 @@ struct NotesRepository: Sendable {
             var imported = 0
             for note in notes {
                 guard let base = try? validatedTitle(note.title) else { continue }
-                _ = try claimUniqueURL(base: base) {
-                    try writeNewFileAtomically(Data(note.source.utf8), to: $0)
+                _ = try claimUniqueFolder(base: base) {
+                    try createNoteFolder(at: $0, source: Data(note.source.utf8))
                 }
                 imported += 1
             }
@@ -131,16 +135,16 @@ struct NotesRepository: Sendable {
     }
 
     func rename(id: NoteID, title: String) throws(Failure) -> NoteID {
-        let candidate = fileURL(for: id)
+        let candidate = folderURL(for: id)
         return try mappedError(at: candidate) {
-            let sourceURL = try validatedFileURL(candidate)
+            let sourceURL = try validatedFolderURL(candidate)
             let base = try validatedTitle(title)
             // Exact, not folded: a change of case or accents alone is a rename the user asked for.
-            guard base + ".md" != id.rawValue else { return id }
-            let destination = try claimUniqueURL(base: base, renaming: id) { destination in
+            guard base != id.rawValue else { return id }
+            let destination = try claimUniqueFolder(base: base, renaming: id) { destination in
                 try coordinatedWrite(at: sourceURL, options: .forMoving) { coordinatedURL in
                     try FileManager.default.moveItem(
-                        at: try validatedFileURL(coordinatedURL), to: destination)
+                        at: try validatedFolderURL(coordinatedURL), to: destination)
                 }
             }
             return NoteID(rawValue: destination.lastPathComponent)
@@ -148,11 +152,11 @@ struct NotesRepository: Sendable {
     }
 
     func trash(id: NoteID) throws(Failure) {
-        let candidate = fileURL(for: id)
+        let candidate = folderURL(for: id)
         try mappedError(at: candidate) {
-            let url = try validatedFileURL(candidate)
+            let url = try validatedFolderURL(candidate)
             try coordinatedWrite(at: url, options: .forDeleting) { coordinatedURL in
-                try trashOperation(try validatedFileURL(coordinatedURL))
+                try trashOperation(try validatedFolderURL(coordinatedURL))
             }
         }
     }
@@ -174,8 +178,12 @@ struct NotesRepository: Sendable {
         return Array(results.sorted(by: NoteSearch.precedes).prefix(limit))
     }
 
+    func folderURL(for id: NoteID) -> URL {
+        notesDirectory.appendingPathComponent(id.rawValue, isDirectory: true)
+    }
+
     func fileURL(for id: NoteID) -> URL {
-        notesDirectory.appendingPathComponent(id.rawValue)
+        folderURL(for: id).appendingPathComponent(Self.contentFileName)
     }
 
     /// Only an unnamed note pays for this, and only for the head of its file.
@@ -198,8 +206,8 @@ struct NotesRepository: Sendable {
             at: notesDirectory, withIntermediateDirectories: true)
     }
 
-    /// Claims the first free `<base>.md`, `<base> 2.md`, …; a lost race only advances the suffix.
-    private func claimUniqueURL(
+    /// Claims the first free `<base>`, `<base> 2`, … folder; a lost race only advances the suffix.
+    private func claimUniqueFolder(
         base: String,
         renaming id: NoteID? = nil,
         _ claim: (URL) throws -> Void
@@ -209,7 +217,7 @@ struct NotesRepository: Sendable {
         while true {
             let candidate = uniqueCandidate(base: base, suffix: suffix)
             let name = folded(candidate.lastPathComponent)
-            // A case-only rename collides with its own file, which the move then replaces in place.
+            // A case-only rename collides with its own folder, which the move then replaces in place.
             let isSelf = id.map { name == folded($0.rawValue) } ?? false
             guard !occupied.contains(name),
                 isSelf || !FileManager.default.fileExists(atPath: candidate.path)
@@ -229,21 +237,31 @@ struct NotesRepository: Sendable {
         }
     }
 
-    private func validatedFileURL(_ candidate: URL) throws -> URL {
+    /// The note folder itself: an immediate, unlinked child of the notes directory.
+    private func validatedFolderURL(_ candidate: URL) throws -> URL {
         let standardized = candidate.standardizedFileURL
         let resolved = standardized.resolvingSymlinksInPath()
         let expectedParent = notesDirectory.standardizedFileURL.resolvingSymlinksInPath()
         guard resolved.deletingLastPathComponent().path == expectedParent.path,
-            standardized.lastPathComponent == candidate.lastPathComponent,
-            standardized.pathExtension.caseInsensitiveCompare("md") == .orderedSame
+            resolved.lastPathComponent == standardized.lastPathComponent,
+            standardized.lastPathComponent == candidate.lastPathComponent
+        else { throw Failure.invalidLocation(candidate) }
+        return standardized
+    }
+
+    /// The content file: `text.md` directly inside a validated note folder.
+    private func validatedFileURL(_ candidate: URL) throws -> URL {
+        let standardized = candidate.standardizedFileURL
+        let folder = try validatedFolderURL(standardized.deletingLastPathComponent())
+        let resolved = standardized.resolvingSymlinksInPath()
+        guard standardized.lastPathComponent == Self.contentFileName,
+            resolved.deletingLastPathComponent().path == folder.resolvingSymlinksInPath().path
         else { throw Failure.invalidLocation(candidate) }
         return standardized
     }
 
     private func validatedTitle(_ raw: String) throws -> String {
-        var title = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        if title.lowercased().hasSuffix(".md") { title.removeLast(3) }
-        title = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let title = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !title.isEmpty, title != ".", title != "..", !title.hasPrefix("."),
             !title.contains("/"), !title.contains("\0")
         else { throw Failure.invalidTitle(raw) }
@@ -252,7 +270,7 @@ struct NotesRepository: Sendable {
 
     private func uniqueCandidate(base: String, suffix: Int) -> URL {
         let suffixText = suffix == 1 ? "" : " \(suffix)"
-        return notesDirectory.appendingPathComponent("\(base)\(suffixText).md")
+        return notesDirectory.appendingPathComponent("\(base)\(suffixText)", isDirectory: true)
     }
 
     private func summaryPrecedes(_ lhs: NoteSummary, _ rhs: NoteSummary) -> Bool {
@@ -266,14 +284,13 @@ struct NotesRepository: Sendable {
             locale: Locale(identifier: "en_US_POSIX"))
     }
 
-    private func writeNewFileAtomically(_ data: Data, to destination: URL) throws {
-        let temporary = destination.deletingLastPathComponent().appendingPathComponent(
-            ".\(destination.lastPathComponent).\(UUID().uuidString).tmp")
+    /// The folder claim fails if it exists, which is what makes a lost race visible to the caller.
+    private func createNoteFolder(at folder: URL, source: Data) throws {
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: false)
         do {
-            try data.write(to: temporary, options: .atomic)
-            try FileManager.default.moveItem(at: temporary, to: destination)
+            try source.write(to: folder.appendingPathComponent(Self.contentFileName), options: .atomic)
         } catch {
-            try? FileManager.default.removeItem(at: temporary)
+            try? FileManager.default.removeItem(at: folder)
             throw error
         }
     }

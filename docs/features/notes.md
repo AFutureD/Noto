@@ -1,14 +1,14 @@
 # Notes
 
-Notes is the app: a folder of plain Markdown files, edited one at a time in one window that renders
-the Markdown in place. A title-bar button opens the searchable switcher. The menu bar item, the main
+Notes is the app: a folder of notes, each one a folder with a `text.md` file, edited one at a time in
+one window that renders the Markdown in place. A title-bar button opens the searchable switcher. The menu bar item, the main
 menu, the global shortcuts and the Dock icon show, search or extend the collection.
 
 ## Invariants
 
-- One regular, non-hidden `.md` file is one note. Its filename without the extension is its title.
-  The source holds no frontmatter, no embedded id and no title field. There is no database and no
-  sidecar.
+- One folder with a regular `text.md` file inside is one note. The folder's name is the title, and
+  `text.md` is the Markdown. The source holds no frontmatter, no embedded id and no title field.
+  There is no database and no sidecar. A loose `.md` file in the notes directory is not a note.
 - A note the user has not named shows its first line instead. Only the names `create` claims get a
   derived title. It is presentation only, and a name replaces it.
 - The Markdown is the source. `NoteTextView.markdown`, `NotesStore`, search and the file are
@@ -51,32 +51,35 @@ which saves the open draft into the old folder before it lists the new one. A dr
 cannot take yet holds the move until its save lands. `AppPaths.contentFolder` resolves the stored path.
 `AppPaths.contentFolderSetting` stores a chosen folder `~`-relative where it can, or nil for the default.
 
-`NoteID` is the relative filename, so a rename gives a new identity. The immediate regular `.md`
-children are sorted by modification date, then localized title. Subdirectories, hidden files and
-symbolic links are ignored.
+A note is `<title>/text.md` under the notes directory. `NotesRepository.contentFileName` names the
+file. `NoteID` is the folder name, so a rename gives a new identity. The immediate, non-hidden,
+unlinked subfolders that hold a regular `text.md` are the notes, sorted by the modification date of
+`text.md`, then localized title. Other folders, loose files, hidden entries and symbolic links are
+ignored. Anything else inside a note folder is left alone.
 
-Create uses `Untitled.md`, then `Untitled 2.md`, and so on. Rename claims a free name by the same rule.
-A collision with another note is case- and diacritic-insensitive, so `plán` beside `Plan` becomes
-`plán 2.md`. A note never collides with itself: only an exact filename match is a no-op, which lets a
-rename change only the case or the accents. The active filename is window state under the
-`UserDefaults` key `notesActiveFileName`, read and written through closures `AppCore` hands the store.
+Create uses `Untitled`, then `Untitled 2`, and so on. Rename claims a free name by the same rule. A
+collision with another note is case- and diacritic-insensitive, so `plán` beside `Plan` becomes
+`plán 2`. A note never collides with itself: only an exact name match is a no-op, which lets a rename
+change only the case or the accents. The active folder name is window state under the `UserDefaults`
+key `notesActiveFileName`, read and written through closures `AppCore` hands the store.
 
 `NotesRepository` owns list, create, load, save, rename, Trash and the search reads. It validates
-every URL as an immediate child of the injected directory. `NotesStore` drives its blocking work from
+every folder as an immediate child of the injected directory and every file as `text.md` inside one.
+Rename moves the folder; Trash moves the folder. `NotesStore` drives its blocking work from
 detached tasks.
 
 ## Derived titles
 
 A note that still carries a name `create` claimed (`Untitled`, `Untitled 2`, …) shows the first line of
 its source with visible text. `NoteTitle` owns that rule: it skips blank, rule and fence lines, drops
-block and inline markers, and caps the line at 120 characters. `NoteSummary.title` stays the filename.
+block and inline markers, and caps the line at 120 characters. `NoteSummary.title` stays the folder name.
 `displayTitle` is what every surface renders: the switcher rows and their VoiceOver labels, the Trash
 confirmation, the window title, and the title band of `NoteSearch`, so a fuzzy query reaches a note
 nobody has named.
 
-`list()` reads at most 4 KB of each unnamed note. A named note costs nothing beyond the enumeration.
+`list()` reads at most 4 KB of each unnamed note's `text.md`. A named note costs nothing beyond the enumeration.
 The active note derives its title from the live draft, so the window title follows the first line as
-you type, and its switcher row catches up on the next autosave. Rename edits the filename, so the
+you type, and its switcher row catches up on the next autosave. Rename edits the folder name, so the
 rename field starts from `title`.
 
 ## Ownership
@@ -106,8 +109,8 @@ launch.
 | Dock icon click | `AppCore.handleReopen`, then `show()` |
 | Launch with Show in Dock on | `AppCore.start`, then `show()` |
 
-In the window: ⌘N creates, ⌘P opens or refocuses the switcher, ⌘O reveals the active note in Finder
-(or opens the folder when there is none), and ⌘F opens AppKit's find bar. Escape closes the find bar, a
+In the window: ⌘N creates, ⌘P opens or refocuses the switcher, ⌘O reveals the active note's folder in
+Finder (or opens the notes directory when there is none), and ⌘F opens AppKit's find bar. Escape closes the find bar, a
 bar menu or the switcher before it hides the window. ⌘W and the red traffic light hide at once. A hide
 restores the previous external app or Noto window and flushes the draft, but only while that app is
 still frontmost. ⌘Q quits: `applicationShouldTerminate` awaits the flush first.
@@ -344,12 +347,12 @@ An edit updates the main-actor draft at once and debounces the save for 300 ms. 
 source is kept. A successful save refreshes the metadata order. A switch waits for the same flush
 before it loads another source. Termination awaits the flush and never vetoes the quit.
 
-A save overwrites the file. There is no watcher and no conflict state: an edit to the active note in
+A save overwrites `text.md`. There is no watcher and no conflict state: an edit to the active note in
 another app while Noto holds a draft is lost at the next debounce. Open Notes Folder (⌘O) invites
 exactly that, and this is the accepted trade. Each show re-lists the folder. When the active note is
 clean, the show also reloads it from disk; a save in flight completes first. An edit or a selection
 change during the read discards the read's result. Unchanged content keeps the editor history; a
-changed source or identity resets it. When the active file is gone, the load selects another note, or
+changed source or identity resets it. When the active note's folder or `text.md` is gone, the load selects another note, or
 the empty state.
 
 ## Verification

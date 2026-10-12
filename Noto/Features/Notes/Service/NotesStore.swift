@@ -22,12 +22,11 @@ final class NotesStore {
     var activeTitle: String {
         guard let activeID else { return "Notes" }
         let title =
-            summaries.first(where: { $0.id == activeID })?.title
-            ?? URL(fileURLWithPath: activeID.rawValue).deletingPathExtension().lastPathComponent
+            summaries.first(where: { $0.id == activeID })?.title ?? activeID.rawValue
         guard NoteTitle.isUnnamed(title) else { return title }
         return NoteTitle.firstLine(of: source) ?? title
     }
-    var activeFileURL: URL? { activeID.map(repository.fileURL(for:)) }
+    var activeFolderURL: URL? { activeID.map(repository.folderURL(for:)) }
     private(set) var notesDirectory: URL
     var onIssue: ((Issue) -> Void)?
 

@@ -18,8 +18,8 @@
   <img src="Resource/Screenshots/note-window.png" width="600" alt="The Noto note window with a rendered note.">
 </p>
 
-Noto edits a folder of `.md` files in one window. It lives in the menu bar, needs no account and has
-no database. The files are the notes.
+Noto edits a folder of notes in one window. Each note is a folder named for its title, with the
+Markdown in `text.md`. Noto lives in the menu bar, needs no account and has no database.
 
 ## Features
 
@@ -36,8 +36,8 @@ Download `Noto-<version>.dmg` from the
 [latest release](https://github.com/AFutureD/noto-releases/releases/latest) and drag Noto to
 Applications. Noto needs macOS 26 on Apple Silicon.
 
-Notes live in `~/Library/Application Support/app.huanan.noto/Notes/`. Settings can point Noto at any
-other folder.
+Notes live in `~/Library/Application Support/app.huanan.noto/Notes/`, one folder per note. Settings
+can point Noto at any other folder.
 
 ## Build from source
 

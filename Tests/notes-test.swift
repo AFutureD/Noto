@@ -36,11 +36,13 @@ struct NotesTests {
 
         try FileManager.default.createDirectory(
             at: stable.notesDirectory, withIntermediateDirectories: true)
-        let floatingID = NoteID(rawValue: "Floating Note.md")
-        try "existing".write(
-            to: stable.fileURL(for: floatingID), atomically: true, encoding: .utf8)
+        let floatingID = NoteID(rawValue: "Floating Note")
+        try seed(stable, floatingID, "existing")
+        try "stray".write(
+            to: stable.notesDirectory.appendingPathComponent("Loose.md"), atomically: true, encoding: .utf8)
         let firstLoad = try stable.load(preferredID: nil)
-        check("an existing Floating Note is discovered without migration", firstLoad.1?.id == floatingID)
+        check("an existing note folder is discovered", firstLoad.1?.id == floatingID)
+        check("a loose Markdown file is not a note", (try stable.list()).count == 1)
         check("existing Markdown source is preserved", firstLoad.1?.source == "existing")
         check(
             "channels receive different Notes directories",
@@ -48,12 +50,15 @@ struct NotesTests {
 
         let untitled = try stable.create()
         let secondUntitled = try stable.create()
-        check("first creation uses the plain default title", untitled.id.rawValue == "Untitled.md")
-        check("duplicate titles receive a numeric suffix", secondUntitled.id.rawValue == "Untitled 2.md")
+        check("first creation uses the plain default title", untitled.id.rawValue == "Untitled")
+        check("duplicate titles receive a numeric suffix", secondUntitled.id.rawValue == "Untitled 2")
 
         let source = "# Heading\n\nLiteral **Markdown** and café snow\n"
         try stable.save(id: untitled.id, source: source)
         check("UTF-8 Markdown round-trips unchanged", try stable.load(untitled.id).source == source)
+        check(
+            "the content lives in text.md inside the note folder",
+            stable.fileURL(for: untitled.id).path.hasSuffix("/Untitled/text.md"))
 
         try Data("external".utf8).write(to: stable.fileURL(for: untitled.id), options: .atomic)
         try stable.save(id: untitled.id, source: source)
@@ -65,20 +70,20 @@ struct NotesTests {
         let foldedCollision = try stable.create(title: "plán")
         check(
             "title collisions are case- and diacritic-insensitive",
-            foldedCollision.id.rawValue == "plán 2.md")
+            foldedCollision.id.rawValue == "plán 2")
         let renamed = try stable.rename(id: secondUntitled.id, title: "Plan")
-        check("rename uses the same unique-title rule", renamed.rawValue == "Plan 3.md")
+        check("rename uses the same unique-title rule", renamed.rawValue == "Plan 3")
 
         let recased = try stable.rename(id: renamed, title: "PLAN 3")
-        check("a rename that changes only case renames the file", recased.rawValue == "PLAN 3.md")
+        check("a rename that changes only case renames the folder", recased.rawValue == "PLAN 3")
         let accented = try stable.rename(id: recased, title: "Plán 3")
-        check("a rename that adds only accents renames the file", accented.rawValue == "Plán 3.md")
+        check("a rename that adds only accents renames the folder", accented.rawValue == "Plán 3")
         check(
             "a rename to the identical title is a no-op",
             try stable.rename(id: accented, title: "Plán 3") == accented)
         check(
             "a renamed note leaves no copy under its old name",
-            !(try stable.list()).contains { $0.id.rawValue == "Plan 3.md" })
+            !(try stable.list()).contains { $0.id.rawValue == "Plan 3" })
 
         do {
             _ = try stable.create(title: "../escape")
@@ -105,13 +110,15 @@ struct NotesTests {
 
         try stable.trash(id: plan.id)
         check(
-            "deletion moves the file through the injected Trash operation",
+            "deletion moves the folder through the injected Trash operation",
             FileManager.default.fileExists(
                 atPath: trashDirectory(in: root).appendingPathComponent(plan.id.rawValue).path))
 
         let outside = root.appendingPathComponent("outside.md")
         try Data("outside".utf8).write(to: outside)
-        let symlinkID = NoteID(rawValue: "Linked.md")
+        let symlinkID = NoteID(rawValue: "Linked")
+        try FileManager.default.createDirectory(
+            at: stable.folderURL(for: symlinkID), withIntermediateDirectories: true)
         try FileManager.default.createSymbolicLink(
             at: stable.fileURL(for: symlinkID), withDestinationURL: outside)
         do {
@@ -125,7 +132,7 @@ struct NotesTests {
             }
         }
         check(
-            "symlinked Markdown files are absent from enumeration",
+            "a symlinked text.md is absent from enumeration",
             !(try stable.list()).contains { $0.id == symlinkID })
 
         let empty = try repository(
@@ -212,7 +219,7 @@ struct NotesTests {
     }
 
     private static func testSwitcherInteraction() {
-        let id = NoteID(rawValue: "Project.md")
+        let id = NoteID(rawValue: "Project")
         var rename = NoteSwitcherRenameState()
         check("switcher rename starts inactive", !rename.isActive)
         rename.begin(id: id, title: "Project")
@@ -224,10 +231,10 @@ struct NotesTests {
             committed?.id == id && committed?.title == "Project plan" && !rename.isActive)
         check("an inactive rename cannot commit", rename.commit() == nil)
 
-        let first = NoteID(rawValue: "First.md")
-        let second = NoteID(rawValue: "Second.md")
-        let third = NoteID(rawValue: "Third.md")
-        let fallback = NoteID(rawValue: "Untitled.md")
+        let first = NoteID(rawValue: "First")
+        let second = NoteID(rawValue: "Second")
+        let third = NoteID(rawValue: "Third")
+        let fallback = NoteID(rawValue: "Untitled")
         check(
             "Trash selects the next switcher row",
             NoteSwitcherSelection.replacement(
@@ -452,7 +459,7 @@ struct NotesTests {
             "an externally deleted active note selects a remaining note",
             store.activeID == other.id && store.source == "Another note" && selection.id == other.id)
 
-        try FileManager.default.removeItem(at: repository.fileURL(for: other.id))
+        try FileManager.default.removeItem(at: repository.folderURL(for: other.id))
         _ = await store.start()
         check(
             "deleting the last note externally clears the editor and persisted selection",
@@ -533,8 +540,10 @@ struct NotesTests {
             !cancelled && store.source == "Repaired externally" && store.editorEpoch == repairedEpoch)
 
         store.updateSource("Draft after a failed save")
-        try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: repository.notesDirectory.path)
+        let activeFolder = repository.folderURL(for: activeID)
+        try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: activeFolder.path)
         defer {
+            try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: activeFolder.path)
             try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: repository.notesDirectory.path)
         }
         let failedSave = await store.flush()
@@ -550,6 +559,7 @@ struct NotesTests {
             "an unreadable folder still reopens on the retained draft",
             unlisted && store.isDirty && store.source == "Draft after a failed save")
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: repository.notesDirectory.path)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: activeFolder.path)
         let retried = await store.retrySave()
         let retriedSource = try repository.load(activeID).source
         check(
@@ -573,7 +583,7 @@ struct NotesTests {
 
         store.updateSource("draft before rename")
         let renamed = await store.rename(renameTarget, to: "Renamed")
-        check("renaming another note succeeds", renamed?.rawValue == "Renamed.md")
+        check("renaming another note succeeds", renamed?.rawValue == "Renamed")
         check(
             "renaming another note writes the active draft first",
             try String(contentsOf: activeURL, encoding: .utf8) == "draft before rename")
@@ -603,8 +613,8 @@ struct NotesTests {
         let repository = try repository(in: root)
         try FileManager.default.createDirectory(
             at: repository.notesDirectory, withIntermediateDirectories: true)
-        let unreadable = repository.fileURL(for: NoteID(rawValue: "Unreadable.md"))
-        try Data([0xFF]).write(to: unreadable, options: .atomic)
+        let unreadable = repository.fileURL(for: NoteID(rawValue: "Unreadable"))
+        try seed(repository, NoteID(rawValue: "Unreadable"), Data([0xFF]))
 
         let failingStore = NotesStore(repository: repository)
         let firstStart = await failingStore.start()
@@ -650,17 +660,18 @@ struct NotesTests {
         let fm = FileManager.default
         try fm.createDirectory(at: first.notesDirectory, withIntermediateDirectories: true)
         try fm.createDirectory(at: second.notesDirectory, withIntermediateDirectories: true)
-        let firstURL = first.fileURL(for: NoteID(rawValue: "Plan.md"))
-        try Data("plan".utf8).write(to: firstURL, options: .atomic)
-        let unreadable = second.fileURL(for: NoteID(rawValue: "Broken.md"))
-        try Data([0xFF]).write(to: unreadable, options: .atomic)
+        let firstURL = first.fileURL(for: NoteID(rawValue: "Plan"))
+        try seed(first, NoteID(rawValue: "Plan"), "plan")
+        let unreadable = second.fileURL(for: NoteID(rawValue: "Broken"))
+        try seed(second, NoteID(rawValue: "Broken"), Data([0xFF]))
 
         let store = NotesStore(repository: first)
         _ = await store.start()
         store.updateSource("unsaved plan")
-        try fm.setAttributes([.posixPermissions: 0o555], ofItemAtPath: first.notesDirectory.path)
+        let planFolder = first.folderURL(for: NoteID(rawValue: "Plan"))
+        try fm.setAttributes([.posixPermissions: 0o555], ofItemAtPath: planFolder.path)
         await store.relocate(to: second)
-        try fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: first.notesDirectory.path)
+        try fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: planFolder.path)
         check(
             "a draft the old folder can't take keeps the store there",
             store.notesDirectory == first.notesDirectory && store.source == "unsaved plan")
@@ -704,6 +715,17 @@ struct NotesTests {
             "a malformed accent is nil",
             NoteAccentColor(hex: "FF8000") == nil && NoteAccentColor(hex: "#FF800099") == nil
                 && NoteAccentColor(hex: "#GG8000") == nil)
+    }
+
+    /// Lays a note down as another app would: its folder, then `text.md` inside it.
+    private static func seed(_ repository: NotesRepository, _ id: NoteID, _ text: String) throws {
+        try seed(repository, id, Data(text.utf8))
+    }
+
+    private static func seed(_ repository: NotesRepository, _ id: NoteID, _ data: Data) throws {
+        try FileManager.default.createDirectory(
+            at: repository.folderURL(for: id), withIntermediateDirectories: true)
+        try data.write(to: repository.fileURL(for: id), options: .atomic)
     }
 
     private static func repository(in root: URL, support: URL? = nil) throws -> NotesRepository {

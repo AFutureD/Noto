@@ -147,13 +147,14 @@ the real preferences and the real notes. Use throwaway notes, or choose a scratc
   superseded query never publishes.
 - An Untitled note titles itself from its first line as you type, in the title bar, and after the
   autosave in the browse list. A name replaces that. The derived title shows no Markdown markers.
-- Inline rename changes the filename and not the source. It starts from the filename, also where the
+- Inline rename changes the folder name and not the source. It starts from the folder name, also where the
   row shows a derived title. A collision receives a suffix.
-- Delete confirms through an alert that opens in front and moves the file to Trash. Selecting another
+- Delete confirms through an alert that opens in front and moves the note's folder to Trash. Selecting another
   note never loses an unsaved edit.
 - Deleting every note closes the browse list and shows the empty state with no character count. ⌘N
   from there creates and selects one note.
-- A `.md` file dropped into the folder from Finder appears the next time the window shows.
+- A folder with a `text.md` inside, put in the notes directory from Finder, appears the next time the
+  window shows. A loose `.md` file does not.
 
 ### Notes: rendering
 
@@ -233,7 +234,8 @@ the real preferences and the real notes. Use throwaway notes, or choose a scratc
 - A click on another app leaves the panel visible. Escape, ⌘W and the red light hide it.
 - A hide restores the previous external app, or the Settings window when that was in front. If another
   app came forward meanwhile, focus stays there.
-- Open Notes Folder opens Finder with the active file selected, or the folder when there is no note.
+- Open Notes Folder opens Finder with the active note's folder selected, or the notes directory when
+  there is no note.
   Finder comes to the front also with the Settings window open or Show in Dock on.
 - The browse list fades only at its bottom edge and rests opaque at the end.
 - ⌘Q quits. A quit inside the debounce window saves the last edit.

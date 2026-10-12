@@ -22,6 +22,9 @@ and the versions follow the version rule in [release.md](docs/release.md#the-ver
 
 ### Changed
 
+- A note is a folder named for its title, with the Markdown in `text.md` inside it. A loose `.md`
+  file in the notes folder is no longer a note; nothing is migrated.
+- Open Notes Folder selects the note's folder in Finder.
 - The editor is MDTextKit. Block markers (headings, bullets, checkboxes, quotes, rules) draw as
   attachments, and the caret reveals the markers of its construct rather than its whole line.
 - The Formatting Bar setting no longer depends on another setting.

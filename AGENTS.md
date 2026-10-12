@@ -1,7 +1,7 @@
 # Noto
 
-A native macOS Markdown note app: a folder of plain `.md` files, edited one at a time in one window
-that renders the Markdown in place, with four global shortcuts. SwiftUI + AppKit, run as a menu bar
+A native macOS Markdown note app: a folder of notes, each one a folder with a `text.md` file, edited
+one at a time in one window that renders the Markdown in place, with four global shortcuts. SwiftUI + AppKit, run as a menu bar
 agent (`LSUIElement`) with an optional Dock icon. Two packages: MDTextKit, the Markdown editor
 engine, and Sparkle, which updates the app.
 

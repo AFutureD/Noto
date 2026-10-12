@@ -18,7 +18,7 @@
   <img src="Resource/Screenshots/note-window.png" width="600" alt="Noto 笔记窗口，显示一篇已渲染的笔记。">
 </p>
 
-Noto 在一个窗口里编辑一个文件夹的 `.md` 文件。它常驻菜单栏，不需要账号，没有数据库。文件本身就是笔记。
+Noto 在一个窗口里编辑一个文件夹里的笔记。每篇笔记是一个以标题命名的文件夹，正文在其中的 `text.md`。它常驻菜单栏，不需要账号，没有数据库。
 
 ## 特性
 
@@ -33,7 +33,7 @@ Noto 在一个窗口里编辑一个文件夹的 `.md` 文件。它常驻菜单�
 从[最新发布](https://github.com/AFutureD/noto-releases/releases/latest)下载 `Noto-<version>.dmg`，
 把 Noto 拖进“应用程序”。需要 Apple Silicon 上的 macOS 26。
 
-笔记存放在 `~/Library/Application Support/app.huanan.noto/Notes/`，可在设置里改为任意文件夹。
+笔记存放在 `~/Library/Application Support/app.huanan.noto/Notes/`，一篇笔记一个文件夹，可在设置里改为任意文件夹。
 
 ## 从源码构建
 
