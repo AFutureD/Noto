@@ -5,6 +5,8 @@ and the versions follow the version rule in [release.md](docs/release.md#the-ver
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-12
+
 ### Added
 
 - `==highlight==` spans render with a highlight colour, and the Editor pane has a highlight colour
@@ -46,6 +48,7 @@ as an app of its own; see [NOTICE.md](NOTICE.md).
 - Show in Dock, off by default.
 - Updates through Sparkle.
 
-[Unreleased]: https://github.com/AFutureD/Noto/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/AFutureD/Noto/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/AFutureD/Noto/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/AFutureD/Noto/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/AFutureD/Noto/releases/tag/v0.1.0
