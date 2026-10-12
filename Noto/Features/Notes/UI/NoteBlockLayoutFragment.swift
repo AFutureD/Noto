@@ -4,11 +4,11 @@ import AppKit
 final class NoteBlockLayoutFragment: NSTextLayoutFragment {
     let decoration: NoteBlockDecoration
 
-    private static let orderedLabelPadding: CGFloat = 4
     private static let bulletScale: CGFloat = 0.35
-    private static let boxStroke: CGFloat = 1.25
-    private static let boxRadius: CGFloat = 3
-    private static let checkStroke: CGFloat = 1.5
+    private static let dashScale: CGFloat = 0.5
+    private static let dashThicknessScale: CGFloat = 0.1
+    private static let boxRadiusScale: CGFloat = 0.25
+    private static let checkStrokeScale: CGFloat = 0.12
 
     init(textElement: NSTextElement, range: NSTextRange?, decoration: NoteBlockDecoration) {
         self.decoration = decoration
@@ -46,8 +46,8 @@ final class NoteBlockLayoutFragment: NSTextLayoutFragment {
             context.setFillColor(decoration.fill.cgColor)
             let width = containerWidth.rounded()
             context.fill(CGRect(x: left.rounded(), y: y, width: width, height: Theme.Size.hairline))
-        case .bullet(let level):
-            drawBullet(level: level, left: left, top: point.y, in: context)
+        case .bullet(let level, let dash):
+            drawBullet(level: level, dash: dash, left: left, top: point.y, in: context)
         case .ordered(let level, let label):
             drawLabel(label, level: level, left: left, top: point.y, in: context)
         case .task(let level, let checked):
@@ -57,7 +57,7 @@ final class NoteBlockLayoutFragment: NSTextLayoutFragment {
 
     // MARK: - Shapes
 
-    private var slot: CGFloat { NoteCheckboxGeometry.slot(bodyPointSize: decoration.bodyPointSize) }
+    private var slot: CGFloat { NoteListGeometry.slot(bodyFont: decoration.bodyFont) }
 
     private var containerWidth: CGFloat {
         textLayoutManager?.textContainer?.size.width ?? super.renderingSurfaceBounds.width
@@ -119,43 +119,47 @@ final class NoteBlockLayoutFragment: NSTextLayoutFragment {
         context.fillPath()
     }
 
-    private func drawBullet(level: Int, left: CGFloat, top: CGFloat, in context: CGContext) {
-        let diameter = decoration.bodyPointSize * Self.bulletScale
+    private func drawBullet(level: Int, dash: Bool, left: CGFloat, top: CGFloat, in context: CGContext) {
         let center = CGPoint(x: left + CGFloat(level) * slot + slot / 2, y: top + firstLine.midY)
         context.setFillColor(decoration.fill.cgColor)
+        if dash {
+            let width = decoration.bodyPointSize * Self.dashScale
+            let thickness = (decoration.bodyPointSize * Self.dashThicknessScale).rounded()
+            let bar = CGRect(
+                x: center.x - width / 2, y: (center.y - thickness / 2).rounded(),
+                width: width, height: thickness)
+            let radius = thickness / 2
+            context.addPath(CGPath(roundedRect: bar, cornerWidth: radius, cornerHeight: radius, transform: nil))
+            context.fillPath()
+            return
+        }
+        let diameter = decoration.bodyPointSize * Self.bulletScale
         context.fillEllipse(
             in: CGRect(
                 x: center.x - diameter / 2, y: center.y - diameter / 2, width: diameter, height: diameter))
     }
 
     private func drawLabel(_ label: String, level: Int, left: CGFloat, top: CGFloat, in context: CGContext) {
-        let size = decoration.bodyPointSize
-        let font = decoration.labelFontName.flatMap { NSFont(name: $0, size: size) } ?? .systemFont(ofSize: size)
+        let font = decoration.bodyFont
         let line = Self.line(label, font: font, color: decoration.ink)
         let width = CTLineGetTypographicBounds(line, nil, nil, nil)
-        let slotEnd = left + CGFloat(level + 1) * slot - Self.orderedLabelPadding
+        let slotEnd = left + CGFloat(level + 1) * slot - NoteListGeometry.labelPadding(bodyFont: font)
         Self.draw(line, at: CGPoint(x: slotEnd - width, y: top + firstBaseline), in: context)
     }
 
     private func drawBox(level: Int, checked: Bool, left: CGFloat, top: CGFloat, in context: CGContext) {
-        let box = NoteCheckboxGeometry.rect(
-            level: level, firstLineHeight: firstLine.height, bodyPointSize: decoration.bodyPointSize
+        let box = NoteListGeometry.rect(
+            level: level, firstLineHeight: firstLine.height, bodyFont: decoration.bodyFont
         ).offsetBy(dx: left, dy: top + firstLine.minY)
-        guard checked else {
-            context.addPath(Self.roundedBox(box.insetBy(dx: Self.boxStroke / 2, dy: Self.boxStroke / 2)))
-            context.setStrokeColor(decoration.fill.cgColor)
-            context.setLineWidth(Self.boxStroke)
-            context.strokePath()
-            return
-        }
         context.addPath(Self.roundedBox(box))
         context.setFillColor(decoration.fill.cgColor)
         context.fillPath()
+        guard checked else { return }
         context.move(to: CGPoint(x: box.minX + box.width * 0.25, y: box.minY + box.height * 0.55))
         context.addLine(to: CGPoint(x: box.minX + box.width * 0.45, y: box.minY + box.height * 0.75))
         context.addLine(to: CGPoint(x: box.minX + box.width * 0.78, y: box.minY + box.height * 0.30))
-        context.setBlendMode(.clear)
-        context.setLineWidth(Self.checkStroke)
+        context.setStrokeColor(decoration.ink.cgColor)
+        context.setLineWidth(box.width * Self.checkStrokeScale)
         context.setLineCap(.round)
         context.setLineJoin(.round)
         context.strokePath()
@@ -181,7 +185,8 @@ final class NoteBlockLayoutFragment: NSTextLayoutFragment {
     }
 
     private static func roundedBox(_ rect: CGRect) -> CGPath {
-        CGPath(roundedRect: rect, cornerWidth: boxRadius, cornerHeight: boxRadius, transform: nil)
+        let radius = rect.width * boxRadiusScale
+        return CGPath(roundedRect: rect, cornerWidth: radius, cornerHeight: radius, transform: nil)
     }
 
     private static func line(_ string: String, font: NSFont, color: NSColor) -> CTLine {

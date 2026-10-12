@@ -12,6 +12,18 @@ and the versions follow the version rule in [release.md](docs/release.md#the-ver
 - Numbered lists accept letters (`a.`, `B)`) and roman numerals (`i.`, `IV)`). Return and renumbering
   continue in the same style.
 
+### Fixed
+
+- With a wide text family, a numbered item no longer moves its text when the caret reveals the number.
+  A nested item keeps its text in place too, and so do a task and a number too wide to hang: they
+  keep their drawn marker under the caret. A tab-indented item sits where a space-indented one does.
+
+### Changed
+
+- Nested list content sits 4pt under its item and its siblings; top-level items keep 8pt.
+- A `-` bullet draws a short bar; `*` and `+` bullets keep the dot.
+- A task checkbox is a filled block with round corners. A done task shows a dark check on its box.
+
 ## [0.2.0] - 2026-10-12
 
 ### Added

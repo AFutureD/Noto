@@ -79,11 +79,13 @@ final class NoteMarkdownRenderer: NSObject, @MainActor NSTextStorageDelegate {
         apply(restyleScope(old: old, oldLines: oldLines, newLines: newLines))
     }
 
-    /// The edited lines and one on each side, widened over later lines whose kind or depth changed.
+    /// The edited lines, the line after, and the non-blank line before, whose spacing follows them;
+    /// widened over later lines whose kind or depth changed.
     private func restyleScope(old: NoteMarkdown, oldLines: Range<Int>, newLines: Range<Int>) -> IndexSet {
         let lines = markdown.lines
         guard !lines.isEmpty else { return [] }
-        let lower = max(0, newLines.lowerBound - 1)
+        var lower = max(0, newLines.lowerBound - 1)
+        while lower > 0, lines[lower].kind == .blank { lower -= 1 }
         let upper = min(lines.count, max(newLines.upperBound, newLines.lowerBound + 1) + 1)
         var scope = IndexSet(integersIn: lower..<upper)
         let delta = newLines.count - oldLines.count

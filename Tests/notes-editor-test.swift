@@ -504,9 +504,9 @@ struct NotesEditorTests {
         if let top = fragments[0], let bottom = fragments[second] {
             let box = { (fragment: NSTextLayoutFragment) -> CGRect in
                 let line = (fragment as? NoteBlockLayoutFragment)?.firstLine ?? .zero
-                return NoteCheckboxGeometry.rect(
+                return NoteListGeometry.rect(
                     level: 0, firstLineHeight: line.height,
-                    bodyPointSize: NoteMarkdownTypography.body.pointSize
+                    bodyFont: NoteMarkdownTypography.body
                 ).offsetBy(dx: 0, dy: fragment.layoutFragmentFrame.minY + line.minY)
             }
             check("task checkboxes have breathing room", box(bottom).minY - box(top).maxY >= Theme.Spacing.md)
@@ -525,6 +525,53 @@ struct NotesEditorTests {
         check(
             "bullets and numbered items get the same spacing as tasks",
             [0, 6, 12].allSatisfy { style(at: $0)?.paragraphSpacing == Theme.Spacing.md })
+        let nestedLists = "- a\n    - b\n    - c\n- d\n    text\n\n    - e\nout"
+        editor.coordinator.update(
+            NoteEditorInput(id: NoteID(rawValue: "Nested.md"), source: nestedLists, epoch: 20))
+        let nestedText = nestedLists as NSString
+        editor.textView.setSelectedRange(NSRange(location: nestedText.length, length: 0))
+        func spacing(before needle: String) -> CGFloat? {
+            style(at: nestedText.range(of: needle).location)?.paragraphSpacing
+        }
+        check(
+            "nested content gets the tight gap, the last line of a group the list gap",
+            spacing(before: "- a") == Theme.Spacing.xs && spacing(before: "- b") == Theme.Spacing.xs
+                && spacing(before: "- c") == Theme.Spacing.md && spacing(before: "- d") == Theme.Spacing.xs
+                && spacing(before: "text") == Theme.Spacing.xs && spacing(before: "- e") == Theme.Spacing.md)
+        let textLine = nestedText.range(of: "    text").location
+        check(
+            "a continuation line hides its indentation and sits at the item's text",
+            font(in: editor.textView, at: textLine) == NoteMarkdownTypography.hidden
+                && style(at: textLine)?.firstLineHeadIndent == style(at: nestedText.range(of: "- d").location)?.headIndent
+                && style(at: textLine)?.headIndent == style(at: textLine)?.firstLineHeadIndent)
+        editor.textView.setSelectedRange(NSRange(location: nestedText.range(of: "    - c").location + 4, length: 0))
+        editor.textView.insertText("", replacementRange: NSRange(location: nestedText.range(of: "    - c").location, length: 4))
+        check(
+            "outdenting an item retunes the gap before it",
+            style(at: nestedText.range(of: "- b").location)?.paragraphSpacing == Theme.Spacing.md)
+        editor.coordinator.editorUndoManager.undo()
+        let tabbed = "1. a\n    1. spaces\n\t2. tab\n\ttext\n\t- [ ] task\n- b"
+        editor.coordinator.update(
+            NoteEditorInput(id: NoteID(rawValue: "Tabs.md"), source: tabbed, epoch: 21))
+        let tabbedText = tabbed as NSString
+        editor.textView.setSelectedRange(NSRange(location: tabbedText.length, length: 0))
+        func textX(_ needle: String) -> CGFloat? {
+            glyphX(in: editor.textView, at: tabbedText.range(of: needle).location)
+        }
+        let spacesX = textX("spaces")
+        let topX = textX("a\n")
+        check(
+            "a tab-indented item, continuation line and task sit where space-indented ones do",
+            [textX("tab"), textX("task")].allSatisfy { $0.map { abs($0 - spacesX!) < 0.5 } == true }
+                && textX("text").map { abs($0 - topX!) < 0.5 } == true)
+        editor.textView.setSelectedRange(NSRange(location: tabbedText.range(of: "tab").location, length: 0))
+        check(
+            "a tab-indented number keeps its text in place under the caret",
+            textX("tab").map { abs($0 - spacesX!) < 0.5 } == true)
+        editor.textView.setSelectedRange(NSRange(location: tabbedText.range(of: "text").location, length: 0))
+        check(
+            "a tab-indented continuation line keeps its text in place under the caret",
+            textX("text").map { abs($0 - topX!) < 0.5 } == true)
         let emptyBullet = "- first\n- \n- third"
         editor.coordinator.update(
             NoteEditorInput(id: NoteID(rawValue: "EmptyBullet.md"), source: emptyBullet, epoch: 3))
@@ -536,7 +583,7 @@ struct NotesEditorTests {
                 == bulletFragments[0]?.textLineFragments.first?.typographicBounds.height)
         check(
             "an empty bullet keeps its dot",
-            decoration(in: editor.textView, at: 8)?.shape == .bullet(level: 0))
+            decoration(in: editor.textView, at: 8)?.shape == .bullet(level: 0, dash: true))
         check(
             "an empty bullet keeps normal text metrics",
             font(in: editor.textView, at: 8) == NoteMarkdownTypography.body)
@@ -544,7 +591,7 @@ struct NotesEditorTests {
         editor.textView.setSelectedRange(NSRange(location: 10, length: 0))
         check(
             "an active empty bullet keeps its dot",
-            decoration(in: editor.textView, at: 8)?.shape == .bullet(level: 0))
+            decoration(in: editor.textView, at: 8)?.shape == .bullet(level: 0, dash: true))
         editor.coordinator.update(
             NoteEditorInput(id: NoteID(rawValue: "Spacing.md"), source: source, epoch: 4))
         editor.textView.setSelectedRange(NSRange(location: text.length, length: 0))
@@ -570,8 +617,16 @@ struct NotesEditorTests {
             let lineStart = text.lineRange(for: text.range(of: needle)).location
             return decoration(in: editor.textView, at: lineStart)?.shape
         }
-        check("a bullet carries its decoration", shape("- bullet") == .bullet(level: 0))
-        check("a nested bullet carries its level", shape("    - nested") == .bullet(level: 1))
+        check("a bullet carries its decoration", shape("- bullet") == .bullet(level: 0, dash: true))
+        let stars = makeEditor(
+            input: NoteEditorInput(id: NoteID(rawValue: "Stars.md"), source: "* star\n+ plus", epoch: 1),
+            rendersMarkdown: true)
+        stars.textView.setSelectedRange(NSRange(location: 13, length: 0))
+        check(
+            "star and plus bullets get the dot",
+            decoration(in: stars.textView, at: 0)?.shape == .bullet(level: 0)
+                && decoration(in: stars.textView, at: 7)?.shape == .bullet(level: 0))
+        check("a nested bullet carries its level", shape("    - nested") == .bullet(level: 1, dash: true))
         check("an ordered item carries its own label", shape("1. first") == .ordered(level: 0, label: "1."))
         check("a task carries its state", shape("- [x] done") == .task(level: 0, checked: true))
         check("a quote carries its depth", shape("> quoted") == .quote(depth: 1))
@@ -596,11 +651,20 @@ struct NotesEditorTests {
         let task = text.range(of: "- [ ] open").location
         editor.textView.setSelectedRange(NSRange(location: task + 6, length: 0))
         check(
-            "a task marker keeps the same gray under the caret",
-            color(in: editor.textView, at: task)?.cgColor == gray)
+            "a task keeps its box under the caret, with its marker hidden",
+            shape("- [ ] open") == .task(level: 0, checked: false)
+                && font(in: editor.textView, at: task) == NoteMarkdownTypography.hidden)
+        let wide = makeEditor(
+            input: NoteEditorInput(id: NoteID(rawValue: "Wide.md"), source: "100000. a\n2. b", epoch: 1),
+            rendersMarkdown: true)
+        wide.textView.setSelectedRange(NSRange(location: 9, length: 0))
+        check(
+            "a number too wide to hang stays drawn under the caret",
+            decoration(in: wide.textView, at: 0)?.shape == .ordered(level: 0, label: "100000.")
+                && font(in: wide.textView, at: 0) == NoteMarkdownTypography.hidden)
         let renderedIndent = paragraphStyle(in: editor.textView, at: bullet)?.headIndent
         editor.textView.setSelectedRange(NSRange(location: bullet + 3, length: 0))
-        check("a bullet keeps its dot under the caret", shape("- bullet") == .bullet(level: 0))
+        check("a bullet keeps its dot under the caret", shape("- bullet") == .bullet(level: 0, dash: true))
         let revealed = paragraphStyle(in: editor.textView, at: bullet)
         check(
             "a bullet keeps its rendered indent under the caret",
@@ -609,8 +673,8 @@ struct NotesEditorTests {
         editor.textView.setSelectedRange(NSRange(location: text.range(of: "nested").location, length: 0))
         check(
             "moving the caret between bullets keeps both dots",
-            shape("- bullet") == .bullet(level: 0)
-                && shape("    - nested") == .bullet(level: 1))
+            shape("- bullet") == .bullet(level: 0, dash: true)
+                && shape("    - nested") == .bullet(level: 1, dash: true))
         editor.textView.setSelectedRange(NSRange(location: 0, length: 0))
 
         let fragments = layoutFragments(in: editor.textView)
@@ -636,9 +700,9 @@ struct NotesEditorTests {
             fenceFrame != nil && fenceFrame?.maxY == codeFrame?.minY)
         if let task = fragment("- [ ] open") as? NoteBlockLayoutFragment {
             let firstLine = task.firstLine
-            let box = NoteCheckboxGeometry.rect(
+            let box = NoteListGeometry.rect(
                 level: 0, firstLineHeight: firstLine.height,
-                bodyPointSize: NoteMarkdownTypography.body.pointSize)
+                bodyFont: NoteMarkdownTypography.body)
             let surface = task.renderingSurfaceBounds.offsetBy(dx: task.layoutFragmentFrame.minX, dy: 0)
             check("the checkbox lies inside the task's drawing surface", surface.contains(box))
         } else {
@@ -656,7 +720,7 @@ struct NotesEditorTests {
         check(
             "space turns a dash into a bullet",
             editor.coordinator.renderer.markdown.lines[0].kind == .bullet
-                && decoration(in: editor.textView, at: 0)?.shape == .bullet(level: 0))
+                && decoration(in: editor.textView, at: 0)?.shape == .bullet(level: 0, dash: true))
 
         editor.coordinator.update(NoteEditorInput(id: NoteID(rawValue: "Numbered.md"), source: "", epoch: 2))
         editor.textView.insertText("1.", replacementRange: editor.textView.selectedRange())
@@ -682,7 +746,7 @@ struct NotesEditorTests {
                 && editor.textView.selectedRange() == NSRange(location: 9, length: 0))
         check(
             "a new empty bullet is drawn at the end of a note",
-            decoration(in: editor.textView, at: 7)?.shape == .bullet(level: 0))
+            decoration(in: editor.textView, at: 7)?.shape == .bullet(level: 0, dash: true))
         undo.undo()
         check("one Undo step removes the continuation", editor.textView.string == "- item")
         undo.redo()
@@ -975,8 +1039,8 @@ struct NotesEditorTests {
             ordered.firstBaseline == orderedText.typographicBounds.minY + orderedText.glyphOrigin.y)
 
         let text = task.textLineFragments[1].typographicBounds
-        let box = NoteCheckboxGeometry.rect(
-            level: 0, firstLineHeight: text.height, bodyPointSize: NoteMarkdownTypography.body.pointSize)
+        let box = NoteListGeometry.rect(
+            level: 0, firstLineHeight: text.height, bodyFont: NoteMarkdownTypography.body)
         let lowerEdge = CGPoint(x: box.midX, y: task.layoutFragmentFrame.minY + text.minY + box.maxY - 1)
         check(
             "a checkbox under a long first word clicks where it is drawn",
@@ -989,8 +1053,8 @@ struct NotesEditorTests {
             return nil
         }
         let firstLine = fragment.firstLine
-        let box = NoteCheckboxGeometry.rect(
-            level: 0, firstLineHeight: firstLine.height, bodyPointSize: NoteMarkdownTypography.body.pointSize)
+        let box = NoteListGeometry.rect(
+            level: 0, firstLineHeight: firstLine.height, bodyFont: NoteMarkdownTypography.body)
         return CGPoint(x: box.midX, y: fragment.layoutFragmentFrame.minY + firstLine.minY + box.midY)
     }
 
@@ -1016,7 +1080,7 @@ struct NotesEditorTests {
             return
         }
         defer { _ = NoteMarkdownStyler.apply(.standard) }
-        let source = "Plain 你好 **粗体 bold** *lean*\n\n1. one\n\n`code 字`\n\n# Head 题"
+        let source = "Plain 你好 **粗体 bold** *lean*\n\n1. one\n    1. nested\n\n`code 字`\n\n# Head 题"
         let text = source as NSString
         let input = NoteEditorInput(id: NoteID(rawValue: "Fonts.md"), source: source, epoch: 1)
         let editor = makeEditor(input: input, rendersMarkdown: true)
@@ -1054,6 +1118,27 @@ struct NotesEditorTests {
             "list indents scale with the body size",
             headIndent(in: editor.textView, at: text.range(of: "one").location) > standardIndent)
         check("an ordered number is drawn in the text family", NoteMarkdownTypography.labelFontName?.hasPrefix("Menlo") == true)
+        let one = text.range(of: "one").location
+        let renderedIndent = headIndent(in: editor.textView, at: one)
+        editor.textView.setSelectedRange(NSRange(location: one, length: 0))
+        let revealed = paragraphStyle(in: editor.textView, at: one)
+        let markerWidth = ("1. " as NSString).size(withAttributes: [.font: NoteMarkdownTypography.body]).width
+        check(
+            "a wide family's revealed number hangs in the slot, so its text does not move",
+            revealed?.headIndent == renderedIndent
+                && revealed.map { $0.firstLineHeadIndent + markerWidth == renderedIndent } == true)
+        let nested = text.range(of: "nested").location
+        let nestedIndent = headIndent(in: editor.textView, at: nested)
+        editor.textView.setSelectedRange(NSRange(location: nested, length: 0))
+        let nestedRevealed = paragraphStyle(in: editor.textView, at: nested)
+        let nestedLine = text.lineRange(for: NSRange(location: nested, length: 0)).location
+        check(
+            "a nested revealed number hides its indentation, so its text does not move either",
+            nestedRevealed?.headIndent == nestedIndent
+                && nestedRevealed.map { $0.firstLineHeadIndent + markerWidth == nestedIndent } == true
+                && font(in: editor.textView, at: nestedLine) == NoteMarkdownTypography.hidden
+                && color(in: editor.textView, at: nestedLine + 4) != NSColor.clear)
+        editor.textView.setSelectedRange(NSRange(location: text.length, length: 0))
 
         let head = text.range(of: "Head").location
         check("a heading follows the text family when it has none", font(in: editor.textView, at: head)?.familyName == "Menlo")
@@ -1088,6 +1173,20 @@ struct NotesEditorTests {
             "the standard settings restore the system fonts",
             font(in: editor.textView, at: plain) == NSFont.systemFont(ofSize: standardSize)
                 && headIndent(in: editor.textView, at: text.range(of: "one").location) == standardIndent)
+    }
+
+    /// Where the glyph at `location` is laid out, which is what the eye sees and the indent only promises.
+    private static func glyphX(in textView: NSTextView, at location: Int) -> CGFloat? {
+        guard let layout = textView.textLayoutManager, let content = textView.textContentStorage,
+            let start = content.location(content.documentRange.location, offsetBy: location),
+            let end = content.location(start, offsetBy: 1), let range = NSTextRange(location: start, end: end)
+        else { return nil }
+        var x: CGFloat?
+        layout.enumerateTextSegments(in: range, type: .standard, options: []) { _, frame, _, _ in
+            x = frame.minX
+            return false
+        }
+        return x
     }
 
     private static func headIndent(in textView: NSTextView, at location: Int) -> CGFloat {

@@ -5,6 +5,7 @@ import SwiftUI
 @MainActor
 enum NoteMarkdownStyler {
     typealias Attributes = [NSAttributedString.Key: Any]
+    private typealias Unit = NoteMarkdownParser.Unit
 
     struct LineStyle {
         /// Set over the whole line, replacing whatever it carried.
@@ -26,6 +27,11 @@ enum NoteMarkdownStyler {
     private static let codeInset = Theme.Spacing.lg
     /// Space after each list item, kept when revealed so moving the caret never shifts the rows.
     private static let listItemSpacing = Theme.Spacing.md
+    /// Space before nested content, so an item and what it holds read as one group.
+    private static let nestedItemSpacing = Theme.Spacing.xs
+    /// A hidden tab still runs to the next tab stop, so each one gets a stop this far past where it starts.
+    private static let hiddenTabStep: CGFloat = 0.1
+    private static let defaultTabInterval: CGFloat = 28
     /// Only these get a `.link` attribute, and only these are opened when one is clicked.
     static let openableSchemes: Set<String> = ["http", "https", "mailto"]
 
@@ -57,7 +63,7 @@ enum NoteMarkdownStyler {
     }
 
     private static func makeListSlot() -> CGFloat {
-        NoteCheckboxGeometry.slot(bodyPointSize: NoteMarkdownTypography.body.pointSize)
+        NoteListGeometry.slot(bodyFont: NoteMarkdownTypography.body)
     }
 
     /// Colours the fragment draws with are resolved now, under the caller's drawing appearance.
@@ -70,6 +76,12 @@ enum NoteMarkdownStyler {
         let markerLook = isRevealed ? revealedMarker : hidden
 
         switch line.kind {
+        case .paragraph where line.isListContinuation:
+            let indentation = Self.indentation(of: line.contentRange, in: text)
+            runs.append((indentation, hidden))
+            base[.paragraphStyle] = listParagraph(
+                contentIndent: CGFloat(line.level) * listSlot, hiding: indentation, in: text,
+                spacingAfter: listSpacing(after: index, in: markdown))
         case .blank, .paragraph:
             break
         case .heading(let level):
@@ -81,25 +93,28 @@ enum NoteMarkdownStyler {
             }
             if let marker = line.markerRange { runs.append((marker, markerLook)) }
         case .bullet, .ordered, .task:
-            let revealsMarker = isRevealed && line.kind != .bullet
+            guard let marker = line.markerRange else { break }
+            let indentation = Self.indentation(of: marker, in: text)
+            let label = NSRange(NSMaxRange(indentation)..<NSMaxRange(marker))
+            let labelWidth = bodyWidth(of: label, in: text)
+            let contentIndent = CGFloat(line.level + 1) * listSlot
+            let reveals = isRevealed && line.kind.isOrdered && labelWidth <= contentIndent
             let isEmpty = line.contentRange.length == 0
-            if let marker = line.markerRange {
-                let listMarkerLook: Attributes =
-                    revealsMarker
-                    ? [.foregroundColor: color(Theme.Colors.textSecondary)]
-                    : (isEmpty ? hiddenEmptyListMarker : hidden)
-                runs.append((marker, listMarkerLook))
-            }
+            runs.append((indentation, hidden))
+            let labelLook: Attributes =
+                reveals
+                ? [.foregroundColor: color(Theme.Colors.textSecondary)]
+                : isEmpty ? hiddenEmptyListMarker : hidden
+            runs.append((label, labelLook))
             if case .task(checked: true) = line.kind {
                 runs.append((line.contentRange, checkedTask))
             }
-            let contentIndent = CGFloat(line.level + 1) * listSlot
-            base[.paragraphStyle] =
-                revealsMarker || isEmpty
-                ? hanging(
-                    line.markerRange, in: text, contentIndent: contentIndent, spacingAfter: listItemSpacing)
-                : indented(by: contentIndent, spacingAfter: listItemSpacing)
-            if !revealsMarker { base[.noteBlockDecoration] = listDecoration(line, text: text) }
+            let hangs = reveals || isEmpty
+            base[.paragraphStyle] = listParagraph(
+                contentIndent: contentIndent, hangingWidth: hangs ? labelWidth : 0,
+                hiding: hangs ? indentation : marker, in: text,
+                spacingAfter: listSpacing(after: index, in: markdown))
+            if !reveals { base[.noteBlockDecoration] = listDecoration(line, label: label, text: text) }
         case .quote(let depth):
             if let marker = line.markerRange { runs.append((marker, markerLook)) }
             runs.append((line.contentRange, [.foregroundColor: color(Theme.Colors.textSecondary)]))
@@ -224,6 +239,12 @@ enum NoteMarkdownStyler {
         $0.tailIndent = -codeInset
     }
 
+    /// Tighter before nested content; the gap after a group's last line stays the list's own.
+    private static func listSpacing(after index: Int, in markdown: NoteMarkdown) -> CGFloat {
+        let next = markdown.lines[(index + 1)...].first { $0.kind != .blank }
+        return next.map { $0.level > 0 } == true ? nestedItemSpacing : listItemSpacing
+    }
+
     private static func indented(by indent: CGFloat, spacingAfter: CGFloat = 0) -> NSParagraphStyle {
         paragraph {
             $0.firstLineHeadIndent = indent
@@ -236,13 +257,43 @@ enum NoteMarkdownStyler {
     private static func hanging(
         _ marker: NSRange?, in text: NSString, contentIndent: CGFloat, spacingAfter: CGFloat = 0
     ) -> NSParagraphStyle {
-        let markerText = marker.map { text.substring(with: $0) as NSString }
-        let width = markerText?.size(withAttributes: [.font: NoteMarkdownTypography.body]).width ?? 0
+        let width = marker.map { bodyWidth(of: $0, in: text) } ?? 0
         return paragraph {
             $0.firstLineHeadIndent = max(0, contentIndent - width)
             $0.headIndent = contentIndent
             $0.paragraphSpacing = spacingAfter
         }
+    }
+
+    /// Content sits at `contentIndent`, a visible label hangs left of it, and hidden tabs get stops.
+    private static func listParagraph(
+        contentIndent: CGFloat, hangingWidth: CGFloat = 0, hiding hidden: NSRange, in text: NSString,
+        spacingAfter: CGFloat
+    ) -> NSParagraphStyle {
+        let firstLineIndent = max(0, contentIndent - hangingWidth)
+        let tabs = (hidden.location..<NSMaxRange(hidden)).count { text.character(at: $0) == Unit.tab }
+        return paragraph {
+            $0.firstLineHeadIndent = firstLineIndent
+            $0.headIndent = contentIndent
+            $0.paragraphSpacing = spacingAfter
+            guard tabs > 0 else { return }
+            $0.tabStops = (1...tabs).map { tab in
+                let location = firstLineIndent + CGFloat(tab) * hiddenTabStep
+                return NSTextTab(textAlignment: .left, location: location, options: [:])
+            }
+            $0.defaultTabInterval = defaultTabInterval
+        }
+    }
+
+    private static func bodyWidth(of range: NSRange, in text: NSString) -> CGFloat {
+        text.substring(with: range).size(withAttributes: [.font: NoteMarkdownTypography.body]).width
+    }
+
+    /// The leading spaces and tabs of `range`, which a list-shaped line always hides.
+    private static func indentation(of range: NSRange, in text: NSString) -> NSRange {
+        var end = range.location
+        while end < NSMaxRange(range), Unit.isSpaceOrTab(text.character(at: end)) { end += 1 }
+        return NSRange(range.location..<end)
     }
 
     private static func paragraph(_ configure: (NSMutableParagraphStyle) -> Void) -> NSParagraphStyle {
@@ -251,17 +302,20 @@ enum NoteMarkdownStyler {
         return style
     }
 
-    private static func listDecoration(_ line: NoteMarkdown.Line, text: NSString) -> NoteBlockDecoration {
+    private static func listDecoration(
+        _ line: NoteMarkdown.Line, label: NSRange, text: NSString
+    ) -> NoteBlockDecoration {
         let shape: NoteBlockDecoration.Shape
         switch line.kind {
         case .task(let checked):
-            shape = .task(level: line.level, checked: checked)
+            return decoration(
+                .task(level: line.level, checked: checked),
+                fill: Theme.Colors.controlSurface, ink: Theme.Colors.noteText)
         case .ordered:
-            let label = text.substring(with: line.markerRange ?? line.contentRange)
-                .trimmingCharacters(in: .whitespaces)
+            let label = text.substring(with: label).trimmingCharacters(in: .whitespaces)
             shape = .ordered(level: line.level, label: label)
         default:
-            shape = .bullet(level: line.level)
+            shape = .bullet(level: line.level, dash: text.character(at: label.location) == Unit.dash)
         }
         return decoration(shape, fill: Theme.Colors.textSecondary, ink: Theme.Colors.textSecondary)
     }

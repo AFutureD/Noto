@@ -254,9 +254,8 @@ final class NoteTextView: NSTextView {
             case .task(let level, _) = fragment.decoration.shape
         else { return nil }
         let firstLine = fragment.firstLine
-        let box = NoteCheckboxGeometry.rect(
-            level: level, firstLineHeight: firstLine.height,
-            bodyPointSize: fragment.decoration.bodyPointSize
+        let box = NoteListGeometry.rect(
+            level: level, firstLineHeight: firstLine.height, bodyFont: fragment.decoration.bodyFont
         ).offsetBy(dx: 0, dy: fragment.layoutFragmentFrame.minY + firstLine.minY)
         guard box.insetBy(dx: -Self.checkboxSlop, dy: -Self.checkboxSlop).contains(point) else { return nil }
         let start = content.offset(from: content.documentRange.location, to: fragment.rangeInElement.location)

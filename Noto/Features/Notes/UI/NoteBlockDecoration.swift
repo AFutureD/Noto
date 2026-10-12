@@ -12,7 +12,8 @@ final class NoteBlockDecoration: NSObject, Sendable {
         case code(CodeRow, language: String?)
         case quote(depth: Int)
         case rule
-        case bullet(level: Int)
+        /// `dash` draws a `-` item as a short bar; `*` and `+` items get the dot.
+        case bullet(level: Int, dash: Bool = false)
         /// The source's own label, such as `3.` or `3)`.
         case ordered(level: Int, label: String)
         case task(level: Int, checked: Bool)
@@ -21,7 +22,7 @@ final class NoteBlockDecoration: NSObject, Sendable {
     let shape: Shape
     /// Band, bar, rule, bullet or box.
     let fill: NSColor
-    /// Number text or language label; a checkmark is cut out of the box instead.
+    /// Number text, language label or checkmark.
     let ink: NSColor
     let bodyPointSize: CGFloat
     /// A name, because `NSFont` is not `Sendable`; nil draws an ordered number in the system font.
@@ -35,6 +36,11 @@ final class NoteBlockDecoration: NSObject, Sendable {
         self.ink = ink
         self.bodyPointSize = bodyPointSize
         self.labelFontName = labelFontName
+    }
+
+    /// The body font, which sizes markers and the slot they sit in.
+    var bodyFont: NSFont {
+        labelFontName.flatMap { NSFont(name: $0, size: bodyPointSize) } ?? .systemFont(ofSize: bodyPointSize)
     }
 
     /// Value equality, so restyling a line to the same look does not read as a change.

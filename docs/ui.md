@@ -188,17 +188,23 @@ to 3 use the largeTitle, title1 and title2 sizes (bold, bold, semibold). Inline 
 `controlSurface`, a highlight draws `highlight` or the chosen colour behind its text, and links use
 the system link colour. Quotes and
 checked tasks dim to `textSecondary`, and a checked task is struck through. Most markers show in
-`textTertiary` on the caret's line and are hidden elsewhere. Bullets keep their rendered dot even under
-the caret; revealed list markers stay `textSecondary`. Revealed non-bullet list and quote markers hang
-left of their text, so the text does not move when the caret arrives, unless the marker is wider than
-the slot. Empty list items keep body-sized invisible markers so their rows match filled items' height.
+`textTertiary` on the caret's line and are hidden elsewhere. Bullets and tasks keep their rendered
+marker even under the caret. A number is revealed only when its label fits the content indent; it
+stays `textSecondary`, hides its indentation and hangs left of the text, so the text does not move
+when the caret arrives. Quote markers hang whole. Empty list items keep body-sized invisible labels so their rows match filled
+items' height.
 
 A layout fragment draws the block chrome. A code band fills `cardFill` with `menu` corners at its ends
 and a `textTertiary` language label, inset by `lg`. A quote bar is `markdownQuoteBar` wide in `border`,
 stepping `markdownQuoteBar + lg` per depth. A rule is a `hairline` of `separator`. List markers sit in
-a slot per level, `markdownListMarker` grown in proportion to the body size. Bullets, numbers and
-checkboxes are `textSecondary`; a done box is filled with the check cut out. Headings 1 and 2 get `xl`
-space above, the rest `md`, and `xs` below; every list item gets `md` below. A table stays literal
+a slot per level, `markdownListMarker` grown in proportion to the body size, or the width of `0. ` in
+the body font when that is wider. A drawn number sits one body-font space before its text. Bullets and
+numbers are `textSecondary`; a `-` item draws a short bar and a `*` or `+` item a dot. A checkbox is a
+`controlSurface` block with corners a quarter of its side, and a done box draws a `noteText` check on
+it. Headings 1 and 2 get `xl`
+space above, the rest `md`, and `xs` below; every list item gets `md` below, or `xs` when nested
+content follows. Text indented under an item hides its indentation and sits at the item's text. A
+table stays literal
 source in the code-block font, and a wrapped row hangs `lg` under its first line. AppKit owns editing,
 undo, selection, Find, and marked text.
 

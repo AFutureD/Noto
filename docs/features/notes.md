@@ -205,10 +205,13 @@ block moved and to any list line whose depth changed.
 `NoteMarkdownStyler` turns one line into attributes. `NoteMarkdownTypography` sets the body one
 system text style up (title3) and headings at largeTitle, title1 and title2, with or without
 rendering. A hidden marker gets a 0.01-point system font and
-a clear colour, so it stays in the string at almost no width. Fence and rule lines are cleared at their
-normal font instead, so they keep their row height. Every list item (bullet, numbered or task) gets 8
-points of space after it, rendered or revealed, so items read as separate rows and moving the caret
-never shifts them; a wrapped item keeps normal line spacing. A restyle writes straight to
+a clear colour, so it stays in the string at almost no width. A hidden tab still runs to the next tab
+stop, so a paragraph that hides tabs gets one stop 0.1 point past each of them. Fence and rule lines are cleared at their
+normal font instead, so they keep their row height. Every list item (bullet, numbered or task) and
+every continuation line gets 8 points of space after it, or 4 when the next line is nested content, so
+items read as rows, a group reads as one, and moving the caret never shifts them; a wrapped item keeps
+normal line spacing. A continuation line hides its indentation, under the caret too, and sits at the
+text of the item it continues. A restyle writes straight to
 `NSTextStorage` inside `beginEditing` and `endEditing`, then invalidates layout for those lines. It
 never calls `shouldChangeText`, which is what keeps styling off the undo stack.
 
@@ -217,10 +220,11 @@ A bullet or numbered marker becomes a list only after a space or tab; a lone `-`
 `NoteRevealPolicy` picks the lines that show raw Markdown: every line under the selection, plus both
 fences of a code block the selection is in. Nothing is revealed unless the editor is first responder in
 the key window. Revealed markers use `textTertiary`. During a drag selection the reveal waits for
-mouse-up, because revealing moves text under the pointer. Bullets keep their dot under the caret;
-other revealed list markers keep the rendered marker's `textSecondary` colour. Revealed non-bullet list
-and quote lines hang their source marker left of the content indent, so text stays where the rendered
-line had it. Empty list items keep body-sized invisible markers so their line height does not collapse.
+mouse-up, because revealing moves text under the pointer. Bullets and tasks keep their marker under
+the caret. A numbered line reveals its label only when the label fits the content indent: it keeps the
+rendered marker's `textSecondary` colour, hides its indentation and hangs left of the content indent,
+so text stays where the rendered line had it. A quote line hangs its whole marker. Empty list items keep body-sized invisible
+labels so their line height does not collapse.
 Other caret lines are raw, keeping the caret out of hidden text.
 
 ### Block drawing
@@ -228,7 +232,8 @@ Other caret lines are raw, keeping the caret out of hidden text.
 `NoteLayoutFragmentProvider` is the text layout manager's delegate. A paragraph whose first character
 carries a `NoteBlockDecoration` (the `noto.note.blockDecoration` attribute) is laid out by
 `NoteBlockLayoutFragment`, which draws code bands with their language label, quote bars, rules,
-bullets, the source's own list numbers, and checkboxes, all list markers in a neutral gray. Vertical
+bullets (a bar for `-`, a dot for `*` and `+`) and the source's own list numbers in a neutral gray, and
+checkboxes as filled blocks. Vertical
 spacing comes from paragraph styles: overriding the fragment's frame would leave the caret above the
 glyphs. A marker sits on the item's first line of text, not on its first line fragment: a first word
 too wide for the line wraps below the hidden marker and leaves the marker a line of almost no height.
@@ -254,7 +259,7 @@ reaches autosave.
   lines inside a selection, code, tables and rules are left alone.
 - Pasting a single `http` or `https` URL over text selected on one line makes `[text](url)`.
 - Clicking a checkbox toggles `[ ]` and `[x]` without moving the caret. The hit test uses
-  `NoteCheckboxGeometry`, the rect the fragment draws, grown by 3 points.
+  `NoteListGeometry`, the rect the fragment draws, grown by 3 points.
 - Clicking a rendered link opens it, unless the click lands in the outer 30% of the label's first or
   last glyph, which places the caret. Only `http`, `https` and `mailto` open. A revealed line carries
   no link attribute, so its URL is edited as text.
