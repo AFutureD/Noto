@@ -137,12 +137,13 @@ characters, and a caret move between distant lines. `NOTO_PERF_RUNS` lowers the 
 read. The budget is 150 ms for the install, 8 ms per character at the end and middle, and 4 ms at the
 start. The fit's read gets 10 ms after the install and 1 ms after a character.
 
-MDTextKit does not meet that budget yet. On 2026-10-13, one run measured an install of 490 ms, a
-character at the end of 650 ms and at the start of 150 ms, and a Markdown read of 39 ms on a
-50,000-character note; the 100,000-character run did not finish. The cost is in the package: each
-edit restyles, hides markers, toggles links and prunes attachments over the whole note, and each of
-those passes bridges every attribute dictionary of `MDTextStorage` to Swift. Narrowing those passes
-to the edited range is a task in the MDTextKit repository.
+MDTextKit does not meet the whole budget yet. On 2026-10-13, after the package learned to re-parse
+and annotate only the blocks an edit touches, to map coordinates through an attachment table and to
+keep its storage primitives in Objective-C, ten runs on the 100,000-character note measured an install
+of 800 ms, a character of 12 ms at the end, 15 ms in the middle and 16 ms at the start, and a fit's
+read of 3 ms after the install. The install styles and lays out the whole note; the keystroke cost
+that remains is the styling of the edited block and TextKit's own attribute fixing. Both are tasks in
+the MDTextKit repository.
 
 It is a timing harness, not an assertion one, so it stays out of the suite: `run-tests.sh` registers it
 as `run -O index`, which records its source list without queueing it. Compile it by hand, from the repo

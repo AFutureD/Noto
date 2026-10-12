@@ -56,18 +56,26 @@ fi
 # MDTextKit is compiled once, module by module, and every harness links it the way the app does.
 MDTEXTKIT="${MDTEXTKIT_DIR:-$PWD/../MDTextKit}"
 MODULES="$BIN/modules"
-export NOTO_LINK="-I $MODULES -L $MODULES -lMDTextKitUI -lMDTextKit -lSFThemeKit -lTextBundle -lPolarMark"
+CORE="$MDTEXTKIT/Sources/MDTextStorageCore"
+export NOTO_LINK="-I $MODULES -I $CORE/include -L $MODULES -lMDTextKitUI -lMDTextKit -lMDTextStorageCore -lSFThemeKit -lTextBundle -lPolarMark"
 build_modules() {
     mkdir -p "$MODULES"
     local stamp="$MODULES/.stamp"
-    if [ -f "$stamp" ] && [ -z "$(find "$MDTEXTKIT/Sources" -name '*.swift' -newer "$stamp" -print -quit)" ]; then
+    if [ -f "$stamp" ] && [ -z "$(find "$MDTEXTKIT/Sources" \( -name '*.swift' -o -name '*.m' -o -name '*.h' \) -newer "$stamp" -print -quit)" ]; then
         return 0
     fi
     rm -f "$stamp"
+    # The storage primitives are Objective-C; clang builds them, and the module map makes them importable.
+    if ! clang -c -fobjc-arc -fmodules -O -I "$CORE/include" "$CORE/MDAttributedStorage.m" -o "$MODULES/MDAttributedStorage.o" > "$MODULES/MDTextStorageCore.log" 2>&1 \
+        || ! libtool -static -o "$MODULES/libMDTextStorageCore.a" "$MODULES/MDAttributedStorage.o" >> "$MODULES/MDTextStorageCore.log" 2>&1; then
+        printf '\033[31mFAIL\033[0m  MDTextKit module MDTextStorageCore did not compile\n'
+        cat "$MODULES/MDTextStorageCore.log"
+        return 1
+    fi
     for module in PolarMark SFThemeKit TextBundle MDTextKit MDTextKitUI; do
         # shellcheck disable=SC2046 # the package has no path with a space in it.
         if ! swiftc -swift-version 6 -parse-as-library -emit-module -emit-library -static -module-name "$module" \
-            -I "$MODULES" -L "$MODULES" -emit-module-path "$MODULES/$module.swiftmodule" -o "$MODULES/lib$module.a" \
+            -I "$MODULES" -I "$CORE/include" -L "$MODULES" -emit-module-path "$MODULES/$module.swiftmodule" -o "$MODULES/lib$module.a" \
             $(find "$MDTEXTKIT/Sources/$module" -name '*.swift') > "$MODULES/$module.log" 2>&1; then
             printf '\033[31mFAIL\033[0m  MDTextKit module %s did not compile\n' "$module"
             cat "$MODULES/$module.log"
