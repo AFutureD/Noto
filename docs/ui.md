@@ -92,9 +92,9 @@ buttons inside them. A capsule's radius is half its height, so the inner buttons
 
 ### Size (`Theme.Size`)
 
-The note window: `noteWindow 440×180` (the opening size and the resize floor), `noteTitlebar 52`,
-`noteTitleInset 120`, `noteTrafficLightInset 20`, `noteEditorInset 16`, `noteEditorTopInset 6`,
-`noteFooterHeight 28`, `bottomBarHeight 52`, `noteGlyph 16`, `noteEmptyGlyph 28`.
+The note window: `noteWindow 440×180` (the opening size and the height floor), `noteWindowMaxHeight 860`,
+`noteTitlebar 52`, `noteTitleInset 120`, `noteTrafficLightInset 20`, `noteEditorInset 16`,
+`noteEditorTopInset 6`, `noteFooterHeight 28`, `bottomBarHeight 52`, `noteGlyph 16`, `noteEmptyGlyph 28`.
 
 The switcher and the heading menu: `noteSwitcher 300×240`, `noteSearchHeight 34`,
 `noteSwitcherEmptyHeight 96`, `noteSwitcherDrop 56`, `rowIcon 24`, `noteHeadingMenu` (220 wide, exactly
@@ -176,7 +176,7 @@ press on it reaches the drag region. `NotesWindowController.seatTrafficLights` m
 `noteTrafficLightInset` in and centres them in the drawn band, re-running whenever AppKit re-seats
 them. The capsule's buttons carry `.help()` tooltips.
 
-`NotesWindowController` preserves the user-owned size and AppKit autosaves the frame under
+`NotesWindowController` fits the height to the editor on each edit and AppKit autosaves the frame under
 `"Notes Window"`; `windowWillResize` clamps to `noteWindow`, and only a title-bar double-click computes
 a top-right target. The window shows exactly one content surface — the editor or the "No Notes" empty
 state — and the character count is part of the editor surface, so it never appears without a note.

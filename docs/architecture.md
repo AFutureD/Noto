@@ -127,8 +127,8 @@ driven imperatively from AppKit.
   new-item group. It is declared, not assigned to `NSApp.mainMenu`, because SwiftUI rebuilds the
   menu on any scene change.
 - The note window — a persistent, titled, non-activating `NotesPanel`, managed by
-  `NotesWindowController`. The user owns its size and AppKit autosaves the frame; its TextKit 2 editor
-  renders Markdown over the literal source and stays visible on focus loss. Its hosting view sets
+  `NotesWindowController`. Its height fits the note up to 860pt and AppKit autosaves the frame; its
+  TextKit 2 editor renders Markdown over the literal source and stays visible on focus loss. Its hosting view sets
   `sizingOptions = []` so SwiftUI never drives the window size.
 - The switcher and the heading menu — two more `NotesPanel`s, borderless child windows of the note
   window, managed by `NoteSwitcherWindowController` and `NoteHeadingMenuWindowController`. The switcher

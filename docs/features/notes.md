@@ -32,8 +32,11 @@ search, or extend the collection. Notes is the app: there is no switch that turn
   source cache.
 - The collection may be empty. Deleting the last note is allowed and creates no replacement; the
   window shows its empty state and Create Note still works from there.
-- The user owns the window size. AppKit resizes and autosaves the frame; the controller only
-  clamps it to the floor below which the title bar's own parts collide.
+- The window's height always fits the note. Each edit, note switch and bar toggle grows or shrinks
+  it between the 180pt floor and 860pt, or the screen's visible height. Past that, the editor scrolls.
+  The top edge holds until the bottom would leave the visible frame; then the window moves up. A
+  dragged height lasts until the next edit. The height comes from TextKit's last layout fragment,
+  because the text view's frame never gets shorter than its clip view.
 - Notes code asks through `NotesDialogs`, never builds an alert itself. The coordinator names the
   question; `NotesDialogs.alerts` is the one place an `NSAlert` is constructed.
 - The editor gets each font from `NoteMarkdownTypography`. Only `NoteMarkdownStyler.apply` changes the

@@ -67,7 +67,7 @@ suite takes about ten seconds, so in practice run both.
 | Harness | Guards |
 | --- | --- |
 | `notes-test` | all of `Noto/Features/Notes/Model/` and `Noto/Features/Notes/Service/`: the repository, the store's autosave, external reloads, draft preservation, selection and relocation, derived titles, search with the real `FuzzyMatch`, the Markdown parser, every edit plan, the formatting reports, the reveal policy, switcher interaction and window placement |
-| `notes-editor-test` | the Notes editor, rendered and literal, with real TextKit 2 and AppKit editing objects: styling, reveal, layout fragments, keys, chords, checkboxes, links, undo, the character count and custom fonts. Also compiles `Noto/DesignSystem/Theme.swift` and `InterfaceMetrics.swift`, so a token those lose breaks it |
+| `notes-editor-test` | the Notes editor, rendered and literal, with real TextKit 2 and AppKit editing objects: styling, reveal, layout fragments, keys, chords, checkboxes, links, undo, the character count, custom fonts and the text height. Also compiles `Noto/DesignSystem/Theme.swift` and `InterfaceMetrics.swift`, so a token those lose breaks it |
 
 Nothing automated covers `Noto/Features/HotKeys/`, `Noto/Features/Settings/`,
 `Noto/Features/Updates/`, `Noto/App/` or the Notes window chrome. A change there is verified by the
@@ -202,6 +202,11 @@ Rendering:
 - Bullets, numbers and checkboxes are a neutral gray, bullet, numbered and task items are evenly spaced,
   and revealing a bullet or numbered line leaves its text where it was
 - A narrow window wraps list items under their text, not under the marker
+- New lines, wrapped text and a paste grow the window vertically and do not change its width. A
+  delete shrinks it back to the 180pt floor. The top edge holds until the bottom reaches the screen's
+  bottom; then the window moves up. It stops at 860pt or the screen's usable height and scrolls.
+  Switching to a shorter note shrinks it. Repeat with rendering on and off, with Find and the
+  formatting bar open, and on a secondary display
 
 Editing:
 
@@ -257,7 +262,7 @@ The window:
   on one line; the yellow and green lights are disabled
 - Each capsule button shows a hover capsule and a native tooltip, and fires its action
 - Dragging the title bar moves the window and dragging an edge resizes it, never below the minimum;
-  both survive relaunch. A double-click on the free title bar moves it to the top-right of the screen
+  both survive relaunch. A dragged height holds until the next keystroke. A double-click on the free title bar moves it to the top-right of the screen
 - Clicking another app leaves the panel visible; Escape, Command-W, and the red light hide it
 - Hiding restores the previous external app, or the Settings window when that was in front; if another
   app was brought forward meanwhile, focus stays there

@@ -108,7 +108,7 @@ developed. Its Notes changes are ported into Noto manually, one commit at a time
 | --- | --- |
 | Upstream repository | `https://github.com/abue-ammar/tinycast` |
 | Upstream path | `Tinycast/Features/Notes` |
-| Last ported commit | `78729983` — `Reload externally edited notes when reopening` (2026-10-06) |
+| Last ported commit | `1322eb67` — `Fit the Notes window's height to its text` (2026-10-07) |
 
 To list the upstream Notes changes that Noto has not seen, run this in a Tinycast checkout:
 
