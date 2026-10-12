@@ -110,7 +110,10 @@ developed. Its Notes changes are ported into Noto manually, one commit at a time
 | Upstream path | `Tinycast/Features/Notes` |
 | Last ported commit | `59c0794f` — `Keep list markers on a wrapped item's first line of text` (2026-10-10) |
 
-To list the upstream Notes changes that Noto has not seen, run this in a Tinycast checkout:
+The `/port-tinycast-notes` command in `.claude/skills/` does the whole port: it reports each upstream
+commit and its merge status, waits for a go-ahead, then ports one commit at a time and updates the row
+above. To list the upstream Notes changes that Noto has not seen by hand, run this in a Tinycast
+checkout:
 
 ```sh
 git log --oneline 46beb10a..origin/main -- Tinycast/Features/Notes
