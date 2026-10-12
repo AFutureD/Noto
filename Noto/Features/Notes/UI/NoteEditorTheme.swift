@@ -49,6 +49,7 @@ enum NoteEditorTheme {
                     "text size": standardBodySize,
                     "line height multiplier": 1.3,
                     "line width multiplier": 0,
+                    "use default paragraph indent": false,
                     "headers": [
                         "text color": text,
                         "font": "system-bold",
