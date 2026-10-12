@@ -23,8 +23,7 @@ larger number than the one before.
 
 ## To cut a release
 
-1. Make sure MDTextKit is a remote package reference with a pin. The release build checks out Noto
-   alone; see [development.md](development.md#the-project).
+1. If MDTextKit changed, tag it in its repository and move Noto's pin to that tag.
 2. Set `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION` to the new version in both configurations.
 3. In `CHANGELOG.md`, rename the `Unreleased` section to the version and the date, and add an empty
    `Unreleased` section above it.

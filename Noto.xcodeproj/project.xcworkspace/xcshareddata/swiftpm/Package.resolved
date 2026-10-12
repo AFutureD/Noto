@@ -1,6 +1,15 @@
 {
-  "originHash" : "e721da7f9826abdffcb6185e886155efa2514bd6234475f1afa893e29eb258d6",
+  "originHash" : "a40969a09febe97cb619f77f61398f5c896a72c39bb744f38f86c1156e9bfd1c",
   "pins" : [
+    {
+      "identity" : "mdtextkit",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/AFutureD/MDTextKit",
+      "state" : {
+        "revision" : "f0e5343b2e2b7f0b94f09fbc657fefaa919bad33",
+        "version" : "0.1.0"
+      }
+    },
     {
       "identity" : "sparkle",
       "kind" : "remoteSourceControl",

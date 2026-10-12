@@ -95,8 +95,8 @@ under `## Invariants`.
   this. The rules are in [standards.md](docs/standards.md#comments).
 - `Noto.xcodeproj` is the source of truth. There is no project generator, no `Package.swift` and never
   `Bundle.module`. `Noto/` is a file-system synchronized group, so a file added, moved or deleted
-  under it needs no project edit. MDTextKit is a local package reference to `../MDTextKit` until its
-  first release; Sparkle is a remote package reference pinned by the committed `Package.resolved`.
+  under it needs no project edit. MDTextKit and Sparkle are remote package references pinned by the
+  committed `Package.resolved`; the harnesses compile MDTextKit from the sibling checkout `../MDTextKit`.
 - A new preference is a property on `NotoSettings` with its key in that file's `Key` enum. Window
   state that is not a preference rides `UserDefaults` from `AppCore` instead.
 

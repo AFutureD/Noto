@@ -7,11 +7,11 @@ The local loop: set up, build, run. [testing.md](testing.md) tells you how to ve
 - macOS 26 or later.
 - Xcode 27 or later. It provides the SwiftUI macros, the SDK and the `actool` that compiles the
   Icon Composer icon.
-- The MDTextKit checkout as a sibling folder, `../MDTextKit`.
+- The MDTextKit checkout as a sibling folder, `../MDTextKit`, for the harnesses.
 - For lint: `brew install swiftlint`.
 
-Xcode resolves two packages on the first build: MDTextKit from `../MDTextKit`, and Sparkle from GitHub.
-That build needs the network. Code signing is automatic with the Apple Development identity of the
+Xcode resolves two packages from GitHub on the first build, MDTextKit and Sparkle, so that build
+needs the network. Code signing is automatic with the Apple Development identity of the
 team in the target. Noto asks for no permission: its hotkeys are Carbon registrations, so it does not
 need Accessibility.
 
@@ -68,12 +68,13 @@ generates it. There is no `Package.swift`, and never `Bundle.module`.
   `Assets.car` and `AppIcon.icns`.
 - `Noto/Info.plist` is a build input (`INFOPLIST_FILE`), not a bundle resource. `Noto/Noto.entitlements`
   turns the App Sandbox off, because Noto reads and writes a folder the user names.
-- MDTextKit is a local package reference (`XCLocalSwiftPackageReference`) to `../MDTextKit`. Before a
-  Noto release it becomes a remote package reference with a pin, because the release build checks out
-  Noto alone. `Scripts/run-tests.sh` reads the same checkout from `MDTEXTKIT_DIR`.
-- Sparkle is a remote package reference, pinned in
-  `Noto.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved`. Change its version in
-  Xcode's package editor and commit both files.
+- MDTextKit and Sparkle are remote package references, pinned in
+  `Noto.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved`, which is committed.
+  MDTextKit is pinned to an exact version. Change a version in Xcode's package editor and commit both
+  files. The release build checks out Noto alone, so a local package reference cannot ship.
+- `Scripts/run-tests.sh` compiles MDTextKit's sources from `MDTEXTKIT_DIR` (default `../MDTextKit`),
+  so the harnesses see the checkout, not the pin. Keep the checkout at the pinned tag, or at the
+  change you are about to release.
 - `Tests/` shows in the navigator but belongs to no target. Each harness has its own `@main`, and
   `Scripts/run-tests.sh` compiles it. `Scripts/` is outside the project.
 
