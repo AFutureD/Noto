@@ -110,7 +110,7 @@ feature's doc, under its own `## Invariants`.
 ## Documentation language
 
 Write all documentation in ASD-STE100 Simplified Technical English. This rule applies to `AGENTS.md`,
-`README.md`, `NOTICE.md` and each file in `docs/`.
+`README.md`, `NOTICE.md`, `CHANGELOG.md` and each file in `docs/`.
 
 - Use one word for one meaning. Use the same word for the same thing each time.
 - Use the active voice. Use the imperative for instructions.
@@ -134,4 +134,5 @@ Each item is explained in [testing.md](docs/testing.md#definition-of-done).
 - `./Scripts/lint.sh` is clean.
 - `grep -rln 'import AppKit\|import SwiftUI\|import Cocoa' Noto/Features/*/Model/` returns nothing.
 - Any doc your change made wrong is fixed in the same change.
+- A change the user can notice has a line under `Unreleased` in `CHANGELOG.md`.
 - Each doc sentence you added or changed obeys [Documentation language](#documentation-language).

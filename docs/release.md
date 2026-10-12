@@ -24,10 +24,12 @@ release must carry a larger number than the one before.
 ## To cut a release
 
 1. Set `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION` to the new version in both configurations.
-2. Run the checks in [testing.md](testing.md#definition-of-done).
-3. Commit and push `main`.
-4. Tag and push the tag: `git tag v0.1.0 && git push origin v0.1.0`.
-5. Watch <https://github.com/AFutureD/noto-releases/actions>. The release appears under
+2. In `CHANGELOG.md`, rename the `Unreleased` section to the new version and the date, and add an
+   empty `Unreleased` section above it.
+3. Run the checks in [testing.md](testing.md#definition-of-done).
+4. Commit and push `main`.
+5. Tag and push the tag: `git tag v0.1.0 && git push origin v0.1.0`.
+6. Watch <https://github.com/AFutureD/noto-releases/actions>. The release appears under
    [Releases](https://github.com/AFutureD/noto-releases/releases) when the run ends, after about 15
    minutes.
 
