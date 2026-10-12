@@ -127,8 +127,12 @@ recompiling.
 
 `Tests/notes-editor-performance.swift` installs a 100,000-character note in a real rendered editor and
 prints, as JSON, the median over 30 runs of the install with its full restyle, one typed character at
-the end, middle and start, and a caret move between distant lines. The budget is 150 ms for the
-install, 8 ms per character at the end and middle, and 4 ms at the start.
+the end, middle and start, the window fit's height read after the install and after each of those
+characters, and a caret move between distant lines. The budget is 150 ms for the install, 8 ms per
+character at the end and middle, and 4 ms at the start. The fit's read gets 10 ms after the install
+and 1 ms after a character. The read after a character runs when the edit has laid out the caret's
+screen, so it is the fit's cost on top of the keystroke. Inside `didChange`, near the top of the note,
+the read does that layout itself, in about 2 ms.
 
 It is a timing harness, not an assertion one, so it stays out of the suite: `run-tests.sh` registers it
 as `run -O index`, which records its source list without queueing it. Compile it by hand, from the repo
@@ -138,7 +142,8 @@ root, and keep this command and that list matching:
 N=Noto/Features/Notes
 swiftc -O -swift-version 6 Noto/Platform/{Signposts,Appearance,NotificationToken}.swift \
     Noto/DesignSystem/{Theme,InterfaceMetrics}.swift \
-    $N/Model/{NoteDocument,NoteFontSettings,NoteMarkdown,NoteMarkdownParser,NoteInlineScanner}.swift \
+    $N/Model/{NoteDocument,NoteFontSettings,NoteHighlightColor,NoteMarkdown,NoteMarkdownParser}.swift \
+    $N/Model/NoteInlineScanner.swift \
     $N/Model/{NoteEditPlan,NoteEditAction,NoteFormatting,NoteMarkdownEditing,NoteRevealPolicy}.swift \
     $N/UI/{NoteMarkdownTypography,NoteBlockDecoration,NoteMarkdownStyler,NoteMarkdownRenderer}.swift \
     $N/UI/{NoteCheckboxGeometry,NoteBlockLayoutFragment,NoteLayoutFragmentProvider}.swift \
@@ -207,6 +212,9 @@ Rendering:
   bottom; then the window moves up. It stops at 860pt or the screen's usable height and scrolls.
   Switching to a shorter note shrinks it. Repeat with rendering on and off, with Find and the
   formatting bar open, and on a secondary display
+- Typing, Return and Delete in a bulleted list, in its last item and in the middle, grow or shrink
+  the window by whole rows. They never shrink it for one frame, scroll the first line away or flash
+  the scrollbar
 
 Editing:
 

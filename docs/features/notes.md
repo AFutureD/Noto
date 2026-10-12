@@ -35,8 +35,11 @@ search, or extend the collection. Notes is the app: there is no switch that turn
 - The window's height always fits the note. Each edit, note switch and bar toggle grows or shrinks
   it between the 180pt floor and 860pt, or the screen's visible height. Past that, the editor scrolls.
   The top edge holds until the bottom would leave the visible frame; then the window moves up. A
-  dragged height lasts until the next edit. The height comes from TextKit's last layout fragment,
-  because the text view's frame never gets shorter than its clip view.
+  dragged height lasts until the next edit. The height is the sum of TextKit's layout fragment
+  heights, laid out from the top one paragraph at a time until it passes the tallest window. The
+  text view's frame never gets shorter than its clip view, and until the next draw the lines below an
+  edit keep their old origins. So neither the frame nor the last fragment's position is readable on
+  `didChange`.
 - Notes code asks through `NotesDialogs`, never builds an alert itself. The coordinator names the
   question; `NotesDialogs.alerts` is the one place an `NSAlert` is constructed.
 - The editor gets each font from `NoteMarkdownTypography`. Only `NoteMarkdownStyler.apply` changes the
@@ -433,7 +436,7 @@ undo isolation, undo and redo shortcut routing, source publication and character
 exact source after styling, hidden and revealed markers, restyling after edits and after undo, block
 decorations and layout fragments, list keys, chords, the task rule, checkbox toggles, link schemes,
 pasting a URL, and the formatting reports and `format(_:)` the formatting bar uses.
-`Tests/notes-editor-performance.swift` times install, typing and caret moves on a
-100,000-character note; its budget is in [testing.md](../testing.md#performance-measurement). Window
+`Tests/notes-editor-performance.swift` times install, typing, the window fit's height read and caret
+moves on a 100,000-character note; its budget is in [testing.md](../testing.md#performance-measurement). Window
 chrome is not automated: the Notes manual sweep in [testing.md](../testing.md#notes) covers commands,
 shortcuts, switcher, focus restoration, Finder, Trash recovery, and accessibility.
