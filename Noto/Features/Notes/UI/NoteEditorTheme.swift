@@ -8,7 +8,7 @@ enum NoteEditorTheme {
     /// The body size: one system text style up, as the window chrome's text is `body`.
     static let standardBodySize = NSFont.preferredFont(forTextStyle: .title3).pointSize
     /// The selection is the accent at this alpha, so the text under it stays readable.
-    static let selectionAlpha = 0.25
+    static let selectionAlpha = 0.18
 
     /// Every colour is a dynamic `NSColor`, so the editor follows the appearance without a reload.
     static func make() -> SFTheme {

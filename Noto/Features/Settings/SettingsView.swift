@@ -104,7 +104,6 @@ private struct EditorSettingsPane: View {
                     Button("Use Default") { settings.highlightColor = nil }
                 }
             }
-            SettingsCaption("The background behind ==highlighted== text.")
         }
         SettingsRow("Accent") {
             HStack(spacing: Theme.Spacing.md) {
@@ -114,7 +113,6 @@ private struct EditorSettingsPane: View {
                     Button("Use Default") { settings.accentColor = nil }
                 }
             }
-            SettingsCaption("Underlines, links and the selection. The default is the macOS accent colour.")
         }
         Divider()
         SettingsRow("Formatting bar") {
