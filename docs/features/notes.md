@@ -225,7 +225,10 @@ carries a `NoteBlockDecoration` (the `noto.note.blockDecoration` attribute) is l
 `NoteBlockLayoutFragment`, which draws code bands with their language label, quote bars, rules,
 bullets, the source's own list numbers, and checkboxes, all list markers in a neutral gray. Vertical
 spacing comes from paragraph styles: overriding the fragment's frame would leave the caret above the
-glyphs. There are no text attachments, overlay controls, `NSTextList`, `NSTextTable` or private API.
+glyphs. A marker sits on the item's first line of text, not on its first line fragment: a first word
+too wide for the line wraps below the hidden marker and leaves the marker a line of almost no height.
+The checkbox hit test reads the same line. There are no text attachments, overlay controls,
+`NSTextList`, `NSTextTable` or private API.
 
 ### Editing
 

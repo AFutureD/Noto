@@ -207,6 +207,8 @@ Rendering:
 - Bullets, numbers and checkboxes are a neutral gray, bullet, numbered and task items are evenly spaced,
   and revealing a bullet or numbered line leaves its text where it was
 - A narrow window wraps list items under their text, not under the marker
+- A bullet, task or numbered item whose first word is wider than the window keeps a whole marker on
+  its first line of text, and its checkbox toggles where it is drawn
 - New lines, wrapped text and a paste grow the window vertically and do not change its width. A
   delete shrinks it back to the 180pt floor. The top edge holds until the bottom reaches the screen's
   bottom; then the window moves up. It stops at 860pt or the screen's usable height and scrolls.

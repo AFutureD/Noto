@@ -108,7 +108,7 @@ developed. Its Notes changes are ported into Noto manually, one commit at a time
 | --- | --- |
 | Upstream repository | `https://github.com/abue-ammar/tinycast` |
 | Upstream path | `Tinycast/Features/Notes` |
-| Last ported commit | `a20b42cf` — `Keep the Notes window steady while editing a list` (2026-10-10) |
+| Last ported commit | `59c0794f` — `Keep list markers on a wrapped item's first line of text` (2026-10-10) |
 
 To list the upstream Notes changes that Noto has not seen, run this in a Tinycast checkout:
 
