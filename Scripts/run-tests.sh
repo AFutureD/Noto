@@ -157,6 +157,7 @@ run notes-editor-test  Noto/Platform/Signposts.swift \
                            Noto/Features/Notes/Model/NoteDocument.swift \
                            Noto/Features/Notes/Model/NoteFontSettings.swift \
                            Noto/Features/Notes/Model/NoteHighlightColor.swift \
+                           Noto/Features/Notes/Model/NoteAccentColor.swift \
                            Noto/Features/Notes/Model/NoteEditAction.swift \
                            Noto/Features/Notes/Model/NoteFormatting.swift \
                            Noto/Features/Notes/UI/NoteEditorTheme.swift \
@@ -171,23 +172,10 @@ run -O index notes-editor-performance \
                            Noto/Features/Notes/Model/NoteDocument.swift \
                            Noto/Features/Notes/Model/NoteFontSettings.swift \
                            Noto/Features/Notes/Model/NoteHighlightColor.swift \
-                           Noto/Features/Notes/Model/NoteMarkdown.swift \
-                           Noto/Features/Notes/Model/NoteListNumbering.swift \
-                           Noto/Features/Notes/Model/NoteMarkdownParser.swift \
-                           Noto/Features/Notes/Model/NoteInlineScanner.swift \
-                           Noto/Features/Notes/Model/NoteEditPlan.swift \
+                           Noto/Features/Notes/Model/NoteAccentColor.swift \
                            Noto/Features/Notes/Model/NoteEditAction.swift \
                            Noto/Features/Notes/Model/NoteFormatting.swift \
-                           Noto/Features/Notes/Model/NoteMarkdownEditing.swift \
-                           Noto/Features/Notes/Model/NoteRevealPolicy.swift \
-                           Noto/Features/Notes/UI/NoteMarkdownTypography.swift \
-                           Noto/Features/Notes/UI/NoteBlockDecoration.swift \
-                           Noto/Features/Notes/UI/NoteMarkdownStyler.swift \
-                           Noto/Features/Notes/UI/NoteMarkdownRenderer.swift \
-                           Noto/Features/Notes/UI/NoteListGeometry.swift \
-                           Noto/Features/Notes/UI/NoteBlockLayoutFragment.swift \
-                           Noto/Features/Notes/UI/NoteLayoutFragmentProvider.swift \
-                           Noto/Features/Notes/UI/NoteTextViewEditing.swift \
+                           Noto/Features/Notes/UI/NoteEditorTheme.swift \
                            Noto/Features/Notes/UI/NoteTextView.swift \
                            Noto/Features/Notes/UI/NoteEditorView.swift
 

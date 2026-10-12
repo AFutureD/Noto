@@ -7,6 +7,8 @@ import SwiftUI
 enum NoteEditorTheme {
     /// The body size: one system text style up, as the window chrome's text is `body`.
     static let standardBodySize = NSFont.preferredFont(forTextStyle: .title3).pointSize
+    /// The selection is the accent at this alpha, so the text under it stays readable.
+    static let selectionAlpha = 0.25
 
     /// Every colour is a dynamic `NSColor`, so the editor follows the appearance without a reload.
     static func make() -> SFTheme {
@@ -16,7 +18,8 @@ enum NoteEditorTheme {
         let surface = NSColor(Theme.Colors.controlSurface)
         let card = NSColor(Theme.Colors.cardFill)
         let border = NSColor(Theme.Colors.border)
-        let selection = NSColor(Theme.Colors.selection)
+        let accent = NSColor.controlAccentColor
+        let selection = accent.withAlphaComponent(selectionAlpha)
         func tint(_ color: Color) -> [String: Any] {
             ["background color": NSColor(color), "text color": text]
         }
@@ -31,7 +34,7 @@ enum NoteEditorTheme {
                     "background secondary color": card,
                     "background tertiary color": surface,
                     "stroke color": border,
-                    "accent color": NSColor.controlAccentColor,
+                    "accent color": accent,
                     "selection color": selection
                 ],
                 "editor": [
@@ -39,9 +42,9 @@ enum NoteEditorTheme {
                     "text color": text,
                     "text light color": secondary,
                     "marker color": tertiary,
-                    "accent color": NSColor.controlAccentColor,
+                    "accent color": accent,
                     "cursor color": text,
-                    "link color": NSColor.linkColor,
+                    "link color": accent,
                     "list marker color": secondary,
                     "selection color": selection,
                     "selection inactive color": selection,
@@ -85,7 +88,9 @@ enum NoteEditorTheme {
     }
 
     /// The settings as theme overrides. An uninstalled family leaves the theme's own font in place.
-    static func overrides(fonts: NoteFontSettings, highlight: NoteHighlightColor?) -> [String: Any] {
+    static func overrides(
+        fonts: NoteFontSettings, highlight: NoteHighlightColor?, accent: NoteAccentColor?
+    ) -> [String: Any] {
         var overrides: [String: Any] = ["editor.text size": fonts.size ?? Double(standardBodySize)]
         if let name = postScriptName(family: fonts.textFamily, bold: false) {
             overrides["editor.text font"] = name
@@ -104,6 +109,12 @@ enum NoteEditorTheme {
         if let highlight {
             overrides["editor.highlighter.default.background color"] = NSColor(
                 srgbRed: highlight.red, green: highlight.green, blue: highlight.blue, alpha: highlight.alpha)
+        }
+        if let accent {
+            let color = NSColor(srgbRed: accent.red, green: accent.green, blue: accent.blue, alpha: 1)
+            overrides["editor.accent color"] = color
+            overrides["editor.link color"] = color
+            overrides["editor.selection color"] = color.withAlphaComponent(selectionAlpha)
         }
         return overrides
     }

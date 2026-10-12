@@ -152,10 +152,12 @@ root, and keep this command and that list matching:
 ```sh
 N=Noto/Features/Notes
 M="$TMPDIR/noto-harness/modules"    # built by run-tests.sh
-swiftc -O -swift-version 6 -I "$M" -L "$M" -lMDTextKitUI -lMDTextKit -lSFThemeKit -lTextBundle -lPolarMark \
+C=../MDTextKit/Sources/MDTextStorageCore
+NOTO_LINK="-I $M -I $C/include -L $M -lMDTextKitUI -lMDTextKit -lMDTextStorageCore -lSFThemeKit -lTextBundle -lPolarMark"
+swiftc -O -swift-version 6 $NOTO_LINK \
     Noto/Platform/{Signposts,Appearance,NotificationToken}.swift \
     Noto/DesignSystem/{Theme,InterfaceMetrics}.swift \
-    $N/Model/{NoteDocument,NoteFontSettings,NoteHighlightColor,NoteEditAction,NoteFormatting}.swift \
+    $N/Model/{NoteDocument,NoteFontSettings,NoteHighlightColor,NoteAccentColor,NoteEditAction,NoteFormatting}.swift \
     $N/UI/{NoteEditorTheme,NoteTextView,NoteEditorView}.swift \
     Tests/notes-editor-performance.swift -o "$TMPDIR/notes-editor-performance"
 "$TMPDIR/notes-editor-performance"
@@ -327,6 +329,8 @@ The window:
 - Reset Fonts restores the system fonts, and it is disabled when no font setting is set
 - A colour picked in the Highlight well applies to the open note immediately, in both appearances;
   Use Default appears, and it restores the yellow and disappears
+- A colour picked in the Accent well colours an underline, a link and the selection immediately;
+  Use Default restores the macOS accent colour
 - Show Formatting Bar takes effect in the open note immediately
 - Check Now opens Sparkle's update window, and Check for Updates… in the menu bar item is disabled
   while it is open; Check for updates automatically survives quit and relaunch

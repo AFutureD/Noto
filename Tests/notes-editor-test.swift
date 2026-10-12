@@ -19,6 +19,7 @@ struct NotesEditorTests {
         testCharacterCountReports()
         testStylingKeepsSourceAndUndo()
         testHighlightBackground()
+        testAccentColour()
         testListKeysAndChords()
         testHeadingsAndLinks()
         testFormattingReports()
@@ -240,6 +241,35 @@ struct NotesEditorTests {
             "Use Default returns to the theme's colour",
             background(in: editor.textView, at: marked)?.isSameColor(as: themed) == true)
         check("the highlight setting never changes the Markdown", editor.textView.markdown == source)
+    }
+
+    private static func testAccentColour() {
+        let source = "Some ~marked~ words and a [link](https://example.com)"
+        let input = NoteEditorInput(id: NoteID(rawValue: "Accent.md"), source: source, epoch: 1)
+        let editor = makeEditor(input: input)
+        let textView = editor.textView
+        let marked = (textView.string as NSString).range(of: "marked").location
+        func underline() -> NSColor? {
+            textView.textStorage?.attribute(.underlineColor, at: marked, effectiveRange: nil) as? NSColor
+        }
+        func link() -> NSColor? { textView.linkTextAttributes?[.foregroundColor] as? NSColor }
+        func selection() -> NSColor? { textView.selectedTextAttributes[.backgroundColor] as? NSColor }
+        let system = NSColor.controlAccentColor
+        check("an underline draws the macOS accent until one is chosen", underline()?.isSameColor(as: system) == true)
+        check("a link draws the macOS accent until one is chosen", link()?.isSameColor(as: system) == true)
+        check(
+            "the selection is the macOS accent at the fixed alpha",
+            selection()?.isSameColor(as: system.withAlphaComponent(NoteEditorTheme.selectionAlpha)) == true)
+        editor.coordinator.setAccent(NoteAccentColor(red: 0.8, green: 0.1, blue: 0.2))
+        let chosen = NSColor(srgbRed: 0.8, green: 0.1, blue: 0.2, alpha: 1)
+        check("a chosen accent colours the underline", underline()?.isSameColor(as: chosen) == true)
+        check("a chosen accent colours links", link()?.isSameColor(as: chosen) == true)
+        check(
+            "a chosen accent colours the selection at the fixed alpha",
+            selection()?.isSameColor(as: chosen.withAlphaComponent(NoteEditorTheme.selectionAlpha)) == true)
+        editor.coordinator.setAccent(nil)
+        check("Use Default returns to the macOS accent", underline()?.isSameColor(as: system) == true)
+        check("the accent setting never changes the Markdown", textView.markdown == source)
     }
 
     private static func testListKeysAndChords() {

@@ -132,7 +132,7 @@ overrides, and MDTextKit builds the `NSFont`s.
 | Token | Dark | Light | Use |
 | --- | --- | --- | --- |
 | `panelScrim` | black 0.40 | white 0.55 | the panel scrim over the glass |
-| `selection` | white 0.10 | black 0.09 | selected row, lit bar button, text selection |
+| `selection` | white 0.10 | black 0.09 | selected row, lit bar button |
 | `rowHover` | white 0.05 | black 0.045 | mouse-hover fill (always fainter than selection) |
 | `menuHover` | white 0.10 | black 0.09 | heading-menu row hover |
 | `separator` | white 0.10 | black 0.12 | a Markdown rule |
@@ -188,7 +188,8 @@ source, and MDTextKit styles it in place. Notes type sits one system text style 
 app, because a note is for reading: body text is the title3 size in `noteText`, headings scale from it
 in the heading font's bold face, and the line height is 1.3 times the font size. Inline code is
 monospaced on `cardFill`, a highlight draws `highlight` or the chosen colour behind its text, and
-links use the system link colour with a link icon after the label. A checked task dims to
+links, underlines and the selection use the accent colour: the macOS accent, or the colour chosen in
+Settings > Editor > Accent. A link has a link icon after the label. A checked task dims to
 `textSecondary`. Inline markers show in `textTertiary` while the caret is in their construct and are
 hidden elsewhere.
 
@@ -340,7 +341,7 @@ The panes:
 | Pane | Rows |
 | --- | --- |
 | General | Window (Keep on top), Dock (Show in Dock), Updates (Check for updates automatically, Check Now, the version), Notes folder (Choose…, Use Default, the path) |
-| Editor | Text size, Text font, Heading font, CJK font, Code font, Defaults (Reset Fonts), Highlight (a colour well, Use Default), Formatting bar (Show formatting bar) |
+| Editor | Text size, Text font, Heading font, CJK font, Code font, Defaults (Reset Fonts), Highlight (a colour well, Use Default), Accent (a colour well, Use Default), Formatting bar (Show formatting bar) |
 | Shortcuts | One row for each `HotKeyCommand`, with a `ShortcutRecorder` and the subtitle of the command |
 
 - Text size is a slider with a step of 1 point. The value shows to the right of the slider.
@@ -350,6 +351,8 @@ The panes:
 - If a stored family is not installed, its menu shows the name with "(Not Installed)".
 - Each font menu has the width `settingsPicker`.
 - The Highlight row is a `ColorPicker` with opacity. It shows `Theme.Colors.highlight` until the user
+  picks a colour, and Use Default appears only while a colour is set.
+- The Accent row is a `ColorPicker` without opacity. It shows the macOS accent colour until the user
   picks a colour, and Use Default appears only while a colour is set.
 - A `ShortcutRecorder` is not in a `LabeledContent`, because that container stops the click.
 

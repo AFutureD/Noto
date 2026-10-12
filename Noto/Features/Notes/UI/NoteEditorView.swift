@@ -8,6 +8,7 @@ struct NoteEditorView: NSViewRepresentable {
     let input: NoteEditorInput
     var fonts = NoteFontSettings.standard
     var highlight: NoteHighlightColor?
+    var accent: NoteAccentColor?
     let onSourceChange: (String) -> Void
     let onCharacterCountChange: (NoteEditorInput, Int) -> Void
     let onFormattingChange: (NoteEditorInput, NoteFormatting) -> Void
@@ -38,6 +39,7 @@ struct NoteEditorView: NSViewRepresentable {
         context.coordinator.update(input)
         context.coordinator.setFonts(fonts)
         context.coordinator.setHighlight(highlight)
+        context.coordinator.setAccent(accent)
     }
 
     @MainActor
@@ -51,6 +53,7 @@ struct NoteEditorView: NSViewRepresentable {
         private var input: NoteEditorInput
         private var fonts: NoteFontSettings
         private var highlight: NoteHighlightColor?
+        private var accent: NoteAccentColor?
         private var isInstalling = false
         private var observers: [NotificationToken] = []
 
@@ -59,11 +62,12 @@ struct NoteEditorView: NSViewRepresentable {
             input = parent.input
             fonts = parent.fonts
             highlight = parent.highlight
+            accent = parent.accent
             editorController.autoHideMarkdown = true
             textView = NoteTextView(
                 frame: NSRect(x: 0, y: 0, width: Theme.Size.noteWindow.width, height: 1),
                 editorController: editorController)
-            themeManager.overrides = NoteEditorTheme.overrides(fonts: fonts, highlight: highlight)
+            themeManager.overrides = NoteEditorTheme.overrides(fonts: fonts, highlight: highlight, accent: accent)
             textView.installTableEditing(themeManager: themeManager)
             Self.configure(textView, with: themeManager)
             textView.openURL = { [weak self] url in
@@ -125,9 +129,15 @@ struct NoteEditorView: NSViewRepresentable {
             applyOverrides()
         }
 
+        func setAccent(_ accent: NoteAccentColor?) {
+            guard accent != self.accent else { return }
+            self.accent = accent
+            applyOverrides()
+        }
+
         /// A restyle writes attributes with undo off, so neither the history nor the draft changes.
         private func applyOverrides() {
-            themeManager.overrides = NoteEditorTheme.overrides(fonts: fonts, highlight: highlight)
+            themeManager.overrides = NoteEditorTheme.overrides(fonts: fonts, highlight: highlight, accent: accent)
             Self.configure(textView, with: themeManager)
             editorController.restyleAll(in: textView)
             textView.needsDisplay = true
@@ -166,11 +176,12 @@ struct NoteEditorView: NSViewRepresentable {
                 height: Theme.Size.noteEditorTopInset)
             textView.mdTextContainer.lineFragmentPadding = 0
             textView.insertionPointColor = NSColor(Theme.Colors.noteText)
+            let accent = themeManager.color(forKey: "editor.accent color")
             textView.selectedTextAttributes = [
-                .backgroundColor: NSColor(Theme.Colors.selection),
+                .backgroundColor: accent.withAlphaComponent(NoteEditorTheme.selectionAlpha),
                 .foregroundColor: NSColor(Theme.Colors.noteText)
             ]
-            textView.linkTextAttributes = [.foregroundColor: NSColor.linkColor, .cursor: NSCursor.pointingHand]
+            textView.linkTextAttributes = [.foregroundColor: accent, .cursor: NSCursor.pointingHand]
         }
     }
 }

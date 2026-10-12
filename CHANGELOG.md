@@ -16,6 +16,8 @@ and the versions follow the version rule in [release.md](docs/release.md#the-ver
 - ⌘K in a link removes the link and keeps its label.
 - Pasting rich text from another app pastes it as Markdown.
 - Dragging a list item, heading, table, rule or quote moves it as a whole line.
+- The Editor pane has an accent colour setting. Underlines, links and the selection use it; the
+  default is the macOS accent colour.
 
 ### Changed
 

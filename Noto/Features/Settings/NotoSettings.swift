@@ -16,6 +16,7 @@ final class NotoSettings {
         static let codeFont = "notesCodeFont"
         static let fontSize = "notesFontSize"
         static let highlightColor = "notesHighlightColor"
+        static let accentColor = "notesAccentColor"
     }
 
     @ObservationIgnored private let defaults: UserDefaults
@@ -48,6 +49,10 @@ final class NotoSettings {
     var highlightColor: NoteHighlightColor? {
         didSet { defaults.set(highlightColor?.hex, forKey: Key.highlightColor) }
     }
+    /// Nil follows the macOS accent colour; a chosen colour is fixed. Underlines, links and the selection use it.
+    var accentColor: NoteAccentColor? {
+        didSet { defaults.set(accentColor?.hex, forKey: Key.accentColor) }
+    }
     /// Unbound commands are absent; nothing is bound until the user records a shortcut.
     var shortcuts: [HotKeyCommand: KeyShortcut] {
         didSet {
@@ -71,6 +76,7 @@ final class NotoSettings {
             size: (defaults.object(forKey: Key.fontSize) as? Double)
                 .map { min(max($0, NoteFontSettings.sizeRange.lowerBound), NoteFontSettings.sizeRange.upperBound) })
         highlightColor = defaults.string(forKey: Key.highlightColor).flatMap(NoteHighlightColor.init(hex:))
+        accentColor = defaults.string(forKey: Key.accentColor).flatMap(NoteAccentColor.init(hex:))
         let stored = defaults.data(forKey: Key.shortcuts)
             .flatMap { try? JSONDecoder().decode([String: KeyShortcut].self, from: $0) }
         shortcuts = (stored ?? [:]).reduce(into: [:]) { shortcuts, entry in

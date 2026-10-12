@@ -335,6 +335,19 @@ sRGB and draws the same in Dark and Light. Use Default clears the value.
 colour into the theme overrides and restyles the note. A colour change applies to the open note
 immediately. It does not change the undo history and does not make the note dirty.
 
+### Accent colour
+
+Settings > Editor > Accent is `NotoSettings.accentColor` (key `notesAccentColor`). It is the colour of
+a `~underline~`, a link and the selection. The selection draws the accent at
+`NoteEditorTheme.selectionAlpha`. The value is nil when absent, and the editor then uses
+`NSColor.controlAccentColor`, the accent the user chose in System Settings. A chosen colour is stored
+as `#RRGGBB` in sRGB, has no alpha and draws the same in Dark and Light. Use Default clears the value.
+
+`NotesView` gives `notes.accentColor` to `NoteEditorView`. `Coordinator.setAccent` writes the colour
+into the theme overrides, applies the theme to the text view and restyles the note. A colour change
+applies to the open note immediately. It does not change the undo history and does not make the
+note dirty.
+
 #### The CJK family
 
 The CJK family is a font cascade, not a second font attribute. `NoteEditorTheme.overrides` names it
@@ -385,12 +398,12 @@ when none remains.
 `Tests/notes-test.swift` compiles the shipped Notes model and service sources with the real fuzzy
 matcher and PolarMark. It covers repository safety, unique-name claiming, derived titles, search,
 selection, autosave, empty collections, relocation, switcher interaction, window placement and
-cancellation, and the highlight colour.
+cancellation, the highlight colour and the accent colour.
 
 `Tests/notes-editor-test.swift` compiles MDTextKit's modules and uses real TextKit 1 and AppKit
 objects. It runs the native Cut/Copy/Paste, the native find bar, Unicode and marked-text cases, and
 covers the Markdown round trip, undo isolation, undo and redo shortcut routing, source publication and
-the character count, exact Markdown after styling and after a font or highlight change, list keys,
+the character count, exact Markdown after styling and after a font, highlight or accent change, list keys,
 chords, headings, links, checkbox clicks, link schemes, tables, custom fonts with the CJK cascade,
 the formatting reports and `format(_:)`, and the text height.
 `Tests/notes-editor-performance.swift` times install, typing, the window fit's height read and caret

@@ -106,6 +106,16 @@ private struct EditorSettingsPane: View {
             }
             SettingsCaption("The background behind ==highlighted== text.")
         }
+        SettingsRow("Accent") {
+            HStack(spacing: Theme.Spacing.md) {
+                ColorPicker("Accent colour", selection: accentColor, supportsOpacity: false)
+                    .labelsHidden()
+                if settings.accentColor != nil {
+                    Button("Use Default") { settings.accentColor = nil }
+                }
+            }
+            SettingsCaption("Underlines, links and the selection. The default is the macOS accent colour.")
+        }
         Divider()
         SettingsRow("Formatting bar") {
             Toggle("Show formatting bar", isOn: $settings.showsFormattingBar)
@@ -126,6 +136,20 @@ private struct EditorSettingsPane: View {
                 settings.highlightColor = NoteHighlightColor(
                     red: srgb.redComponent, green: srgb.greenComponent, blue: srgb.blueComponent,
                     alpha: srgb.alphaComponent)
+            })
+    }
+
+    /// An unset colour shows the macOS accent; the first pick makes it explicit and fixed.
+    private var accentColor: Binding<Color> {
+        Binding(
+            get: {
+                guard let chosen = settings.accentColor else { return Color(nsColor: .controlAccentColor) }
+                return Color(.sRGB, red: chosen.red, green: chosen.green, blue: chosen.blue)
+            },
+            set: {
+                guard let srgb = NSColor($0).usingColorSpace(.sRGB) else { return }
+                settings.accentColor = NoteAccentColor(
+                    red: srgb.redComponent, green: srgb.greenComponent, blue: srgb.blueComponent)
             })
     }
 

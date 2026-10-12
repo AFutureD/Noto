@@ -10,6 +10,7 @@ struct NotesTests {
         try testRepositoryAndSearch()
         testDerivedTitles()
         testHighlightColor()
+        testAccentColor()
         try testUnnamedNotesTitleThemselves()
         testSwitcherInteraction()
         testWindowPlacement()
@@ -689,6 +690,20 @@ struct NotesTests {
             "a malformed colour is nil",
             NoteHighlightColor(hex: "FF800099") == nil && NoteHighlightColor(hex: "#FF8000") == nil
                 && NoteHighlightColor(hex: "#GG800099") == nil)
+    }
+
+    private static func testAccentColor() {
+        let colour = NoteAccentColor(red: 1, green: 0.5, blue: 0)
+        check("an accent stores as #RRGGBB", colour.hex == "#FF8000")
+        check(
+            "a stored accent reads back within a channel step",
+            NoteAccentColor(hex: colour.hex).map {
+                abs($0.red - 1) < 0.005 && abs($0.green - 0.5) < 0.005 && $0.blue == 0
+            } == true)
+        check(
+            "a malformed accent is nil",
+            NoteAccentColor(hex: "FF8000") == nil && NoteAccentColor(hex: "#FF800099") == nil
+                && NoteAccentColor(hex: "#GG8000") == nil)
     }
 
     private static func repository(in root: URL, support: URL? = nil) throws -> NotesRepository {

@@ -77,6 +77,7 @@ final class NotesCoordinator {
     var activeTitle: String { store.activeTitle }
     var fonts: NoteFontSettings { settings.fonts }
     var highlightColor: NoteHighlightColor? { settings.highlightColor }
+    var accentColor: NoteAccentColor? { settings.accentColor }
     var keepsOnTop: Bool { settings.keepsOnTop }
     var showsFormattingBar: Bool { settings.showsFormattingBar }
     var isSearching: Bool { store.isSearching }

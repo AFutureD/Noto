@@ -15,7 +15,8 @@ hold them apart.
 │                                                                            │
 │ Notes/Model/* — NoteEditAction, NoteFormatting, NoteTitle (over PolarMark),│
 │ NoteSearch, FuzzyMatch, NoteDocument, NoteFontSettings, NoteHighlightColor,│
-│ NoteSwitcherInteraction, NoteWindowPlacement · HotKeys/Model/HotKeyCommand │
+│ NoteAccentColor, NoteSwitcherInteraction, NoteWindowPlacement ·            │
+│ HotKeys/Model/HotKeyCommand                                                │
 └──────────────────────────────────┬─────────────────────────────────────────┘
                                    │ consumed by
 ┌─ EFFECT ─────────────────────────▼─────────────────────────────────────────┐
@@ -101,6 +102,7 @@ to `UserDefaults` in its `didSet`. The keys are that file's private `Key` enum:
 | `keepsOnTop` | `notesKeepsOnTop` | off |
 | `fonts` | `notesTextFont`, `notesHeadingFont`, `notesCJKFont`, `notesCodeFont`, `notesFontSize` | nil — see [notes.md](features/notes.md#fonts) |
 | `highlightColor` | `notesHighlightColor` | nil — see [notes.md](features/notes.md#highlight-colour) |
+| `accentColor` | `notesAccentColor` | nil — see [notes.md](features/notes.md#accent-colour) |
 | `shortcuts` | `hotKeys` | empty — see [hotkeys.md](features/hotkeys.md#persistence) |
 
 One preference is not here. Check for updates automatically is Sparkle's own
