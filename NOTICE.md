@@ -11,8 +11,8 @@ The code was taken from Tinycast at commit
 changes to the Notes feature are ported manually. [development.md](docs/development.md#upstream)
 records the last ported commit.
 
-- The Notes feature: the Markdown model, parser and edit planning, the notes repository and store, the
-  TextKit 2 editor, the note window, switcher, heading menu and formatting bar.
+- The Notes feature: the notes repository and store, the note window, switcher, heading menu and
+  formatting bar, and the editor host.
 - The parts of the design system those views use: the `Theme` tokens, `InterfaceMetrics`, `BarButton`,
   `KeyCapChip`, `Tooltip`, `SymbolImage`, `GlassEffectView` and the overflow fade.
 - The global hotkey engine and its Settings recorder: `KeyShortcut`, `HotKeyCenter`, the capture
@@ -25,7 +25,9 @@ records the last ported commit.
 
 The code was modified on extraction, starting in October 2026: Tinycast's launcher, palette and
 every other feature were removed, and an app shell, settings model, Settings window, menu bar item
-and Dock mode were written around what remained. Beyond the above, Noto bundles one third-party
+and Dock mode were written around what remained. In October 2026 Tinycast's Markdown parser, styler
+and TextKit 2 editor were replaced by MDTextKit, the editor engine in the sibling repository
+`MDTextKit`; its licence is in that repository. Beyond the above, Noto bundles one third-party
 framework: [Sparkle](https://sparkle-project.org), which installs updates. Sparkle is distributed
 under the MIT licence; see its
 [LICENSE](https://github.com/sparkle-project/Sparkle/blob/2.x/LICENSE).

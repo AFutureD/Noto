@@ -5,6 +5,30 @@ and the versions follow the version rule in [release.md](docs/release.md#the-ver
 
 ## [Unreleased]
 
+### Added
+
+- Callouts (`> [!NOTE]`, `[!TIP]`, `[!IMPORTANT]`, `[!WARNING]`, `[!CAUTION]`) render as boxes.
+- A pipe table renders as a grid. Click a cell to edit it in place; the `⋮` menu adds and removes
+  rows and columns.
+- An image (`![alt](path)`) renders in the note.
+- `~underline~` renders underlined.
+- ⌘-click a heading's marker to fold its section; click the pill to unfold it.
+- ⌘K in a link removes the link and keeps its label.
+- Pasting rich text from another app pastes it as Markdown.
+- Dragging a list item, heading, table, rule or quote moves it as a whole line.
+
+### Changed
+
+- The editor is MDTextKit. Block markers (headings, bullets, checkboxes, quotes, rules) draw as
+  attachments, and the caret reveals the markers of its construct rather than its whole line.
+- The Formatting Bar setting no longer depends on another setting.
+- Return on an empty list item removes the marker and keeps the line.
+
+### Removed
+
+- The Render Markdown setting. The editor always renders.
+- Letter (`a.`) and roman numeral (`iv)`) list labels. They render as text.
+
 ## [0.2.1] - 2026-10-12
 
 ### Added
@@ -69,7 +93,8 @@ as an app of its own; see [NOTICE.md](NOTICE.md).
 - Show in Dock, off by default.
 - Updates through Sparkle.
 
-[Unreleased]: https://github.com/AFutureD/Noto/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/AFutureD/Noto/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/AFutureD/Noto/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/AFutureD/Noto/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/AFutureD/Noto/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/AFutureD/Noto/releases/tag/v0.1.0

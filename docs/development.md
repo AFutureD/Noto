@@ -9,8 +9,9 @@ The local loop: set up, build, run. Verifying a change is [testing.md](testing.m
   the Icon Composer icon.
 - For linting: `brew install swiftlint`.
 
-That is the whole setup. There is no project to generate. Xcode resolves the one package, Sparkle,
-on the first build, so that build needs the network. Signing is automatic with the Apple Development
+That is the whole setup. There is no project to generate. Xcode resolves two packages on the first
+build: MDTextKit from the sibling checkout `../MDTextKit`, and Sparkle from GitHub, so that build
+needs the network and the sibling checkout. Signing is automatic with the Apple Development
 identity of the team set in the target, and Noto asks for no permission — its hotkeys are Carbon
 registrations, so not even Accessibility.
 
@@ -72,7 +73,11 @@ it. There is no `Package.swift`, and `Bundle.module` must never be used.
   and an `AppIcon.icns`.
 - `Noto/Info.plist` is the one membership exception: it is a build input (`INFOPLIST_FILE`), not a
   bundle resource. `Noto/Noto.entitlements` is consumed by signing (`CODE_SIGN_ENTITLEMENTS`).
-- Sparkle is the one package: a remote package reference in `project.pbxproj`, pinned in
+- MDTextKit is a local package reference (`XCLocalSwiftPackageReference`) to `../MDTextKit`, the
+  editor engine, while it has no release. Before a Noto release it becomes a remote package reference
+  with a pin, because the release build checks out Noto alone. The harness runner reads the same
+  checkout from `MDTEXTKIT_DIR`, default `../MDTextKit`.
+- Sparkle is a remote package reference in `project.pbxproj`, pinned in
   `Noto.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved`, which is committed.
   Change its version in Xcode's package editor and commit both files.
 - `Tests/` shows in the Xcode navigator but belongs to no target, and `Scripts/` is outside the project.
@@ -119,10 +124,11 @@ checkout:
 git log --oneline 46beb10a..origin/main -- Tinycast/Features/Notes
 ```
 
-Port one commit at a time, from the oldest. Noto's files map 1:1 onto Tinycast's:
-`Noto/Features/Notes/…` is `Tinycast/Features/Notes/…`. Not every upstream change applies. If a
-change depends on a Tinycast feature that Noto does not have, skip it and say so in the Noto commit
-message. After each port, update the `Last ported commit` row in this table in the same change. That
+Port one commit at a time, from the oldest. Noto's collection, store, window, switcher and formatting
+bar files map 1:1 onto Tinycast's: `Noto/Features/Notes/…` is `Tinycast/Features/Notes/…`. The editor
+does not: since October 2026 it is MDTextKit, so an upstream change to Tinycast's parser, styler,
+renderer or `NoteTextView` is not ported. Not every other upstream change applies. If a change depends
+on a Tinycast feature that Noto does not have, skip it and say so in the Noto commit message. After each port, update the `Last ported commit` row in this table in the same change. That
 row is the only record of how far the port has gone. `NOTICE.md` keeps the original extraction
 commit, which never changes.
 

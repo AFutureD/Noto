@@ -11,14 +11,13 @@ search, or extend the collection. Notes is the app: there is no switch that turn
   the source contains no frontmatter, embedded ID, or title field, and there is no database or sidecar.
 - A note the user has not named shows its first line instead. Only the names `create` claims yield
   it, it is presentation and nothing else, and naming the note replaces it.
-- The storage is the source. The string in `NSTextView`, `NotesStore`, search, and the file are
-  identical; rendering is attributes and drawing over that string, never a second string or an offset
-  map.
-- The caret's line is raw. Every line under the selection shows its Markdown; an unfocused editor
-  reveals nothing.
-- Styling never reaches undo. Attribute passes bypass `shouldChangeText`; every edit a Markdown
-  gesture makes goes through `NoteTextView.performEdit`.
-- Render Markdown off is the literal editor, with native Return, Tab and shortcuts and no parsing.
+- The Markdown is the source. `NoteTextView.markdown`, `NotesStore`, search, and the file are
+  identical. The text storage holds an attachment for each block marker, so its string is a display
+  form that nothing outside the editor reads.
+- The caret's construct is raw. Every construct under the selection shows its markers; an unfocused
+  editor reveals nothing.
+- Styling never reaches undo. A restyle writes with undo registration off, and `MDTextView` records
+  one undo step per typing run or format gesture itself; AppKit records none.
 - The formatting bar is another way to press a shortcut. Each button sends its chord's
   `NoteEditAction` through `NoteTextView.format`, so it has the chord's gate, undo step and autosave,
   and a button is lit exactly when its toggle would remove that formatting.
@@ -35,15 +34,13 @@ search, or extend the collection. Notes is the app: there is no switch that turn
 - The window's height always fits the note. Each edit, note switch and bar toggle grows or shrinks
   it between the 180pt floor and 860pt, or the screen's visible height. Past that, the editor scrolls.
   The top edge holds until the bottom would leave the visible frame; then the window moves up. A
-  dragged height lasts until the next edit. The height is the sum of TextKit's layout fragment
-  heights, laid out from the top one paragraph at a time until it passes the tallest window. The
-  text view's frame never gets shorter than its clip view, and until the next draw the lines below an
-  edit keep their old origins. So neither the frame nor the last fragment's position is readable on
-  `didChange`.
+  dragged height lasts until the next edit. The height is the layout manager's used height, laid out
+  from the top only until it passes the tallest window. The text view's frame never gets shorter than
+  its clip view, so the frame is not readable on `didChange`.
 - Notes code asks through `NotesDialogs`, never builds an alert itself. The coordinator names the
   question; `NotesDialogs.alerts` is the one place an `NSAlert` is constructed.
-- The editor gets each font from `NoteMarkdownTypography`. Only `NoteMarkdownStyler.apply` changes the
-  fonts, because it also builds the attributes again.
+- The editor gets each colour and font from `NoteEditorTheme`, which builds them from `Theme` and the
+  font settings. A theme change restyles the note; nothing else sets a font.
 
 ## Storage and identity
 
@@ -165,104 +162,57 @@ an operation failure only reports. One issue is presented at a time; a second on
 
 ## Editor
 
-`NoteEditorView` is one TextKit 2 `NSTextView` inside an `NSScrollView`. It installs
-`NoteEditorInput.source` as `NSTextView.string` and never swaps that string for a display version.
-Rendering is attributes and drawing over the source.
+`NoteEditorView` hosts one `NoteTextView`, an `MDTextView` from MDTextKit, inside an `NSScrollView`.
+MDTextKit is a TextKit 1 engine: PolarMark parses the Markdown into an AST, `MDTextStorage` keeps
+that AST beside the attributed string, and `MDEditorController` styles each edit. The Markdown is the
+source; `NoteTextView.markdown` expands the attachments back into it.
 
 ### Parsing
 
-`Model/NoteMarkdownParser` splits the source on the same boundaries as `NSString.lineRange(for:)`, so
-one line is one TextKit paragraph. `NoteMarkdown` gives each line its kind, UTF-16 ranges for its
-content, block marker and task checkbox, and a list level from an indent stack. A paragraph indented
-two or more columns under a list item continues that item: its level is the depth of the items it sits
-under, and the list goes on after it. A source ending in a
-terminator, and an empty source, get a final zero-length line, so a caret on the empty last row sits on
-a real line like any other. Inline spans are not stored: `NoteMarkdown.inlines(of:)` scans the one line
-asked for, which is all the styler, the editing rules and `NoteTitle` ever need.
-
-It covers headings 1 to 6 (4 to 6 look like 3), bold, italic, bold italic, strikethrough, highlight
-(`==text==`), inline code,
-links, bare `http` and `https` URLs, bullet, numbered and task lists with nesting, quotes, fenced code
-blocks and horizontal rules. A numbered item's label is decimal digits, one letter or a roman numeral,
-then `.` or `)`. A lone `i`, `v`, `x`, `l`, `c`, `d` or `m` follows the style of the item before it at
-its level. When it starts a run, only `i` is a roman numeral. Inline spans never cross a line.
-Images, underline, HTML, setext headings,
-indented code, footnotes, reference links and blocks nested inside quotes stay plain text. A GFM table
-(a pipe row, a delimiter row with as many cells, then the pipe rows after it) also stays plain text, but
-is recognised so it gets no inline styling: it shows in the code font, with wrapped rows hanging under
-their first line, and a delimiter row typed under existing rows restyles all of them.
-The whole note is reparsed on each edit.
+PolarMark parses the whole note on each edit and reports the block range that must be restyled. It
+covers headings 1 to 6, bold, italic, strikethrough, underline, highlight (`==text==`), inline code,
+links, bare URLs, images, bullet, numbered and task lists with nesting by tab or indent, quotes,
+callouts (`> [!NOTE]` and the other four kinds), fenced code blocks, horizontal rules, hard line
+breaks, pipe tables and folding comments. A numbered item's label is decimal digits, then `.` or `)`.
+HTML, setext headings, indented code, footnotes and reference links stay plain text.
 
 ### Rendering
 
-`UI/NoteMarkdownRenderer` holds the parse and the set of revealed lines, and is the text storage's
-delegate. Every mutation reports its edited range and length delta there, including the undo, redo and
-marked-text ones that post no `textDidChange`, and several are folded into one pending edit.
-`textDidChange`, `textViewDidChangeSelection` and any read of the parse consume it and reparse. The
-edited lines and one neighbour on each side are restyled, widened to the rest of the note when a fenced
-block moved and to any list line whose depth changed.
+`MDTextStorage` holds the Markdown AST and an attributed string in which a block marker is an
+attachment: a heading's `#`, a bullet, a checkbox, a quote bar, a rule, a table, an image and a fold
+pill. Inline markers stay in the string; `MDMarkdownHider` gives them a 0.01-point font until the
+caret enters their construct. `MDLayoutManager` draws code bands, inline code and highlight
+backgrounds, quote bars and callout boxes. A table is a grid attachment with a live cell editor:
+click a cell to edit it, Tab and the arrows move between cells, and the `⋮` menu adds and removes
+rows and columns. A heading or list item folds with ⌘-click on its marker.
 
-`NoteMarkdownStyler` turns one line into attributes. `NoteMarkdownTypography` sets the body one
-system text style up (title3) and headings at largeTitle, title1 and title2, with or without
-rendering. A hidden marker gets a 0.01-point system font and
-a clear colour, so it stays in the string at almost no width. A hidden tab still runs to the next tab
-stop, so a paragraph that hides tabs gets one stop 0.1 point past each of them. Fence and rule lines are cleared at their
-normal font instead, so they keep their row height. Every list item (bullet, numbered or task) and
-every continuation line gets 8 points of space after it, or 4 when the next line is nested content, so
-items read as rows, a group reads as one, and moving the caret never shifts them; a wrapped item keeps
-normal line spacing. A continuation line hides its indentation, under the caret too, and sits at the
-text of the item it continues. A restyle writes straight to
-`NSTextStorage` inside `beginEditing` and `endEditing`, then invalidates layout for those lines. It
-never calls `shouldChangeText`, which is what keeps styling off the undo stack.
+`NoteEditorTheme` builds MDTextKit's theme from `Theme`: every colour is a dynamic `NSColor`, so the
+editor follows the appearance. `NoteTextView` restyles on an appearance change, because an
+attachment caches its drawing. Body text is the `title3` size in `noteText`; headings scale from it.
 
-A bullet or numbered marker becomes a list only after a space or tab; a lone `-` or `1.` stays literal.
-
-`NoteRevealPolicy` picks the lines that show raw Markdown: every line under the selection, plus both
-fences of a code block the selection is in. Nothing is revealed unless the editor is first responder in
-the key window. Revealed markers use `textTertiary`. During a drag selection the reveal waits for
-mouse-up, because revealing moves text under the pointer. Bullets and tasks keep their marker under
-the caret. A numbered line reveals its label only when the label fits the content indent: it keeps the
-rendered marker's `textSecondary` colour, hides its indentation and hangs left of the content indent,
-so text stays where the rendered line had it. A quote line hangs its whole marker. Empty list items keep body-sized invisible
-labels so their line height does not collapse.
-Other caret lines are raw, keeping the caret out of hidden text.
-
-### Block drawing
-
-`NoteLayoutFragmentProvider` is the text layout manager's delegate. A paragraph whose first character
-carries a `NoteBlockDecoration` (the `noto.note.blockDecoration` attribute) is laid out by
-`NoteBlockLayoutFragment`, which draws code bands with their language label, quote bars, rules,
-bullets (a bar for `-`, a dot for `*` and `+`) and the source's own list numbers in a neutral gray, and
-checkboxes as filled blocks. Vertical
-spacing comes from paragraph styles: overriding the fragment's frame would leave the caret above the
-glyphs. A marker sits on the item's first line of text, not on its first line fragment: a first word
-too wide for the line wraps below the hidden marker and leaves the marker a line of almost no height.
-The checkbox hit test reads the same line. There are no text attachments, overlay controls,
-`NSTextList`, `NSTextTable` or private API.
+Every construct under the selection shows its markers. Nothing is revealed unless the editor is first
+responder in the key window: `NoteTextView` hides every marker when it resigns or its window resigns
+key, and reveals the selection's constructs when it becomes first responder again.
 
 ### Editing
 
-`Model/NoteMarkdownEditing` turns a gesture into a `NoteEditPlan`, one replacement plus the selection
-after it. Nil means AppKit handles the key natively. `NoteTextView.performEdit` applies a plan through
-`shouldChangeText`, `replaceCharacters` and `didChangeText`, so each gesture is one undo step and
-reaches autosave.
+`MDEditorController` turns Return, Tab, Shift-Tab, Delete and the format toggles into AST operations,
+and each one is one undo step. Native typing and deletion go through `MDTextView`, which records one
+undo step per typing run; AppKit's own undo is off, because its records went stale when styling
+replaced typed text with an attachment.
 
-- Return continues a list or quote and leaves it on an empty item. On a continuation line it keeps
-  the indentation, and leaves it when the line is empty. Tab and Shift-Tab nest list items
-  by four spaces. Backspace at an item's content start outdents it, then removes its marker. These
-  edits renumber the ordered run they touch in the same undo step, in the style of the run's first
-  item. Letters stop at `z` and roman numerals at `mmmcmxcix`; after that the label is decimal.
-- Typing `[] ` or `[ ] ` at the start of a paragraph makes `- [ ] `.
-- ⌥⌘C wraps the touched lines in a fenced block, or removes the fences of the block the selection is
-  in. On an empty line it opens an empty block with the caret inside.
-- ⇧⌘B adds `> ` to each touched line, or removes one `>` from each when all of them are quotes. Blank
-  lines inside a selection, code, tables and rules are left alone.
-- Pasting a single `http` or `https` URL over text selected on one line makes `[text](url)`.
-- Clicking a checkbox toggles `[ ]` and `[x]` without moving the caret. The hit test uses
-  `NoteListGeometry`, the rect the fragment draws, grown by 3 points.
-- Clicking a rendered link opens it, unless the click lands in the outer 30% of the label's first or
-  last glyph, which places the caret. Only `http`, `https` and `mailto` open. A revealed line carries
-  no link attribute, so its URL is edited as text.
+- Return continues a list or quote. On an empty item it removes the marker and keeps the line.
+  Tab and Shift-Tab nest and unnest list items. Delete at an item's content start removes its marker.
+- ⌥⌘C wraps the paragraph in a fenced block, or removes the fences of the block the caret is in.
+- ⇧⌘B adds `> ` to the paragraph, or removes it.
+- ⌘K wraps the selection as `[selection]()` with the caret inside the parentheses, or unwraps the
+  link under the caret to its label.
+- Clicking a checkbox toggles `[ ]` and `[x]`.
+- Clicking a link icon, or link text while the editor is not first responder, opens the link. Only
+  `http`, `https` and `mailto` open; `NoteEditorView.Coordinator.open` is the one place that leaves
+  the app, and the harness replaces it.
+- Pasting a URL over selected text makes a link. Pasting rich text converts it to Markdown.
+- A whole list item, heading, table, rule or quote drags as a block and drops as whole lines.
 
 | Shortcut | Does |
 | --- | --- |
@@ -277,22 +227,22 @@ reaches autosave.
 | ⌥⌘1, ⌥⌘2, ⌥⌘3 | heading 1, 2, 3 |
 | ⌥⌘0 | plain paragraph |
 
-Digits match by key code. The text view sees these chords before `NotesPanel` claims its own, and none
-collide. In a note, ⌘E replaces AppKit's Use Selection for Find.
+Digits match by key code. `NoteTextView` sees these chords before `NotesPanel` claims its own, and
+none collide. `.setHeading` sets a level rather than toggling it: choosing the current level changes
+nothing, and Text removes the heading.
 
-AppKit still owns typing, selection, Cut, Copy, Paste, Select All, Find, marked text, emoji, combining
-characters and undo grouping. The editor handles ⌘Z and ⇧⌘Z while focused, including in the
-non-activating panel and with rendering off. Its own `UndoManager` holds one linear history in
-memory; editing after undo discards redo. The editor's coordinator observes undo and redo completion
-with main-actor notifications, so both reach autosave, rendering, formatting and the character count.
-Copy yields raw Markdown and VoiceOver reads the source. Changing the note
-identity or editor epoch reinstalls and restyles the string and clears the previous document's undo
-history. The empty-note placeholder is drawn in the text view, so opening the find bar moves it with
-the editor content.
+AppKit still owns typing, selection, Cut, Copy, Paste, Select All, Find, marked text, emoji and
+combining characters. The editor handles ⌘Z and ⇧⌘Z while focused, including in the non-activating
+panel. `MDTextView.editorUndoManager` holds one linear history in memory; editing after undo discards
+redo. The coordinator observes `MDTextViewTextDidChangeNotification`, which the text view posts
+synchronously after each change, undo and redo, so all of them reach autosave, the formatting reports
+and the character count. Copy yields raw Markdown. Changing the note identity or editor epoch
+reinstalls the Markdown and clears the previous document's undo history. The empty-note placeholder
+is drawn in the text view, so opening the find bar moves it with the editor content.
 
 ### The formatting bar
 
-While Render Markdown and Show Formatting Bar are both on, the band under the editor holds the
+While Show Formatting Bar is on, the band under the editor holds the
 character count at its leading edge and the formatting bar at its trailing edge. The bar is
 `NoteFormattingBar`, a frosted capsule in the title bar's recipe. It starts collapsed to one round
 `paintbrush` button; ⌥⌘T or a click expands it, and the buttons slide out from behind that button:
@@ -306,11 +256,11 @@ Expanded or collapsed is window state, not a preference: `AppCore` reads and wri
 the store the active note's filename. It is deliberately not a `NotoSettings` property. With Show
 Formatting Bar off there is no round button at all and the count returns to its own footer.
 
-`NoteEditorView` reports `NoteMarkdownEditing.formatting(source:selection:markdown:)` on every
+`NoteEditorView` reports `MDEditorController.formatting(in:)`, mapped onto `NoteFormatting`, on every
 install, edit and selection change, and `NotesCoordinator` publishes it only when it changed. That
-function uses the same span and line rules as the toggles, so a lit button always undoes. A click goes
+query reads the same annotations the toggles use, so a lit button always undoes. A click goes
 `NotesCoordinator.format` → `NotesWindowController.format` → `NoteTextView.format`. The buttons never
-take focus, so the caret and its revealed line stay put.
+take focus, so the caret and its revealed construct stay put.
 
 The heading button opens `NoteHeadingMenuView` (Heading 1 to 3 and Text, the current one checked) in a
 borderless child window that never becomes key, so it can extend past a short note window while the
@@ -319,18 +269,11 @@ an edit, the note window losing key, opening the switcher, and hiding.
 
 ### The settings
 
-Settings > Editor > Render Markdown is `NotoSettings.rendersMarkdown` (UserDefaults key
-`notesRendersMarkdown`), on when absent. `NotesCoordinator` exposes it and `NotesView` hands it to
-`NoteEditorView`. Off gives the literal editor: one font and colour, native Return, Tab and shortcuts,
-and no parsing. Flipping it restyles the open note without touching its undo history or marking it
-dirty.
-
 Settings > Editor > Show formatting bar is `NotoSettings.showsFormattingBar` (key
-`notesShowsFormattingBar`), on when absent. It only takes effect while Render Markdown is on, and its
-row is disabled otherwise.
+`notesShowsFormattingBar`), on when absent.
 
 An empty note shows a `Start writing…` placeholder at the text container's origin. The
-character count comes straight off `NSTextStorage.length` and sits in a footer under the editor, or at
+character count is the Markdown's UTF-16 length and sits in a footer under the editor, or at
 the leading end of the formatting bar's band while the bar shows. Both belong to the editor surface,
 so neither appears when no note is active.
 
@@ -367,16 +310,17 @@ Settings > Editor sets five font values. `NotoSettings.fonts` holds them as one 
 | Code Font | `codeFamily` | `notesCodeFont` | the system monospaced font |
 | Text size | `size` | `notesFontSize` | the `title3` size |
 
-- The text family draws body text and ordered list numbers.
-- The heading family draws headings. Heading sizes and weights do not change with the family.
+- The text family draws body text.
+- The heading family draws headings, in its bold face. Heading sizes do not change with the family.
 - The code family draws inline code, code blocks and tables.
 - The size is the body size. Headings, list indents, bullets and checkboxes scale with it.
 - The size range is 10 to 32 points.
-- If a family is not installed, the editor uses the system font. The setting keeps its value.
+- If a family is not installed, the editor uses the theme's own font. The setting keeps its value.
 
-`NotesView` gives `notes.fonts` to `NoteEditorView`. `Coordinator.setFonts` calls
-`NoteMarkdownStyler.apply`, then `NoteMarkdownRenderer.reset()`. A font change applies to the open
-note immediately. It does not change the undo history and does not make the note dirty.
+`NotesView` gives `notes.fonts` to `NoteEditorView`. `Coordinator.setFonts` rebuilds the theme
+overrides with `NoteEditorTheme.overrides`, applies the theme to the text view and restyles the note.
+A font change applies to the open note immediately. It does not change the undo history and does
+not make the note dirty.
 
 ### Highlight colour
 
@@ -385,32 +329,28 @@ background of a `==highlight==` span. The value is nil when absent, and the span
 `Theme.Colors.highlight`, which follows the appearance. A chosen colour is stored as `#RRGGBBAA` in
 sRGB and draws the same in Dark and Light. Use Default clears the value.
 
-`NotesView` gives `notes.highlightColor` to `NoteEditorView`. `Coordinator.setHighlight` calls
-`NoteMarkdownStyler.apply(highlight:)`, then `NoteMarkdownRenderer.reset()`. A colour change applies
-to the open note immediately. It does not change the undo history and does not make the note dirty.
+`NotesView` gives `notes.highlightColor` to `NoteEditorView`. `Coordinator.setHighlight` writes the
+colour into the theme overrides and restyles the note. A colour change applies to the open note
+immediately. It does not change the undo history and does not make the note dirty.
 
 #### The CJK family
 
-The CJK family is a font cascade, not a second font attribute. `NoteMarkdownTypography` adds the CJK
-family to the cascade list of each text font, each heading font and each code font. Core Text uses the cascade for each
-character that the primary family does not have. Thus one `NSFont` is sufficient for a mixed line,
-and the literal editor uses the same font.
+The CJK family is a font cascade, not a second font attribute. `NoteEditorTheme.overrides` names it
+in the `cjk` override of the text, heading and code fonts, and `SFThemeManager` adds it to each
+font's cascade list. Core Text uses the cascade for each character that the primary family does not
+have. Thus one `NSFont` is sufficient for a mixed line.
 
-- A bold font gets a bold cascade entry. The traits of a font descriptor do not apply to its cascade
-  list.
+- A bold font gets a bold cascade entry. MDTextKit carries the cascade into each face it derives.
 - The primary family draws each character that it has. Thus a Latin family draws the curly quotes
   and the ellipsis in CJK text.
 - If the text family has Han characters, the CJK family has no effect on body text.
 - The CJK font menu shows only the families that have Han characters.
 
-#### Missing faces
+#### Faces
 
-Many families have no italic face, and some have no bold face. `Monaco`, `PingFang SC` and
-`Songti SC` are examples. `NoteMarkdownTypography.emphasized` and `headingLook` use the face when the
-family has it. If the family does not have it, they add a drawn substitute:
-
-- `.obliqueness` for italic.
-- A negative `.strokeWidth` for bold.
+MDTextKit uses a family's real faces only. A family without an italic face shows emphasis upright,
+and a family without a bold face shows strong text at its regular weight. `Monaco`, `PingFang SC` and
+`Songti SC` lack an italic face.
 
 #### Monospaced families
 
@@ -441,16 +381,16 @@ when none remains.
 ## Verification
 
 `Tests/notes-test.swift` compiles the shipped Notes model and service sources with the real fuzzy
-matcher. It covers repository safety, unique-name claiming, derived titles, search, selection,
-autosave, empty collections, relocation, switcher interaction, window placement and cancellation, plus
-the Markdown parser, every edit plan, the formatting each selection reports and the reveal policy.
+matcher and PolarMark. It covers repository safety, unique-name claiming, derived titles, search,
+selection, autosave, empty collections, relocation, switcher interaction, window placement and
+cancellation, and the highlight colour.
 
-`Tests/notes-editor-test.swift` uses real TextKit 2 and AppKit undo objects. It runs the native
-Cut/Copy/Paste, the native find bar, Unicode and marked-text cases with rendering off and on, and covers
-undo isolation, undo and redo shortcut routing, source publication and character count, linear history,
-exact source after styling, hidden and revealed markers, restyling after edits and after undo, block
-decorations and layout fragments, list keys, chords, the task rule, checkbox toggles, link schemes,
-pasting a URL, and the formatting reports and `format(_:)` the formatting bar uses.
+`Tests/notes-editor-test.swift` compiles MDTextKit's modules and uses real TextKit 1 and AppKit
+objects. It runs the native Cut/Copy/Paste, the native find bar, Unicode and marked-text cases, and
+covers the Markdown round trip, undo isolation, undo and redo shortcut routing, source publication and
+the character count, exact Markdown after styling and after a font or highlight change, list keys,
+chords, headings, links, checkbox clicks, link schemes, tables, custom fonts with the CJK cascade,
+the formatting reports and `format(_:)`, and the text height.
 `Tests/notes-editor-performance.swift` times install, typing, the window fit's height read and caret
 moves on a 100,000-character note; its budget is in [testing.md](../testing.md#performance-measurement). Window
 chrome is not automated: the Notes manual sweep in [testing.md](../testing.md#notes) covers commands,

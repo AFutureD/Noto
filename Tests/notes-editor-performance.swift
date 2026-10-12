@@ -1,12 +1,14 @@
 import AppKit
 import Foundation
+import MDTextKitUI
 import SwiftUI
 
 /// Times the rendered Notes editor on a large note: install, one typed character, and a caret move.
 @main
 @MainActor
 struct NotesEditorPerformance {
-    private static let runs = 30
+    /// `NOTO_PERF_RUNS` overrides the 30 runs, for a quick read on a slow build.
+    private static let runs = Int(ProcessInfo.processInfo.environment["NOTO_PERF_RUNS"] ?? "") ?? 30
 
     static func main() {
         _ = NSApplication.shared
@@ -60,7 +62,6 @@ struct NotesEditorPerformance {
 
         let report: [String: Any] = [
             "characters": text.length,
-            "lines": editor.coordinator.renderer.markdown.lines.count,
             "runs": runs,
             "installAndRestyleMs": install,
             "typingMs": Dictionary(uniqueKeysWithValues: typing),
@@ -117,22 +118,17 @@ struct NotesEditorPerformance {
         input: NoteEditorInput
     ) -> (coordinator: NoteEditorView.Coordinator, textView: NoteTextView, window: NSWindow) {
         let view = NoteEditorView(
-            input: input, rendersMarkdown: true, onSourceChange: { _ in },
-            onCharacterCountChange: { _, _ in },
+            input: input, onSourceChange: { _ in }, onCharacterCountChange: { _, _ in },
             onFormattingChange: { _, _ in }, onReady: { _ in })
         let coordinator = NoteEditorView.Coordinator(parent: view)
-        let textView = NoteTextView(usingTextLayoutManager: true)
-        NoteEditorView.configure(textView)
-        textView.delegate = coordinator
-        textView.editorUndoManager = coordinator.editorUndoManager
+        let textView = coordinator.textView
         textView.setFrameSize(NSSize(width: 480, height: 1))
         let scrollView = NSScrollView(frame: NSRect(x: 0, y: 0, width: 480, height: 600))
         scrollView.documentView = textView
         let window = KeyWindow(
             contentRect: scrollView.frame, styleMask: .borderless, backing: .buffered, defer: false)
         window.contentView = scrollView
-        coordinator.textView = textView
-        coordinator.install(input, resetUndo: false)
+        coordinator.install(input)
         window.makeFirstResponder(textView)
         return (coordinator, textView, window)
     }

@@ -23,7 +23,8 @@ no database. The files are the notes.
 
 ## Features
 
-- Markdown renders in place. The line you edit shows its source; the rest stays formatted.
+- Markdown renders in place. The construct you edit shows its markers; the rest stays formatted.
+  Tables are grids, callouts are boxes, and headings fold.
 - One window, one note at a time. A switcher (⌘P) searches titles and bodies.
 - Four global shortcuts: Show Notes, Create Note, Search Notes and Keep on Top.
 - Keep on Top holds the window above other apps and on every Space.

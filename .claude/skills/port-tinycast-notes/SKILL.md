@@ -16,7 +16,9 @@ Before any change to the project:
 1. Lay out what changed upstream, commit by commit, in terms of behaviour and the Noto files it
    touches.
 2. For each commit, say whether it ports without conflict, needs adaptation to Noto's own types, or
-   should not be ported because it serves a Tinycast feature Noto does not have.
+   should not be ported because it serves a Tinycast feature Noto does not have. A change to
+   Tinycast's Markdown parser, styler, renderer or text view is never ported: Noto's editor is
+   MDTextKit (`docs/features/notes.md#editor`).
 3. Wait for confirmation.
 
 After confirmation, port the accepted commits in upstream order, one Noto commit per upstream

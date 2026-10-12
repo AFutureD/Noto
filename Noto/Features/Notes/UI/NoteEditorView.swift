@@ -1,9 +1,11 @@
 import AppKit
+import MDTextKit
+import MDTextKitUI
+import SFThemeKit
 import SwiftUI
 
 struct NoteEditorView: NSViewRepresentable {
     let input: NoteEditorInput
-    let rendersMarkdown: Bool
     var fonts = NoteFontSettings.standard
     var highlight: NoteHighlightColor?
     let onSourceChange: (String) -> Void
@@ -24,14 +26,9 @@ struct NoteEditorView: NSViewRepresentable {
         scrollView.borderType = .noBorder
         // `NotesView` lays out its own title-bar band, so AppKit must not inset this a second time.
         scrollView.automaticallyAdjustsContentInsets = false
-
-        let textView = NoteTextView(usingTextLayoutManager: true)
-        Self.configure(textView)
-        textView.delegate = context.coordinator
-        textView.editorUndoManager = context.coordinator.editorUndoManager
+        let textView = context.coordinator.textView
         scrollView.documentView = textView
-        context.coordinator.textView = textView
-        context.coordinator.install(input, resetUndo: false)
+        context.coordinator.install(input)
         onReady(textView)
         return scrollView
     }
@@ -39,70 +36,70 @@ struct NoteEditorView: NSViewRepresentable {
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
         context.coordinator.parent = self
         context.coordinator.update(input)
-        context.coordinator.setRendersMarkdown(rendersMarkdown)
         context.coordinator.setFonts(fonts)
         context.coordinator.setHighlight(highlight)
     }
 
     @MainActor
-    final class Coordinator: NSObject, NSTextViewDelegate, NoteTextViewEditing {
+    final class Coordinator {
         var parent: NoteEditorView
-        weak var textView: NoteTextView? {
-            didSet { attach() }
-        }
-        let editorUndoManager = UndoManager()
-        let renderer: NoteMarkdownRenderer
-        /// Replaced by the harness, which records a link instead of opening a browser.
-        var openURL: (URL) -> Void = { NSWorkspace.shared.open($0) }
+        let textView: NoteTextView
+        let editorController = MDEditorController()
+        let themeManager = SFThemeManager(theme: NoteEditorTheme.make())
+        var editorUndoManager: UndoManager { textView.editorUndoManager }
 
         private var input: NoteEditorInput
+        private var fonts: NoteFontSettings
+        private var highlight: NoteHighlightColor?
         private var isInstalling = false
-        private var undoObservers: [NotificationCenter.ObservationToken] = []
-        /// Held here because the layout manager keeps its delegate weakly.
-        private let fragmentProvider = NoteLayoutFragmentProvider()
+        private var observers: [NotificationToken] = []
 
         init(parent: NoteEditorView) {
             self.parent = parent
             input = parent.input
-            renderer = NoteMarkdownRenderer(isEnabled: parent.rendersMarkdown)
-            super.init()
-            _ = NoteMarkdownStyler.apply(parent.fonts)
-            _ = NoteMarkdownStyler.apply(highlight: parent.highlight)
-            let center = NotificationCenter.default
-            undoObservers = [
-                center.addObserver(of: editorUndoManager, for: .didUndoChange) { [weak self] _ in
-                    self?.sourceDidChange()
-                },
-                center.addObserver(of: editorUndoManager, for: .didRedoChange) { [weak self] _ in
-                    self?.sourceDidChange()
-                }
+            fonts = parent.fonts
+            highlight = parent.highlight
+            editorController.autoHideMarkdown = true
+            textView = NoteTextView(
+                frame: NSRect(x: 0, y: 0, width: Theme.Size.noteWindow.width, height: 1),
+                editorController: editorController)
+            themeManager.overrides = NoteEditorTheme.overrides(fonts: fonts, highlight: highlight)
+            textView.installTableEditing(themeManager: themeManager)
+            Self.configure(textView, with: themeManager)
+            textView.openURL = { [weak self] url in
+                guard let self, let scheme = url.scheme?.lowercased(), Self.openableSchemes.contains(scheme)
+                else { return }
+                open(url)
+            }
+            observers = [
+                observe(MDTextViewTextDidChangeNotification) { [weak self] in self?.sourceDidChange() },
+                observe(MDTextViewTextDidChangeSelectionNotification) { [weak self] in self?.selectionDidChange() }
             ]
         }
 
-        deinit {
-            for observer in undoObservers { NotificationCenter.default.removeObserver(observer) }
+        /// The text view posts on the main thread, from its own delegate calls, so no hop is needed.
+        private func observe(_ name: Notification.Name, _ handler: @escaping @MainActor () -> Void) -> NotificationToken {
+            let center = NotificationCenter.default
+            let token = center.addObserver(forName: name, object: textView, queue: nil) { _ in
+                MainActor.assumeIsolated(handler)
+            }
+            return NotificationToken(token, center: center)
         }
 
-        private func attach() {
-            renderer.textView = textView
-            textView?.editing = self
-            textView?.textLayoutManager?.delegate = fragmentProvider
-        }
+        /// Only `http`, `https` and `mailto` leave the editor; a `file:` link is inert.
+        static let openableSchemes: Set<String> = ["http", "https", "mailto"]
+        /// Replaced by the harness, which records a link instead of opening a browser.
+        var open: (URL) -> Void = { NSWorkspace.shared.open($0) }
 
-        func install(_ input: NoteEditorInput, resetUndo: Bool) {
-            guard let textView else { return }
-            let wasEmpty = textView.textStorage?.length == 0
+        func install(_ input: NoteEditorInput) {
+            let wasEmpty = textView.mdTextStorage.length == 0
             self.input = input
-            let selectionLocation = min(
-                textView.selectedRange().location,
-                (input.source as NSString).length)
+            let caret = textView.selectedRange().location
             isInstalling = true
-            textView.string = input.source
+            editorController.loadString(input.source, into: textView)
+            textView.setSelectedRange(NSRange(location: min(caret, textView.mdTextStorage.length), length: 0))
             if wasEmpty != input.source.isEmpty { textView.needsDisplay = true }
-            textView.setSelectedRange(NSRange(location: selectionLocation, length: 0))
-            renderer.reset()
             isInstalling = false
-            if resetUndo { editorUndoManager.removeAllActions() }
             reportCharacterCount()
             reportFormatting()
         }
@@ -110,41 +107,36 @@ struct NoteEditorView: NSViewRepresentable {
         func update(_ next: NoteEditorInput) {
             guard next != input else { return }
             let authoritative =
-                next.id != input.id || next.epoch != input.epoch
-                || next.source != textView?.string
+                next.id != input.id || next.epoch != input.epoch || next.source != textView.markdown
             input = next
             guard authoritative else { return }
-            install(next, resetUndo: true)
-        }
-
-        func setRendersMarkdown(_ rendersMarkdown: Bool) {
-            guard rendersMarkdown != renderer.isEnabled else { return }
-            renderer.isEnabled = rendersMarkdown
-            renderer.reset()
-            reportFormatting()
+            install(next)
         }
 
         func setFonts(_ fonts: NoteFontSettings) {
-            guard NoteMarkdownStyler.apply(fonts), let textView else { return }
-            // The empty note's placeholder is drawn by the view itself, outside any restyle.
-            textView.needsDisplay = true
-            renderer.reset()
+            guard fonts != self.fonts else { return }
+            self.fonts = fonts
+            applyOverrides()
         }
 
         func setHighlight(_ highlight: NoteHighlightColor?) {
-            guard NoteMarkdownStyler.apply(highlight: highlight) else { return }
-            renderer.reset()
+            guard highlight != self.highlight else { return }
+            self.highlight = highlight
+            applyOverrides()
         }
 
-        func textDidChange(_ notification: Notification) {
-            sourceDidChange()
+        /// A restyle writes attributes with undo off, so neither the history nor the draft changes.
+        private func applyOverrides() {
+            themeManager.overrides = NoteEditorTheme.overrides(fonts: fonts, highlight: highlight)
+            Self.configure(textView, with: themeManager)
+            editorController.restyleAll(in: textView)
+            textView.needsDisplay = true
         }
 
         private func sourceDidChange() {
-            guard !isInstalling, let textView else { return }
-            renderer.sourceDidChange()
+            guard !isInstalling else { return }
             reportFormatting()
-            let source = textView.string
+            let source = textView.markdown
             guard source != input.source else { return }
             if input.source.isEmpty != source.isEmpty { textView.needsDisplay = true }
             input = NoteEditorInput(id: input.id, source: source, epoch: input.epoch)
@@ -152,102 +144,33 @@ struct NoteEditorView: NSViewRepresentable {
             reportCharacterCount()
         }
 
-        func textViewDidChangeSelection(_ notification: Notification) {
+        private func selectionDidChange() {
             guard !isInstalling else { return }
-            renderer.selectionDidChange()
             reportFormatting()
         }
 
-        func textView(
-            _ textView: NSTextView, shouldChangeTypingAttributes oldTypingAttributes: [String: Any],
-            toAttributes newTypingAttributes: [NSAttributedString.Key: Any]
-        ) -> [NSAttributedString.Key: Any] {
-            renderer.isEnabled ? NoteMarkdownStyler.literal : newTypingAttributes
-        }
-
-        func textView(_ textView: NSTextView, clickedOnLink link: Any, at charIndex: Int) -> Bool {
-            let url = link as? URL ?? (link as? String).flatMap { URL(string: $0) }
-            guard let url, let scheme = url.scheme?.lowercased(),
-                NoteMarkdownStyler.openableSchemes.contains(scheme)
-            else {
-                return true
-            }
-            if let noteView = textView as? NoteTextView, let event = NSApp.currentEvent,
-                let edge = noteView.linkEdge(
-                    ofLinkAt: charIndex, clickedAt: noteView.containerPoint(for: event))
-            {
-                textView.setSelectedRange(NSRange(location: edge, length: 0))
-                return true
-            }
-            openURL(url)
-            return true
-        }
-
-        var rendersMarkdown: Bool { renderer.isEnabled }
-
-        var markdown: NoteMarkdown { renderer.syncedMarkdown() }
-
-        func focusChanged() {
-            renderer.selectionDidChange()
-        }
-
-        func appearanceChanged() {
-            renderer.reset()
-        }
-
-        func dragSelectionEnded() {
-            renderer.selectionDidChange()
-        }
-
-        /// `NSTextStorage.length` is maintained by TextKit, so the counter costs nothing per edit.
         private func reportCharacterCount() {
-            parent.onCharacterCountChange(input, textView?.textStorage?.length ?? 0)
+            parent.onCharacterCountChange(input, (input.source as NSString).length)
         }
 
-        /// With rendering off there is no parse to read, and the bar is hidden anyway.
         private func reportFormatting() {
-            guard let textView else { return }
-            let formatting =
-                renderer.isEnabled
-                ? NoteMarkdownEditing.formatting(
-                    source: textView.string, selection: textView.selectedRange(), markdown: markdown)
-                : .plain
-            parent.onFormattingChange(input, formatting)
+            parent.onFormattingChange(input, textView.formatting)
         }
-    }
 
-    static func configure(_ textView: NSTextView) {
-        textView.isRichText = false
-        textView.importsGraphics = false
-        textView.drawsBackground = false
-        textView.isVerticallyResizable = true
-        textView.isHorizontallyResizable = false
-        textView.autoresizingMask = [.width]
-        textView.minSize = .zero
-        textView.maxSize = NSSize(
-            width: CGFloat.greatestFiniteMagnitude,
-            height: CGFloat.greatestFiniteMagnitude)
-        textView.textContainerInset = NSSize(
-            width: Theme.Size.noteEditorInset,
-            height: Theme.Size.noteEditorTopInset)
-        textView.textContainer?.widthTracksTextView = true
-        textView.textContainer?.lineFragmentPadding = 0
-        textView.font = NoteMarkdownTypography.body
-        textView.textColor = NSColor(Theme.Colors.noteText)
-        textView.insertionPointColor = NSColor(Theme.Colors.noteText)
-        textView.selectedTextAttributes = [
-            .backgroundColor: NSColor(Theme.Colors.selection),
-            .foregroundColor: NSColor(Theme.Colors.noteText)
-        ]
-        textView.isAutomaticQuoteSubstitutionEnabled = false
-        textView.isAutomaticDashSubstitutionEnabled = false
-        textView.isAutomaticTextReplacementEnabled = false
-        textView.isAutomaticSpellingCorrectionEnabled = false
-        textView.isContinuousSpellCheckingEnabled = false
-        textView.smartInsertDeleteEnabled = false
-        textView.usesFindBar = true
-        textView.allowsUndo = true
-        textView.linkTextAttributes = [.foregroundColor: NSColor.linkColor, .cursor: NSCursor.pointingHand]
-        textView.typingAttributes = NoteMarkdownStyler.literal
+        /// The theme's colours and fonts, then Noto's own frame: no column, no background, its insets.
+        static func configure(_ textView: NoteTextView, with themeManager: SFThemeManager) {
+            textView.applyTheme(themeManager)
+            textView.drawsBackground = false
+            textView.textContainerInset = NSSize(
+                width: Theme.Size.noteEditorInset,
+                height: Theme.Size.noteEditorTopInset)
+            textView.mdTextContainer.lineFragmentPadding = 0
+            textView.insertionPointColor = NSColor(Theme.Colors.noteText)
+            textView.selectedTextAttributes = [
+                .backgroundColor: NSColor(Theme.Colors.selection),
+                .foregroundColor: NSColor(Theme.Colors.noteText)
+            ]
+            textView.linkTextAttributes = [.foregroundColor: NSColor.linkColor, .cursor: NSCursor.pointingHand]
+        }
     }
 }

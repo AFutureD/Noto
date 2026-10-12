@@ -27,7 +27,8 @@ if [ "${1:-}" = "--exec" ]; then
         exit 0
     }
     TIMEFORMAT=%1R
-    if ! compiled=$( { time swiftc -swift-version 6 "$opt" "$@" "Tests/$name.swift" -o "$BIN/$name" > "$BIN/$name.log" 2>&1; } 2>&1 ); then
+    # shellcheck disable=SC2086 # the link flags are one exported string, split on purpose.
+    if ! compiled=$( { time swiftc -swift-version 6 "$opt" $NOTO_LINK "$@" "Tests/$name.swift" -o "$BIN/$name" > "$BIN/$name.log" 2>&1; } 2>&1 ); then
         fail "did not compile"
     fi
     { time "$BIN/$name" > "$BIN/$name.log" 2>&1; } 2> "$BIN/$name.time" &
@@ -51,6 +52,30 @@ if [ "${1:-}" = "--exec" ]; then
     printf '\033[32mok\033[0m    %-25s %5ss  \033[2m(compile %ss)\033[0m\n' "$name" "$took" "$compiled"
     exit 0
 fi
+
+# MDTextKit is compiled once, module by module, and every harness links it the way the app does.
+MDTEXTKIT="${MDTEXTKIT_DIR:-$PWD/../MDTextKit}"
+MODULES="$BIN/modules"
+export NOTO_LINK="-I $MODULES -L $MODULES -lMDTextKitUI -lMDTextKit -lSFThemeKit -lTextBundle -lPolarMark"
+build_modules() {
+    mkdir -p "$MODULES"
+    local stamp="$MODULES/.stamp"
+    if [ -f "$stamp" ] && [ -z "$(find "$MDTEXTKIT/Sources" -name '*.swift' -newer "$stamp" -print -quit)" ]; then
+        return 0
+    fi
+    rm -f "$stamp"
+    for module in PolarMark SFThemeKit TextBundle MDTextKit MDTextKitUI; do
+        # shellcheck disable=SC2046 # the package has no path with a space in it.
+        if ! swiftc -swift-version 6 -parse-as-library -emit-module -emit-library -static -module-name "$module" \
+            -I "$MODULES" -L "$MODULES" -emit-module-path "$MODULES/$module.swiftmodule" -o "$MODULES/lib$module.a" \
+            $(find "$MDTEXTKIT/Sources/$module" -name '*.swift') > "$MODULES/$module.log" 2>&1; then
+            printf '\033[31mFAIL\033[0m  MDTextKit module %s did not compile\n' "$module"
+            cat "$MODULES/$module.log"
+            return 1
+        fi
+    done
+    : > "$stamp"
+}
 
 QUEUE="$BIN/queue"
 : > "$QUEUE"
@@ -95,8 +120,8 @@ run() {
         local sources=()
         for source in "$@" "Tests/$name.swift"; do sources+=("$PWD/$source"); done
         [ "$ran" -gt 1 ] && printf ',' >> "$DB"
-        printf '{"directory":"%s","command":"swiftc -swift-version 6 -sdk %s' \
-            "$PWD" "$(xcrun --show-sdk-path --sdk macosx)" >> "$DB"
+        printf '{"directory":"%s","command":"swiftc -swift-version 6 -sdk %s %s' \
+            "$PWD" "$(xcrun --show-sdk-path --sdk macosx)" "$NOTO_LINK" >> "$DB"
         printf ' %s' "${sources[@]}" >> "$DB"
         # Claim every file under `Tests/`: the harness and any helper compiled beside it. A shipped
         # source stays unclaimed, because it would get this short command instead of the app's full
@@ -116,7 +141,7 @@ run() {
 run notes-test             Noto/Platform/Signposts.swift \
                            Noto/Features/Notes/Model/*.swift \
                            Noto/Features/Notes/Service/*.swift
-run notes-editor-test      Noto/Platform/Signposts.swift \
+run notes-editor-test  Noto/Platform/Signposts.swift \
                            Noto/Platform/Appearance.swift \
                            Noto/DesignSystem/Theme.swift \
                            Noto/DesignSystem/InterfaceMetrics.swift \
@@ -124,23 +149,9 @@ run notes-editor-test      Noto/Platform/Signposts.swift \
                            Noto/Features/Notes/Model/NoteDocument.swift \
                            Noto/Features/Notes/Model/NoteFontSettings.swift \
                            Noto/Features/Notes/Model/NoteHighlightColor.swift \
-                           Noto/Features/Notes/Model/NoteMarkdown.swift \
-                           Noto/Features/Notes/Model/NoteListNumbering.swift \
-                           Noto/Features/Notes/Model/NoteMarkdownParser.swift \
-                           Noto/Features/Notes/Model/NoteInlineScanner.swift \
-                           Noto/Features/Notes/Model/NoteEditPlan.swift \
                            Noto/Features/Notes/Model/NoteEditAction.swift \
                            Noto/Features/Notes/Model/NoteFormatting.swift \
-                           Noto/Features/Notes/Model/NoteMarkdownEditing.swift \
-                           Noto/Features/Notes/Model/NoteRevealPolicy.swift \
-                           Noto/Features/Notes/UI/NoteMarkdownTypography.swift \
-                           Noto/Features/Notes/UI/NoteBlockDecoration.swift \
-                           Noto/Features/Notes/UI/NoteMarkdownStyler.swift \
-                           Noto/Features/Notes/UI/NoteMarkdownRenderer.swift \
-                           Noto/Features/Notes/UI/NoteListGeometry.swift \
-                           Noto/Features/Notes/UI/NoteBlockLayoutFragment.swift \
-                           Noto/Features/Notes/UI/NoteLayoutFragmentProvider.swift \
-                           Noto/Features/Notes/UI/NoteTextViewEditing.swift \
+                           Noto/Features/Notes/UI/NoteEditorTheme.swift \
                            Noto/Features/Notes/UI/NoteTextView.swift \
                            Noto/Features/Notes/UI/NoteEditorView.swift
 run -O index notes-editor-performance \
@@ -191,6 +202,8 @@ if [ "$ran" -eq 0 ]; then
     echo "No harness named '$only'." >&2
     exit 2
 fi
+
+build_modules || exit 1
 
 # `sort -s` is stable, so the slow harnesses lead and everything else keeps its declaration order.
 JOBS="${NOTO_TEST_JOBS:-4}"

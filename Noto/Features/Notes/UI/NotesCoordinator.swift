@@ -63,7 +63,7 @@ final class NotesCoordinator {
     }
 
     var hasActiveNote: Bool { store.activeID != nil }
-    /// UTF-16 units, straight off the text storage: the only length TextKit hands back in O(1).
+    /// UTF-16 units of the Markdown source.
     var characterCountLabel: String {
         characterCount == 1 ? "1 character" : "\(characterCount) characters"
     }
@@ -75,11 +75,10 @@ final class NotesCoordinator {
     }
 
     var activeTitle: String { store.activeTitle }
-    var rendersMarkdown: Bool { settings.rendersMarkdown }
     var fonts: NoteFontSettings { settings.fonts }
     var highlightColor: NoteHighlightColor? { settings.highlightColor }
     var keepsOnTop: Bool { settings.keepsOnTop }
-    var showsFormattingBar: Bool { settings.rendersMarkdown && settings.showsFormattingBar }
+    var showsFormattingBar: Bool { settings.showsFormattingBar }
     var isSearching: Bool { store.isSearching }
     var visibleNotes: [NoteSummary] {
         store.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty

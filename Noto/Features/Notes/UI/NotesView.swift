@@ -53,7 +53,6 @@ struct NotesView: View {
         VStack(spacing: 0) {
             NoteEditorView(
                 input: notes.editorInput,
-                rendersMarkdown: notes.rendersMarkdown,
                 fonts: notes.fonts,
                 highlight: notes.highlightColor,
                 onSourceChange: notes.updateSource,

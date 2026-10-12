@@ -1,41 +1,35 @@
 import AppKit
+import MDTextKit
+import MDTextKitUI
 
+/// The note editor: `MDTextView` plus Noto's chords, the window fit's height, the placeholder and focus.
 @MainActor
-final class NoteTextView: NSTextView {
-    var editorUndoManager: UndoManager?
-    weak var editing: NoteTextViewEditing?
-    /// True during `mouseDown`'s drag loop; revealing mid-drag would shift text under the pointer.
-    private(set) var isDragSelecting = false
-
+final class NoteTextView: MDTextView {
     /// Tracked here because the window still names this view first responder while it resigns.
     private var isFirstResponder = false
-    private var keyObservers: [NotificationToken] = []
-
-    private static let checkboxSlop: CGFloat = 3
-
-    override var undoManager: UndoManager? { editorUndoManager }
 
     var isFocused: Bool { isFirstResponder && window?.isKeyWindow == true }
 
-    private var rendersMarkdown: Bool { editing?.rendersMarkdown == true }
-
-    /// One undoable replacement that reaches `textDidChange`, so autosave and restyling see it.
-    @discardableResult
-    func performEdit(_ plan: NoteEditPlan) -> Bool {
-        breakUndoCoalescing()
-        guard let textStorage, shouldChangeText(in: plan.range, replacementString: plan.replacement)
-        else { return false }
-        textStorage.replaceCharacters(in: plan.range, with: plan.replacement)
-        didChangeText()
-        setSelectedRange(plan.selection)
-        breakUndoCoalescing()
-        return true
-    }
-
-    /// The formatting bar's way in: the same plan, gate and undo step as the matching chord.
+    /// The formatting bar's way in: the same toggle, gate and undo step as the matching chord.
     func format(_ action: NoteEditAction) {
-        perform(action)
+        guard !hasMarkedText() else { return }
+        switch action {
+        case .toggleInline(.bold): editorController.toggleStrong(in: self)
+        case .toggleInline(.italic): editorController.toggleEmphasis(in: self)
+        case .toggleInline(.strikethrough): editorController.toggleStrikethrough(in: self)
+        case .toggleInline(.highlight): editorController.toggleHighlighter(in: self)
+        case .toggleInline(.code): editorController.toggleCode(in: self)
+        case .toggleLink: toggleLink()
+        case .setHeading(let level): setHeading(level)
+        case .toggleList(.bullet): editorController.toggleUnorderedList(in: self)
+        case .toggleList(.ordered): editorController.toggleOrderedList(in: self)
+        case .toggleList(.task): editorController.toggleTaskList(in: self)
+        case .toggleCodeBlock: editorController.toggleCodeBlock(in: self)
+        case .toggleQuote: editorController.toggleBlockQuote(in: self)
+        }
     }
+
+    var formatting: NoteFormatting { NoteFormatting(editorController.formatting(in: self)) }
 
     func find(_ action: NSTextFinder.Action) {
         let item = NSMenuItem()
@@ -45,63 +39,57 @@ final class NoteTextView: NSTextView {
 
     /// The frame never gets shorter than the clip view, so only the layout knows the text's height.
     func textHeight(upTo limit: CGFloat) -> CGFloat {
-        guard let textLayoutManager else { return frame.height }
-        var height: CGFloat = 0
-        // Summed: until the next draw, the lines below an edit keep their old origins.
-        textLayoutManager.enumerateTextLayoutFragments(
-            from: textLayoutManager.documentRange.location, options: [.ensuresLayout]
-        ) { fragment in
-            height += fragment.layoutFragmentFrame.height
-            return height < limit
+        guard let layoutManager, let textContainer else { return frame.height }
+        let insets = textContainerInset.height * 2
+        // Lays out the top `limit` points only, so a long note costs no more than the window shows.
+        let probe = CGRect(x: 0, y: 0, width: textContainer.size.width, height: limit)
+        let glyphs = layoutManager.glyphRange(forBoundingRect: probe, in: textContainer)
+        if glyphs.length > 0, NSMaxRange(glyphs) < layoutManager.numberOfGlyphs {
+            let last = layoutManager.lineFragmentRect(forGlyphAt: NSMaxRange(glyphs) - 1, effectiveRange: nil)
+            return last.maxY + insets
         }
-        return height + textContainerInset.height * 2
+        return layoutManager.usedRect(for: textContainer).height + insets
     }
 
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
-        guard textStorage?.length == 0 else { return }
-        NSAttributedString(
-            string: "Start writing…",
-            attributes: [
-                .font: NoteMarkdownTypography.body,
-                .foregroundColor: NSColor(Theme.Colors.textTertiary)
-            ]
-        ).draw(at: textContainerOrigin)
+        guard mdTextStorage.length == 0 else { return }
+        var attributes = editorController.attributedStringRenderer.defaultTextAttributes
+        attributes[.foregroundColor] = NSColor(Theme.Colors.textTertiary)
+        NSAttributedString(string: "Start writing…", attributes: attributes).draw(at: textContainerOrigin)
+    }
+
+    // MARK: - Formatting
+
+    /// Set, not toggle: the heading menu names a level, and choosing the current one changes nothing.
+    private func setHeading(_ level: Int) {
+        let current = editorController.formatting(in: self).headingLevel ?? 0
+        if level == 0 {
+            guard current > 0 else { return }
+            editorController.toggleHeading(in: self, headingLevel: current)
+        } else if current != level {
+            editorController.toggleHeading(in: self, headingLevel: level)
+        }
+    }
+
+    /// Wraps the selection as `[selection]()` with the caret in the parentheses, or unwraps a link.
+    private func toggleLink() {
+        let storage = mdTextStorage
+        let selection = selectedRange()
+        if storage.isRangeInsideLink(selection) {
+            let link = storage.linkRange(at: selection.location)
+            guard link.location != NSNotFound,
+                let match = storage.stringByExpandingTextAttachments(in: link).firstMatch(of: /\[(.*?)\]\(.*\)/)
+            else { return }
+            editorController.replaceCharacters(in: link, with: NSAttributedString(string: String(match.1)), in: self)
+            return
+        }
+        let replacement = "[\(storage.stringByExpandingTextAttachments(in: selection))]()"
+        editorController.replaceCharacters(in: selection, with: NSAttributedString(string: replacement), in: self)
+        setSelectedRange(NSRange(location: selection.location + (replacement as NSString).length - 1, length: 0))
     }
 
     // MARK: - Keys
-
-    override func insertNewline(_ sender: Any?) {
-        guard !perform(.newline) else { return }
-        super.insertNewline(sender)
-    }
-
-    override func deleteBackward(_ sender: Any?) {
-        guard !perform(.deleteBackward) else { return }
-        super.deleteBackward(sender)
-    }
-
-    /// The `[] ` input rule; the plan writes the space itself, so the typed one is dropped.
-    override func insertText(_ string: Any, replacementRange: NSRange) {
-        let caret = selectedRange()
-        if string as? String == " ", caret.length == 0,
-            replacementRange.location == NSNotFound || replacementRange == caret,
-            perform(.typedSpace)
-        {
-            return
-        }
-        super.insertText(string, replacementRange: replacementRange)
-    }
-
-    override func insertTab(_ sender: Any?) {
-        guard !perform(.indent) else { return }
-        super.insertTab(sender)
-    }
-
-    override func insertBacktab(_ sender: Any?) {
-        guard !perform(.outdent) else { return }
-        super.insertBacktab(sender)
-    }
 
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
         guard window?.firstResponder === self else {
@@ -114,37 +102,16 @@ final class NoteTextView: NSTextView {
             guard !event.isARepeat else { return true }
             breakUndoCoalescing()
             if modifiers == .command {
-                editorUndoManager?.undo()
+                editorUndoManager.undo()
             } else {
-                editorUndoManager?.redo()
+                editorUndoManager.redo()
             }
             return true
         }
-        guard rendersMarkdown, let action = Self.chord(for: event) else {
+        guard let action = Self.chord(for: event) else {
             return super.performKeyEquivalent(with: event)
         }
-        if !event.isARepeat { perform(action) }
-        return true
-    }
-
-    override func paste(_ sender: Any?) {
-        guard !pasteLink(from: .general) else { return }
-        super.paste(sender)
-    }
-
-    /// Pasting a lone URL over selected text makes a link; anything else pastes as plain text.
-    func pasteLink(from pasteboard: NSPasteboard) -> Bool {
-        guard let string = pasteboard.string(forType: .string) else { return false }
-        return perform(.pasteURL(string))
-    }
-
-    @discardableResult
-    private func perform(_ action: NoteEditAction) -> Bool {
-        guard let editing, editing.rendersMarkdown, !hasMarkedText() else { return false }
-        let plan = NoteMarkdownEditing.plan(
-            action, source: string, selection: selectedRange(), markdown: editing.markdown)
-        guard let plan else { return false }
-        performEdit(plan)
+        if !event.isARepeat { format(action) }
         return true
     }
 
@@ -196,118 +163,72 @@ final class NoteTextView: NSTextView {
         }
     }
 
-    // MARK: - Mouse
-
-    override func mouseDown(with event: NSEvent) {
-        guard rendersMarkdown else { return super.mouseDown(with: event) }
-        guard !toggleTask(atContainerPoint: containerPoint(for: event)) else { return }
-        isDragSelecting = true
-        super.mouseDown(with: event)
-        isDragSelecting = false
-        editing?.dragSelectionEnded()
-    }
-
-    override func mouseMoved(with event: NSEvent) {
-        super.mouseMoved(with: event)
-        guard rendersMarkdown, checkboxLine(atContainerPoint: containerPoint(for: event)) != nil else {
-            return
-        }
-        NSCursor.arrow.set()
-    }
-
-    /// Toggles the task whose drawn box is under the point, leaving the caret where it was.
-    func toggleTask(atContainerPoint point: CGPoint) -> Bool {
-        guard let lineIndex = checkboxLine(atContainerPoint: point) else { return false }
-        return perform(.toggleTask(lineIndex: lineIndex))
-    }
-
-    /// The source offset of the link edge a click landed on, when it is within a glyph's outer 30%.
-    func linkEdge(ofLinkAt characterIndex: Int, clickedAt point: CGPoint) -> Int? {
-        guard let storage = textStorage, characterIndex < storage.length else { return nil }
-        var link = NSRange()
-        let whole = NSRange(location: 0, length: storage.length)
-        guard storage.attribute(.link, at: characterIndex, longestEffectiveRange: &link, in: whole) != nil,
-            link.length > 0
-        else { return nil }
-        let edgeFraction: CGFloat = 0.3
-        if let first = glyphFrame(at: link.location), first.minY <= point.y, point.y <= first.maxY,
-            point.x <= first.minX + first.width * edgeFraction
-        {
-            return link.location
-        }
-        if let last = glyphFrame(at: NSMaxRange(link) - 1), last.minY <= point.y, point.y <= last.maxY,
-            point.x >= last.maxX - last.width * edgeFraction
-        {
-            return NSMaxRange(link)
-        }
-        return nil
-    }
-
-    func containerPoint(for event: NSEvent) -> CGPoint {
-        let point = convert(event.locationInWindow, from: nil)
-        return CGPoint(x: point.x - textContainerOrigin.x, y: point.y - textContainerOrigin.y)
-    }
-
-    private func checkboxLine(atContainerPoint point: CGPoint) -> Int? {
-        guard let editing, let content = textContentStorage,
-            let fragment = textLayoutManager?.textLayoutFragment(for: point) as? NoteBlockLayoutFragment,
-            case .task(let level, _) = fragment.decoration.shape
-        else { return nil }
-        let firstLine = fragment.firstLine
-        let box = NoteListGeometry.rect(
-            level: level, firstLineHeight: firstLine.height, bodyFont: fragment.decoration.bodyFont
-        ).offsetBy(dx: 0, dy: fragment.layoutFragmentFrame.minY + firstLine.minY)
-        guard box.insetBy(dx: -Self.checkboxSlop, dy: -Self.checkboxSlop).contains(point) else { return nil }
-        let start = content.offset(from: content.documentRange.location, to: fragment.rangeInElement.location)
-        return editing.markdown.lineIndex(at: start)
-    }
-
-    private func glyphFrame(at characterIndex: Int) -> CGRect? {
-        guard let layout = textLayoutManager, let content = textContentStorage,
-            let start = content.location(content.documentRange.location, offsetBy: characterIndex),
-            let end = content.location(start, offsetBy: 1),
-            let range = NSTextRange(location: start, end: end)
-        else { return nil }
-        var frame: CGRect?
-        layout.enumerateTextSegments(in: range, type: .standard, options: []) { _, segment, _, _ in
-            frame = segment
-            return false
-        }
-        return frame
-    }
-
     // MARK: - Focus and appearance
 
     override func becomeFirstResponder() -> Bool {
         guard super.becomeFirstResponder() else { return false }
         isFirstResponder = true
-        editing?.focusChanged()
+        focusChanged()
         return true
     }
 
     override func resignFirstResponder() -> Bool {
         guard super.resignFirstResponder() else { return false }
         isFirstResponder = false
-        editing?.focusChanged()
+        focusChanged()
         return true
+    }
+
+    /// Every line under the selection shows its Markdown; an unfocused editor reveals nothing.
+    private func focusChanged() {
+        let selection = selectedRange()
+        if isFocused {
+            editorController.autoHideMarkdown(in: self, forOldSelectionRange: selection, newSelectionRange: selection)
+        } else {
+            editorController.hideMarkdown(in: self, range: NSRange(location: 0, length: mdTextStorage.length))
+        }
     }
 
     /// The panel keeps its first responder while another app is active, so key state is focus too.
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
-        keyObservers = []
-        guard let window else { return }
         let center = NotificationCenter.default
-        keyObservers = [NSWindow.didBecomeKeyNotification, NSWindow.didResignKeyNotification].map { name in
-            let token = center.addObserver(forName: name, object: window, queue: .main) { [weak self] _ in
-                Task { @MainActor in self?.editing?.focusChanged() }
-            }
-            return NotificationToken(token, center: center)
+        center.removeObserver(self, name: NSWindow.didBecomeKeyNotification, object: nil)
+        center.removeObserver(self, name: NSWindow.didResignKeyNotification, object: nil)
+        guard let window else { return }
+        for name in [NSWindow.didBecomeKeyNotification, NSWindow.didResignKeyNotification] {
+            center.addObserver(self, selector: #selector(windowKeyStateChanged), name: name, object: window)
         }
     }
 
+    @objc private func windowKeyStateChanged(_ notification: Notification) {
+        focusChanged()
+    }
+
+    /// The colours are dynamic, but the attachments cache their drawing, so a restyle rebuilds them.
     override func viewDidChangeEffectiveAppearance() {
         super.viewDidChangeEffectiveAppearance()
-        editing?.appearanceChanged()
+        editorController.restyleAll(in: self)
+    }
+}
+
+extension NoteFormatting {
+    init(_ formatting: MDFormatting) {
+        var styles: Set<NoteEditAction.InlineStyle> = []
+        if formatting.inline.contains(.strong) { styles.insert(.bold) }
+        if formatting.inline.contains(.emphasis) { styles.insert(.italic) }
+        if formatting.inline.contains(.strikethrough) { styles.insert(.strikethrough) }
+        if formatting.inline.contains(.highlighter) { styles.insert(.highlight) }
+        if formatting.inline.contains(.code) { styles.insert(.code) }
+        let list: NoteEditAction.ListStyle? =
+            switch formatting.list {
+            case .bullet: .bullet
+            case .ordered: .ordered
+            case .task: .task
+            case nil: nil
+            }
+        self.init(
+            headingLevel: formatting.headingLevel, inlineStyles: styles, isLink: formatting.isLink,
+            isCodeBlock: formatting.isCodeBlock, isQuote: formatting.isBlockquote, list: list)
     }
 }

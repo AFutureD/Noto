@@ -2,8 +2,8 @@
 
 A native macOS Markdown note app: an unlimited collection of plain `.md` files in one editor window
 that renders the Markdown in place, with four global shortcuts. SwiftUI + AppKit, running as a
-menu-bar agent (`LSUIElement`) with an optional Dock icon. One third-party dependency, Sparkle,
-which updates the app.
+menu-bar agent (`LSUIElement`) with an optional Dock icon. Two packages: MDTextKit, the Markdown
+editor engine, and Sparkle, which updates the app.
 
 Noto was extracted from the Notes feature of [Tinycast](https://github.com/abue-ammar/tinycast) and is
 licensed AGPL-3.0; see [NOTICE.md](NOTICE.md). Upstream Notes changes are ported manually.
@@ -31,7 +31,8 @@ Write code as if the platform released yesterday:
 Carbon is a deliberate capability-gap dependency rather than inertia: nothing modern registers a
 system-wide chord, and HIToolbox's TIS APIs remain the public way to read a key's glyph from the
 keyboard layout. Sparkle is the other: macOS does not update an app that is not in the App Store.
-Full reasoning in [standards.md](docs/standards.md#posture).
+MDTextKit is TextKit 1 and has its own repository: a change to its engine is a task there, never a
+shim in Noto. Full reasoning in [standards.md](docs/standards.md#posture).
 
 ## Where things are
 
@@ -40,7 +41,7 @@ Full reasoning in [standards.md](docs/standards.md#posture).
 | `Noto/App/` | `NotoApp` (`@main`), `AppDelegate`, `AppCore` — the composition root — and `MenuBarItem` |
 | `Noto/DesignSystem/` | shared visual primitives; `Theme.swift` is the only design-token source |
 | `Noto/Platform/` | system shims: `AppPaths`, `ActivationPolicy`, `FolderPicker`, `Signposts`, `NotificationToken`, … |
-| `Noto/Features/Notes/` | the note collection and editor, split `Model/` `Service/` `UI/` |
+| `Noto/Features/Notes/` | the note collection and the MDTextKit editor host, split `Model/` `Service/` `UI/` |
 | `Noto/Features/HotKeys/` | the four global shortcuts and their recorder, split `Model/` `Service/` `UI/` |
 | `Noto/Features/Settings/` | `NotoSettings` (every preference), `SettingsWindowController` and `SettingsView` |
 | `Noto/Features/Updates/` | `UpdateCoordinator`, the owner of the Sparkle updater |
@@ -100,8 +101,9 @@ feature's doc, under its own `## Invariants`.
 - Debug and Release share one bundle id, `app.huanan.noto`; only the name differs (`Noto Dev.app`).
   A local run reads and writes the real preferences and the real notes folder, so treat them as such.
 - The project is edited directly. `Noto.xcodeproj` is the source of truth; there is no project
-  generator, no `Package.swift`, and never `Bundle.module`. Sparkle is a remote package reference in
-  the project, pinned by the committed `Package.resolved`. The `Noto/` folder is a file-system
+  generator, no `Package.swift`, and never `Bundle.module`. MDTextKit is a local package reference to
+  `../MDTextKit` until its first release; Sparkle is a remote package reference pinned by the committed
+  `Package.resolved`. The `Noto/` folder is a file-system
   synchronized group, so adding, moving or deleting a file under it needs no project edit. See
   [development.md](docs/development.md#the-project).
 - A new preference is a property on `NotoSettings` with its key in that file's `Key` enum. Window

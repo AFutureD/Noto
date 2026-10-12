@@ -107,11 +107,8 @@ private struct EditorSettingsPane: View {
             SettingsCaption("The background behind ==highlighted== text.")
         }
         Divider()
-        SettingsRow("Markdown") {
-            Toggle("Render Markdown", isOn: $settings.rendersMarkdown)
+        SettingsRow("Formatting bar") {
             Toggle("Show formatting bar", isOn: $settings.showsFormattingBar)
-                .disabled(!settings.rendersMarkdown)
-            SettingsCaption("With rendering off, the editor shows the source as you type it.")
         }
         .task { families = await FontCatalog.families() }
     }
@@ -135,7 +132,7 @@ private struct EditorSettingsPane: View {
     /// An unset size shows as the standard one; the first move of the slider makes it explicit.
     private var fontSize: Binding<Double> {
         Binding(
-            get: { settings.fonts.size ?? Double(NoteMarkdownTypography.standardBodySize) },
+            get: { settings.fonts.size ?? Double(NoteEditorTheme.standardBodySize) },
             set: { settings.fonts.size = $0 })
     }
 }

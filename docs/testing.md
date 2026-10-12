@@ -32,6 +32,11 @@ naming the shipped sources it compiles. Each harness is one Swift file in `Tests
 `$TMPDIR/noto-harness/` and runs the binary. A non-zero exit is a failed assertion, a signal is a
 crash, and both are reported apart from a harness that did not compile.
 
+Before the first harness, the runner compiles MDTextKit's five modules from `MDTEXTKIT_DIR` (default
+`../MDTextKit`) into `$TMPDIR/noto-harness/modules/`, as static libraries, and links every harness
+against them. It repeats that only when a package source changed. A harness therefore sees the
+package the app sees, and a package change breaks a harness before it breaks the app.
+
 Up to four harnesses run at a time; `NOTO_TEST_JOBS` overrides that. Each result is numbered against
 the total and shows its run and compile time, a quiet stretch names the harnesses still running, and a
 harness that runs longer than `NOTO_TEST_TIMEOUT` seconds (default 300) is killed and reported as timed
@@ -66,8 +71,8 @@ suite takes about ten seconds, so in practice run both.
 
 | Harness | Guards |
 | --- | --- |
-| `notes-test` | all of `Noto/Features/Notes/Model/` and `Noto/Features/Notes/Service/`: the repository, the store's autosave, external reloads, draft preservation, selection and relocation, derived titles, search with the real `FuzzyMatch`, the Markdown parser, every edit plan, the formatting reports, the reveal policy, switcher interaction and window placement |
-| `notes-editor-test` | the Notes editor, rendered and literal, with real TextKit 2 and AppKit editing objects: styling, reveal, layout fragments, keys, chords, checkboxes, links, undo, the character count, custom fonts and the text height. Also compiles `Noto/DesignSystem/Theme.swift` and `InterfaceMetrics.swift`, so a token those lose breaks it |
+| `notes-test` | all of `Noto/Features/Notes/Model/` and `Noto/Features/Notes/Service/`: the repository, the store's autosave, external reloads, draft preservation, selection and relocation, derived titles through PolarMark, search with the real `FuzzyMatch`, the highlight colour, switcher interaction and window placement |
+| `notes-editor-test` | the Notes editor with the real MDTextKit modules and AppKit editing objects: the Markdown round trip, styling, keys, chords, headings, links, checkboxes, tables, undo, the character count, custom fonts and the text height. Also compiles `Noto/DesignSystem/Theme.swift` and `InterfaceMetrics.swift`, so a token those lose breaks it |
 
 Nothing automated covers `Noto/Features/HotKeys/`, `Noto/Features/Settings/`,
 `Noto/Features/Updates/`, `Noto/App/` or the Notes window chrome. A change there is verified by the
@@ -140,15 +145,12 @@ root, and keep this command and that list matching:
 
 ```sh
 N=Noto/Features/Notes
-swiftc -O -swift-version 6 Noto/Platform/{Signposts,Appearance,NotificationToken}.swift \
+M="$TMPDIR/noto-harness/modules"    # built by run-tests.sh
+swiftc -O -swift-version 6 -I "$M" -L "$M" -lMDTextKitUI -lMDTextKit -lSFThemeKit -lTextBundle -lPolarMark \
+    Noto/Platform/{Signposts,Appearance,NotificationToken}.swift \
     Noto/DesignSystem/{Theme,InterfaceMetrics}.swift \
-    $N/Model/{NoteDocument,NoteFontSettings,NoteHighlightColor,NoteMarkdown,NoteListNumbering}.swift \
-    $N/Model/NoteMarkdownParser.swift \
-    $N/Model/NoteInlineScanner.swift \
-    $N/Model/{NoteEditPlan,NoteEditAction,NoteFormatting,NoteMarkdownEditing,NoteRevealPolicy}.swift \
-    $N/UI/{NoteMarkdownTypography,NoteBlockDecoration,NoteMarkdownStyler,NoteMarkdownRenderer}.swift \
-    $N/UI/{NoteListGeometry,NoteBlockLayoutFragment,NoteLayoutFragmentProvider}.swift \
-    $N/UI/{NoteTextViewEditing,NoteTextView,NoteEditorView}.swift \
+    $N/Model/{NoteDocument,NoteFontSettings,NoteHighlightColor,NoteEditAction,NoteFormatting}.swift \
+    $N/UI/{NoteEditorTheme,NoteTextView,NoteEditorView}.swift \
     Tests/notes-editor-performance.swift -o "$TMPDIR/notes-editor-performance"
 "$TMPDIR/notes-editor-performance"
 ```
@@ -195,60 +197,57 @@ Commands and the collection:
 Rendering:
 
 - A note using every construct renders in Dark and Light: sized headings, emphasis, strikethrough,
-  a yellow highlight behind `==text==`, inline code, coloured links, bullets, numbers, checkboxes with space between tasks, lists nested at
-  two and four spaces, quote bars, a code band with its language label, and a rule
-- The caret's line shows raw Markdown in the tertiary colour and re-renders when the caret leaves; a
-  multi-line selection reveals every selected line, and Select All shows the whole source
-- Dragging a selection across rendered lines does not jump under the pointer; the lines reveal on
-  mouse-up
-- Clicking another app renders the whole note; clicking back reveals the caret line again
+  underline, a yellow highlight behind `==text==`, inline code, coloured links with their icon,
+  bullets, numbers, checkboxes, lists nested by tab, quote bars, a callout box, a code band, a rule,
+  an image and a table grid
+- The caret's construct shows its markers in the tertiary colour and hides them when the caret leaves;
+  a heading's `#` attachment shows while the caret is on its line
+- Clicking another app hides every marker; clicking back reveals the caret's construct again
 - Inside a code block both fences show and Markdown inside it stays literal
-- A table shows as its literal source in the code font, with no styling inside it; adding the `| --- |`
-  row under existing rows turns them all into the table at once
-- Bullets, numbers and checkboxes are a neutral gray, bullet, numbered and task items are evenly spaced,
-  and revealing a bullet or numbered line leaves its text where it was
+- A table shows as a grid; clicking a cell edits it in place, Tab moves to the next cell, and the `⋮`
+  menu adds a row; the file on disk holds pipe-table Markdown
+- ⌘-clicking a heading marker folds its section to a pill, and clicking the pill unfolds it
+- Bullets, numbers and checkboxes are a neutral gray
 - A narrow window wraps list items under their text, not under the marker
-- A bullet, task or numbered item whose first word is wider than the window keeps a whole marker on
-  its first line of text, and its checkbox toggles where it is drawn
 - New lines, wrapped text and a paste grow the window vertically and do not change its width. A
   delete shrinks it back to the 180pt floor. The top edge holds until the bottom reaches the screen's
   bottom; then the window moves up. It stops at 860pt or the screen's usable height and scrolls.
-  Switching to a shorter note shrinks it. Repeat with rendering on and off, with Find and the
-  formatting bar open, and on a secondary display
+  Switching to a shorter note shrinks it. Repeat with Find and the formatting bar open, and on a
+  secondary display
 - Typing, Return and Delete in a bulleted list, in its last item and in the middle, grow or shrink
   the window by whole rows. They never shrink it for one frame, scroll the first line away or flash
   the scrollbar
+- Switching the system appearance repaints the open note: text, markers, bands, bars, checkboxes and
+  the table follow it
 
 Editing:
 
 - A checkbox click toggles without moving the caret, autosaves, and Command-Z restores it; the file on
   disk shows `[x]`
-- A link click opens the browser, a click at the label's edge places the caret, a `file:` link does
-  nothing, and a link on the caret's line is editable text
-- Return continues and leaves lists and quotes, Tab and Shift-Tab nest, ordered lists renumber, `[] `
-  becomes a task, and every formatting shortcut works and undoes in one step
-- ⌥⌘C and ⇧⌘B toggle a code block and a quote
-- Pasting a URL over selected text makes a link; pasting anything else is plain text
+- A link icon click opens the browser, a `file:` link does nothing, and link text on the caret's line
+  is editable text
+- Return continues and leaves lists and quotes, Tab and Shift-Tab nest, ordered lists renumber, and
+  every formatting shortcut works and undoes in one step
+- ⌥⌘C and ⇧⌘B toggle a code block and a quote; ⌘K wraps a selection as a link and unwraps a link
+- Pasting a URL over selected text makes a link; pasting rich text becomes Markdown
 - Copy from a rendered line pastes raw Markdown into another app
-- With Render Markdown off, the note is fully literal (markers visible, links inert, task syntax
-  plain) and Return, Tab, Delete, and formatting-looking shortcuts keep native plain-text behavior;
-  flipping it back re-renders without dirtying the note or touching undo
+- Dragging a list item by its text moves the whole item as a line
 - Edit one note, switch to a shorter note, then Undo and Redo: the new note remains intact and the app
   does not terminate
-- With rendering on and off, ⌘Z undoes and ⇧⌘Z redoes typing, deletion and paste while another app's
-  menu bar is visible; both update the count and autosave the restored source. Editing after undo
-  discards redo; reopening a note after switching away starts with no history
+- ⌘Z undoes and ⇧⌘Z redoes a typing run, a deletion and a paste while another app's menu bar is
+  visible; both update the count and autosave the restored source. Editing after undo discards redo;
+  reopening a note after switching away starts with no history
 - Marked-text input, emoji, combining marks, Copy, Cut, Paste, Select All, Undo, and Redo preserve
-  exact source; ⌘F finds occurrences in the active note with rendering on and off, and Escape closes
-  the find bar before hiding the window
+  exact source; ⌘F finds occurrences in the active note, and Escape closes the find bar before
+  hiding the window
 - An empty note shows `Start writing…`; ⌘F moves it below the find bar without overlap, and closing Find
   restores its position. The count is right after typing, pasting and undoing
 
 The formatting bar:
 
-- With Render Markdown and Show Formatting Bar on, the band under a note holds the character count on
-  the left and the round formatting button on the right; with either setting off, the centred count
-  footer is back and nothing else moved
+- With Show Formatting Bar on, the band under a note holds the character count on the left and the
+  round formatting button on the right; with the setting off, the centred count footer is back and
+  nothing else moved
 - The bar starts collapsed, ⌥⌘T and the round button both expand and collapse it, the buttons slide out
   from behind that button, and the state survives switching notes, hiding the window and a relaunch
 - Every bar button applies its formatting, undoes in one step with ⌘Z, and autosaves; clicking keeps the
@@ -317,12 +316,12 @@ The window:
   and Text size
 - With Heading Font set, headings use that family and body text does not change
 - With Text Font `Menlo` and CJK Font `Songti SC`, Latin text is Menlo and Han text is Songti
-- With Text Font `Monaco`, italic text slants and bold text is heavier
+- With Text Font `Monaco`, bold text is heavier and italic text stays upright, because Monaco has no
+  italic face
 - Reset Fonts restores the system fonts, and it is disabled when no font setting is set
 - A colour picked in the Highlight well applies to the open note immediately, in both appearances;
   Use Default appears, and it restores the yellow and disappears
-- Render Markdown and Show Formatting Bar take effect in the open note immediately; Show Formatting Bar
-  is disabled while Render Markdown is off
+- Show Formatting Bar takes effect in the open note immediately
 - Check Now opens Sparkle's update window, and Check for Updates… in the menu bar item is disabled
   while it is open; Check for updates automatically survives quit and relaunch
 - Choose… opens in front, and picking a folder switches the note window to that folder's notes with
@@ -360,6 +359,6 @@ Restore with the reverse `mv` and `defaults import app.huanan.noto "$TMPDIR/noto
 - Launches with the folder absent — no crash, no hang, no window, a menu bar item
 - The `Notes` folder is not created until Show, Create, or Search is first used, then accepts its first
   edit; with no notes the window shows "No Notes" and Create Note works
-- Every setting shows its intended default: Render Markdown on, Show Formatting Bar on, the default
-  folder, Show in Dock off, no shortcuts
+- Every setting shows its intended default: Show Formatting Bar on, the default folder, Show in Dock
+  off, no shortcuts
 - Quit and relaunch: everything created above persisted

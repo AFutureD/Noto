@@ -36,9 +36,9 @@ explicitly to change them.
   has to stay readable over whatever it hangs across.
 - The `OverflowFade` gradient is mask luminance, not color. It stays black in both appearances;
   inverting it breaks the fade.
-- A colour TextKit draws with is pinned first. A layout fragment cannot resolve a dynamic colour, so
-  `NoteMarkdownStyler` resolves each token under the text view's drawing appearance, and
-  `NoteMarkdownRenderer.reset()` drops them when the appearance changes.
+- A colour the editor draws with is a dynamic `NSColor`. `NoteEditorTheme` hands each `Theme` token to
+  MDTextKit as an `NSColor`, and `NoteTextView` restyles on an appearance change, because an
+  attachment caches its drawing.
 - The panel corner is clipped once, at the root. `NotesView.body` ends with
   `.background(panelScrim)` → `.background(GlassEffectView())` →
   `.clipShape(RoundedRectangle(26, .continuous))`. Keep that order; the scrim goes over the glass, and
@@ -105,7 +105,7 @@ Controls: `barButtonHeight 28`, `keyCap 18`, `compactKeyCap 15`, `heroKeyCap 22`
 The recorder: `shortcutRecorder 120`, `recorderKeyCap 16`, `shortcutPopover 132×82` (summed from its
 bands), `shortcutPopoverLine 14`, `calloutCaretWidth 15`, `calloutCaretHeight 7`, `calloutCaretTip 2.5`.
 
-Markdown drawing: `markdownListMarker 20`, `markdownQuoteBar 2`, `hairline 1`.
+`hairline 1` is the one-point line.
 
 `settingsWidth 600`, `settingsLabelColumn 180`, `settingsSlider 180`, `settingsPicker 220`.
 
@@ -124,8 +124,8 @@ System text styles only — no fixed point sizes in views. `rowTitle` (`.body`),
 `heroKeyCap` (`.body`), plus `inlineCode` (`.body` monospaced) and `menuIcon` (`.body`). The named
 exception is the optical SF Symbol treatment `menuSymbolSize 14` / `menuSymbolWeight .medium`.
 
-The editor's fonts are not here: `NoteMarkdownTypography` owns them as `NSFont`s, because TextKit
-takes those.
+The editor's fonts are not here: `NoteEditorTheme` maps the font settings onto MDTextKit's theme
+overrides, and MDTextKit builds the `NSFont`s.
 
 ### Colors (`Theme.Colors`) — the alpha ramp
 
@@ -136,20 +136,22 @@ takes those.
 | `rowHover` | white 0.05 | black 0.045 | mouse-hover fill (always fainter than selection) |
 | `menuHover` | white 0.10 | black 0.09 | heading-menu row hover |
 | `separator` | white 0.10 | black 0.12 | a Markdown rule |
-| `controlSurface` | white 0.10 | black 0.08 | filled keycaps, inline code, the tooltip tile |
-| `border` | white 0.20 | black 0.18 | outlined keycap borders, quote bars |
+| `controlSurface` | white 0.10 | black 0.08 | filled keycaps, inline code, checkboxes, table header rows, the tooltip tile |
+| `border` | white 0.20 | black 0.18 | outlined keycap borders, quote bars, code band and table borders |
 | `textSecondary` | white 0.60 | black 0.60 | secondary labels, quotes, list markers |
 | `textTertiary` | white 0.40 | black 0.42 | placeholders, the count, revealed markers |
 | `menuSymbol` | white 0.70 | black 0.70 | the heading menu's checkmark |
 | `noteText` | white 0.90 | black 0.85 | note body text and caret |
-| `cardFill` | white 0.05 | black 0.04 | code bands, the recorder field |
+| `cardFill` | white 0.05 | black 0.04 | code bands, table rows, the recorder field |
 | `cardStroke` | white 0.10 | black 0.10 | the recorder field's border |
 | `tooltipShadow` | black 0.18 | black 0.18 | the tooltip tile's shadow |
 | `highlight` | yellow 0.35 | yellow 0.60 | the default background of a `==highlight==` span |
+| `tintBlue`, `tintGreen`, `tintPurple`, `tintYellow`, `tintRed` | opaque pairs | opaque pairs | the five callout kinds and the named highlighter colours |
 
 `panelScrim` is the ramp's inverse — it darkens the dark surface and lightens the light one — so it
 is an `adaptive` pair, not a `ramp`. `highlight` is a marker-pen yellow in two alphas, so it is an
-`adaptive` pair too. `destructive` is `Color.red` and adapts on its own.
+`adaptive` pair too, and each tint is an `adaptive` pair of opaque sRGB colours. `destructive` is
+`Color.red` and adapts on its own.
 
 Beyond these, `.secondary`/`.tertiary` foreground styles are fine for SF Symbols. Selection always
 beats hover when a row or a button is both.
@@ -181,35 +183,25 @@ them. The capsule's buttons carry `.help()` tooltips.
 a top-right target. The window shows exactly one content surface — the editor or the "No Notes" empty
 state — and the character count is part of the editor surface, so it never appears without a note.
 
-The editor is one native TextKit 2 surface. Its string is the canonical Markdown source, and Render
-Markdown styles it in place. Notes type sits one system text style above the rest
-of the app, because a note is for reading: body text is the title3 size in `noteText`, and headings 1
-to 3 use the largeTitle, title1 and title2 sizes (bold, bold, semibold). Inline code is monospaced on
-`controlSurface`, a highlight draws `highlight` or the chosen colour behind its text, and links use
-the system link colour. Quotes and
-checked tasks dim to `textSecondary`, and a checked task is struck through. Most markers show in
-`textTertiary` on the caret's line and are hidden elsewhere. Bullets and tasks keep their rendered
-marker even under the caret. A number is revealed only when its label fits the content indent; it
-stays `textSecondary`, hides its indentation and hangs left of the text, so the text does not move
-when the caret arrives. Quote markers hang whole. Empty list items keep body-sized invisible labels so their rows match filled
-items' height.
+The editor is one MDTextKit surface, a TextKit 1 `NSTextView`. Its Markdown is the canonical
+source, and MDTextKit styles it in place. Notes type sits one system text style above the rest of the
+app, because a note is for reading: body text is the title3 size in `noteText`, headings scale from it
+in the heading font's bold face, and the line height is 1.3 times the font size. Inline code is
+monospaced on `controlSurface`, a highlight draws `highlight` or the chosen colour behind its text, and
+links use the system link colour with a link icon after the label. A checked task dims to
+`textSecondary`. Inline markers show in `textTertiary` while the caret is in their construct and are
+hidden elsewhere.
 
-A layout fragment draws the block chrome. A code band fills `cardFill` with `menu` corners at its ends
-and a `textTertiary` language label, inset by `lg`. A quote bar is `markdownQuoteBar` wide in `border`,
-stepping `markdownQuoteBar + lg` per depth. A rule is a `hairline` of `separator`. List markers sit in
-a slot per level, `markdownListMarker` grown in proportion to the body size, or the width of `0. ` in
-the body font when that is wider. A drawn number sits one body-font space before its text. Bullets and
-numbers are `textSecondary`; a `-` item draws a short bar and a `*` or `+` item a dot. A checkbox is a
-`controlSurface` block with corners a quarter of its side, and a done box draws a `noteText` check on
-it. Headings 1 and 2 get `xl`
-space above, the rest `md`, and `xs` below; every list item gets `md` below, or `xs` when nested
-content follows. Text indented under an item hides its indentation and sits at the item's text. A
-table stays literal
-source in the code-block font, and a wrapped row hangs `lg` under its first line. AppKit owns editing,
-undo, selection, Find, and marked text.
+MDTextKit draws the block chrome. A code band fills `cardFill` with a `border` edge. A quote bar is
+`border`, one per depth, and a callout is a box in its kind's tint. A rule is a line of `separator`
+across the column. A bullet is a `textSecondary` dot, ring or diamond by depth; a number stays text in
+`textSecondary`; a checkbox is a rounded `controlSurface` box with a `noteText` check when done. A
+table is a grid with `border` lines, `cardFill` rows and a `controlSurface` header row. A heading's
+`#` marks are an attachment that shows three bars and the level while the caret is on the line.
+AppKit owns typing, selection, Find and marked text; MDTextKit owns undo.
 
-Under the editor, the formatting bar takes a `bottomBarHeight` band while Render Markdown and Show
-Formatting Bar are on, in place of the `noteFooterHeight` count footer. It is one row: the count is
+Under the editor, the formatting bar takes a `bottomBarHeight` band while Show Formatting Bar is
+on, in place of the `noteFooterHeight` count footer. It is one row: the count is
 plain text at the leading edge and the buttons sit in glass at the trailing edge. The capsule is the
 title bar's recipe (`BarButton`s on a `frosted(in: Capsule())`), inset `md` from the trailing edge as
 the title capsule is, with `xxs` between buttons and `sm` between groups. Each button is a compact
@@ -340,15 +332,14 @@ A pane:
 - A switch is a checkbox with its title to the right. Do not use the switch style.
 - `SettingsCaption` is a secondary line below a control.
 - A `Divider` separates groups of rows.
-- A dependent control is disabled, not hidden. Show formatting bar is disabled while Render Markdown
-  is off.
+- A dependent control is disabled, not hidden. Reset Fonts is disabled while no font is set.
 
 The panes:
 
 | Pane | Rows |
 | --- | --- |
 | General | Window (Keep on top), Dock (Show in Dock), Updates (Check for updates automatically, Check Now, the version), Notes folder (Choose…, Use Default, the path) |
-| Editor | Text size, Text font, Heading font, CJK font, Code font, Defaults (Reset Fonts), Highlight (a colour well, Use Default), Markdown (Render Markdown, Show formatting bar) |
+| Editor | Text size, Text font, Heading font, CJK font, Code font, Defaults (Reset Fonts), Highlight (a colour well, Use Default), Formatting bar (Show formatting bar) |
 | Shortcuts | One row for each `HotKeyCommand`, with a `ShortcutRecorder` and the subtitle of the command |
 
 - Text size is a slider with a step of 1 point. The value shows to the right of the slider.

@@ -13,10 +13,8 @@ hold them apart.
 │ Foundation (and CoreGraphics) only. No AppKit, no clock, no filesystem.    │
 │ ⇒ Compiled verbatim by a harness, so it cannot drift.                      │
 │                                                                            │
-│ Notes/Model/* — NoteMarkdown, NoteMarkdownParser, NoteInlineScanner,       │
-│ NoteMarkdownEditing, NoteEditAction, NoteEditPlan, NoteFormatting,         │
-│ NoteRevealPolicy, NoteTitle, NoteSearch, FuzzyMatch, NoteDocument,         │
-│ NoteFontSettings,                                                          │
+│ Notes/Model/* — NoteEditAction, NoteFormatting, NoteTitle (over PolarMark),│
+│ NoteSearch, FuzzyMatch, NoteDocument, NoteFontSettings, NoteHighlightColor,│
 │ NoteSwitcherInteraction, NoteWindowPlacement · HotKeys/Model/HotKeyCommand │
 └──────────────────────────────────┬─────────────────────────────────────────┘
                                    │ consumed by
@@ -33,7 +31,7 @@ hold them apart.
 └──────────────────────────────────┬─────────────────────────────────────────┘
                                    │ rendered by
 ┌─ VIEW ───────────────────────────▼─────────────────────────────────────────┐
-│ SwiftUI views, the AppKit window controllers and the TextKit 2 editor      │
+│ SwiftUI views, the AppKit window controllers and the MDTextKit editor host │
 └────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -97,7 +95,6 @@ to `UserDefaults` in its `didSet`. The keys are that file's private `Key` enum:
 
 | Property | Key | Default |
 | --- | --- | --- |
-| `rendersMarkdown` | `notesRendersMarkdown` | on |
 | `showsFormattingBar` | `notesShowsFormattingBar` | on |
 | `notesFolder` | `notesFolder` | nil — the default folder in Application Support |
 | `showsInDock` | `showsInDock` | off |
@@ -128,7 +125,7 @@ driven imperatively from AppKit.
   menu on any scene change.
 - The note window — a persistent, titled, non-activating `NotesPanel`, managed by
   `NotesWindowController`. Its height fits the note up to 860pt and AppKit autosaves the frame; its
-  TextKit 2 editor renders Markdown over the literal source and stays visible on focus loss. Its hosting view sets
+  MDTextKit editor renders the Markdown in place and stays visible on focus loss. Its hosting view sets
   `sizingOptions = []` so SwiftUI never drives the window size.
 - The switcher and the heading menu — two more `NotesPanel`s, borderless child windows of the note
   window, managed by `NoteSwitcherWindowController` and `NoteHeadingMenuWindowController`. The switcher
@@ -229,8 +226,8 @@ Noto/
     Notes/
         Model/      pure — the harness inputs
         Service/    NotesRepository, NotesStore
-        UI/         NotesCoordinator, NotesDialogs, the panel, the window controllers, the editor,
-                    the styler and renderer, the switcher, the formatting bar, the heading menu
+        UI/         NotesCoordinator, NotesDialogs, the panel, the window controllers, the editor
+                    host and its theme, the switcher, the formatting bar, the heading menu
     HotKeys/
         Model/      HotKeyCommand
         Service/    KeyShortcut, HotKeyCenter, HotKeyManager, ShortcutCaptureSession

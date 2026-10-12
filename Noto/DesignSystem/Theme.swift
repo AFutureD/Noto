@@ -76,8 +76,6 @@ enum Theme {
         static let noteGlyph: CGFloat = 16
         static let noteEmptyGlyph: CGFloat = 28
         static let hairline: CGFloat = 1
-        static let markdownListMarker: CGFloat = 20
-        static let markdownQuoteBar: CGFloat = 2
         static let menuRowHeight: CGFloat = menuIcon + Spacing.md * 2
         static let menuRowSpacing: CGFloat = 1
         static let menuIcon: CGFloat = 20
@@ -157,6 +155,12 @@ enum Theme {
             dark: NSColor(srgbRed: 1.0, green: 0.84, blue: 0.0, alpha: 0.35),
             light: NSColor(srgbRed: 1.0, green: 0.90, blue: 0.20, alpha: 0.60))
         static let destructive = Color.red
+        /// The callout tints, one per kind: blue note, green tip, purple important, yellow warning, red caution.
+        static let tintBlue = adaptive(dark: .srgb(0x215075), light: .srgb(0xC9E5FF))
+        static let tintGreen = adaptive(dark: .srgb(0x355F3A), light: .srgb(0xCDF7BD))
+        static let tintPurple = adaptive(dark: .srgb(0x6D487F), light: .srgb(0xFEDAFF))
+        static let tintYellow = adaptive(dark: .srgb(0x66522E), light: .srgb(0xFCF195))
+        static let tintRed = adaptive(dark: .srgb(0x683735), light: .srgb(0xFFD5D5))
     }
 }
 

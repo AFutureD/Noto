@@ -8,6 +8,10 @@
 
 /* Begin PBXBuildFile section */
 		4E4F544F0000000000000041 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 4E4F544F0000000000000042 /* Sparkle */; };
+		4E4F544F0000000000000044A /* MDTextKitUI in Frameworks */ = {isa = PBXBuildFile; productRef = 4E4F544F0000000000000044 /* MDTextKitUI */; };
+		4E4F544F0000000000000045A /* MDTextKit in Frameworks */ = {isa = PBXBuildFile; productRef = 4E4F544F0000000000000045 /* MDTextKit */; };
+		4E4F544F0000000000000046A /* PolarMark in Frameworks */ = {isa = PBXBuildFile; productRef = 4E4F544F0000000000000046 /* PolarMark */; };
+		4E4F544F0000000000000047A /* SFThemeKit in Frameworks */ = {isa = PBXBuildFile; productRef = 4E4F544F0000000000000047 /* SFThemeKit */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -58,6 +62,10 @@
 			buildActionMask = 2147483647;
 			files = (
 				4E4F544F0000000000000041 /* Sparkle in Frameworks */,
+				4E4F544F0000000000000044A /* MDTextKitUI in Frameworks */,
+				4E4F544F0000000000000045A /* MDTextKit in Frameworks */,
+				4E4F544F0000000000000046A /* PolarMark in Frameworks */,
+				4E4F544F0000000000000047A /* SFThemeKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -106,6 +114,10 @@
 			name = Noto;
 			packageProductDependencies = (
 				4E4F544F0000000000000042 /* Sparkle */,
+				4E4F544F0000000000000044 /* MDTextKitUI */,
+				4E4F544F0000000000000045 /* MDTextKit */,
+				4E4F544F0000000000000046 /* PolarMark */,
+				4E4F544F0000000000000047 /* SFThemeKit */,
 			);
 			productName = Noto;
 			productReference = 4E4F544F0000000000000001 /* Noto Dev.app */;
@@ -131,6 +143,7 @@
 			mainGroup = 4E4F544F0000000000000005;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
+				4E4F544F0000000000000043 /* XCLocalSwiftPackageReference "../MDTextKit" */,
 				4E4F544F0000000000000040 /* XCRemoteSwiftPackageReference "Sparkle" */,
 			);
 			preferredProjectObjectVersion = 77;
@@ -337,6 +350,13 @@
 		};
 /* End XCConfigurationList section */
 
+/* Begin XCLocalSwiftPackageReference section */
+		4E4F544F0000000000000043 /* XCLocalSwiftPackageReference "../MDTextKit" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../MDTextKit;
+		};
+/* End XCLocalSwiftPackageReference section */
+
 /* Begin XCRemoteSwiftPackageReference section */
 		4E4F544F0000000000000040 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
 			isa = XCRemoteSwiftPackageReference;
@@ -353,6 +373,22 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 4E4F544F0000000000000040 /* XCRemoteSwiftPackageReference "Sparkle" */;
 			productName = Sparkle;
+		};
+		4E4F544F0000000000000044 /* MDTextKitUI */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = MDTextKitUI;
+		};
+		4E4F544F0000000000000045 /* MDTextKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = MDTextKit;
+		};
+		4E4F544F0000000000000046 /* PolarMark */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = PolarMark;
+		};
+		4E4F544F0000000000000047 /* SFThemeKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = SFThemeKit;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

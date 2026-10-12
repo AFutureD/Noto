@@ -29,6 +29,9 @@ nothing modern can register a system-wide chord. `ASCIIKeyboardLayout` uses HITo
 `UCKeyTranslate` because they remain the public way to turn a key code into the glyph the current
 layout prints. Neither use is inertia, and raw C pointers never cross an asynchronous actor boundary.
 
+MDTextKit, the editor engine, is a TextKit 1 package in its own repository. Noto adopts it whole and
+wraps nothing: a gap in the engine is a change to the package, not a workaround in `NoteTextView`.
+
 ## Architecture and feature organization
 
 Full detail in [architecture.md](architecture.md); the rules a new feature has to satisfy:
@@ -62,7 +65,7 @@ fit the table.
 | `Manager` | Owns a subsystem's lifecycle and its policy; started from `AppCore.start()` | `HotKeyManager` |
 | `Center` | The Carbon registration layer specifically | `HotKeyCenter` |
 | `Session` | Transient state for one in-progress interaction | `ShortcutCaptureSession` |
-| `Policy` | A pure decision — no state, no effects | `NoteRevealPolicy` |
+| `Policy` | A pure decision — no state, no effects | none at present |
 | `Settings` | Every preference, mirrored to `UserDefaults` | `NotoSettings` |
 
 `Manager` is the one worth thinking twice about. It means lifecycle plus policy, which is a lot for one

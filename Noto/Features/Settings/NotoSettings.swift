@@ -5,7 +5,6 @@ import Foundation
 @Observable
 final class NotoSettings {
     private enum Key {
-        static let rendersMarkdown = "notesRendersMarkdown"
         static let showsFormattingBar = "notesShowsFormattingBar"
         static let notesFolder = "notesFolder"
         static let showsInDock = "showsInDock"
@@ -21,9 +20,6 @@ final class NotoSettings {
 
     @ObservationIgnored private let defaults: UserDefaults
 
-    var rendersMarkdown: Bool {
-        didSet { defaults.set(rendersMarkdown, forKey: Key.rendersMarkdown) }
-    }
     var showsFormattingBar: Bool {
         didSet { defaults.set(showsFormattingBar, forKey: Key.showsFormattingBar) }
     }
@@ -63,7 +59,6 @@ final class NotoSettings {
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
-        rendersMarkdown = defaults.object(forKey: Key.rendersMarkdown) as? Bool ?? true
         showsFormattingBar = defaults.object(forKey: Key.showsFormattingBar) as? Bool ?? true
         notesFolder = defaults.string(forKey: Key.notesFolder)
         showsInDock = defaults.bool(forKey: Key.showsInDock)

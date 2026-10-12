@@ -1,24 +1,18 @@
-import Foundation
-
-/// A Markdown-aware editing gesture the text view asks `NoteMarkdownEditing` to plan.
+/// One formatting gesture of the bar, the heading menu or a chord. `NoteTextView.format` applies it.
 enum NoteEditAction: Sendable, Equatable {
-    enum InlineStyle: Sendable, CaseIterable { case bold, italic, strikethrough, highlight, code }
-    enum ListStyle: Sendable { case bullet, ordered, task }
+    enum InlineStyle: Sendable, CaseIterable {
+        case bold, italic, strikethrough, highlight, code
+    }
 
-    case newline
-    case deleteBackward
-    case indent
-    case outdent
+    enum ListStyle: Sendable {
+        case bullet, ordered, task
+    }
+
     case toggleInline(InlineStyle)
     case toggleLink
-    /// Level 0 turns the line back into a plain paragraph.
+    /// Level 0 makes the paragraph plain.
     case setHeading(level: Int)
     case toggleList(ListStyle)
-    /// Fences the touched lines, or removes the fences of the block the selection is in.
     case toggleCodeBlock
     case toggleQuote
-    case toggleTask(lineIndex: Int)
-    /// The `[] ` input rule.
-    case typedSpace
-    case pasteURL(String)
 }

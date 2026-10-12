@@ -1,4 +1,5 @@
 import Foundation
+import PolarMark
 
 /// A note's title is its filename; one the user has not named yet borrows its first line to show.
 enum NoteTitle {
@@ -9,6 +10,13 @@ enum NoteTitle {
 
     private static let scanLimit = 1024
     private static let displayLimit = 120
+
+    /// Syntax never titles a note: markers, indentation, rules, fences and link targets are dropped.
+    private static let syntax: [NSAttributedString.Key] =
+        PMKAttributes.markerAttributes + [
+            .pmkIndentSpace, .pmkThematicBreak, .pmkFencedCodeLanguage, .pmkLinkURL, .pmkLinkTitle,
+            .pmkImageURL, .pmkImageTitle
+        ]
 
     /// True only for the names `create` claims — `Untitled`, `Untitled 2`, … — never a typed one.
     static func isUnnamed(_ title: String) -> Bool {
@@ -23,32 +31,25 @@ enum NoteTitle {
     /// The first line carrying visible text, without its Markdown markers and capped to one row.
     static func firstLine(of source: String) -> String? {
         let head = String(source.prefix(scanLimit))
-        let text = head as NSString
-        let markdown = NoteMarkdownParser.parse(head)
-        for line in markdown.lines {
-            let title = visibleText(of: line, in: markdown, text: text)
-            guard !title.isEmpty else { continue }
-            return String(title.prefix(displayLimit))
+        let annotated = PMKAST(markdown: head).annotatedString()
+        let text = annotated.string as NSString
+        var location = 0
+        while location < text.length {
+            let line = text.lineRange(for: NSRange(location: location, length: 0))
+            let title = visibleText(of: line, in: annotated)
+            if !title.isEmpty { return String(title.prefix(displayLimit)) }
+            location = NSMaxRange(line)
         }
         return nil
     }
 
-    /// A line as it reads when rendered, with the setting on or off: syntax never titles a note.
-    private static func visibleText(
-        of line: NoteMarkdown.Line, in markdown: NoteMarkdown, text: NSString
-    ) -> String {
-        switch line.kind {
-        case .blank, .rule, .fenceOpen, .fenceClose: return ""
-        default: break
-        }
+    private static func visibleText(of line: NSRange, in annotated: NSAttributedString) -> String {
+        let text = annotated.string as NSString
         var visible = ""
-        var cursor = line.contentRange.location
-        let markers = markdown.inlines(of: line).flatMap(\.markerRanges)
-        for marker in markers.sorted(by: { $0.location < $1.location }) {
-            visible += text.substring(with: NSRange(cursor..<marker.location))
-            cursor = NSMaxRange(marker)
+        annotated.enumerateAttributes(in: line, options: []) { attributes, range, _ in
+            guard syntax.allSatisfy({ attributes[$0] == nil }) else { return }
+            visible += text.substring(with: range)
         }
-        visible += text.substring(with: NSRange(cursor..<NSMaxRange(line.contentRange)))
-        return visible.trimmingCharacters(in: .whitespaces)
+        return visible.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
