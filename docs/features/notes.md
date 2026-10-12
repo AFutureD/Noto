@@ -174,6 +174,8 @@ covers headings 1 to 6, bold, italic, strikethrough, underline, highlight (`==te
 links, bare URLs, images, bullet, numbered and task lists with nesting by tab or indent, quotes,
 callouts (`> [!NOTE]` and the other four kinds), fenced code blocks, horizontal rules, hard line
 breaks, pipe tables and folding comments. A numbered item's label is decimal digits, then `.` or `)`.
+A table line joins the table only once it ends in a newline, so the row under the caret stays text until
+Return.
 HTML, setext headings, indented code, footnotes and reference links stay plain text.
 
 ### Rendering
