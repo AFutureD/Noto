@@ -219,8 +219,8 @@ Noto/
   DesignSystem/     Theme (the token source), InterfaceMetrics, BarButton, KeyCapChip, Tooltip,
                     SymbolImage, GlassEffectView, Scrolling/OverflowFade
   Platform/         system shims: AppPaths, AppDisplayName, AppVersion, ActivationPolicy,
-                    FolderPicker, FontCatalog, ASCIIKeyboardLayout, Appearance, NotificationToken,
-                    Signposts
+                    FolderPicker, FileViewer, FontCatalog, ASCIIKeyboardLayout, Appearance,
+                    NotificationToken, Signposts
   AppIcon.icon      the app icon, an Icon Composer document
   Assets.xcassets/  empty; the catalog actool compiles the icon into
   Info.plist        LSUIElement and the bundle keys; excluded from target membership

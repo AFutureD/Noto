@@ -266,7 +266,8 @@ The window:
 - Clicking another app leaves the panel visible; Escape, Command-W, and the red light hide it
 - Hiding restores the previous external app, or the Settings window when that was in front; if another
   app was brought forward meanwhile, focus stays there
-- Open Notes Folder opens Finder with the active Markdown file selected, or the folder with no note
+- Open Notes Folder opens Finder with the active Markdown file selected, or the folder with no note.
+  With the Settings window open, or Show in Dock on, Finder still comes to the front
 - The browse list fades only at its bottom edge and rests opaque once it reaches the end
 - Command-Q quits; quitting inside the debounce window saves the last edit
 - Over a light desktop, the 26-point corner is clean, the shadow follows it, and no dark edge shows
