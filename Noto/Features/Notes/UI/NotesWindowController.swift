@@ -75,9 +75,9 @@ final class NotesWindowController: NSObject, NSWindowDelegate {
         editor.format(action)
     }
 
-    func presentHeadingMenu(_ menu: NoteHeadingMenuWindowController) {
+    func presentBarMenu(_ menu: NoteBarMenu, with controller: NoteBarMenuWindowController) {
         guard let panel, panel.isVisible else { return }
-        menu.show(above: panel)
+        controller.show(menu, above: panel)
     }
 
     /// Only this controller knows the host window, so handing it over stays its job.
@@ -94,7 +94,7 @@ final class NotesWindowController: NSObject, NSWindowDelegate {
     }
 
     func windowDidResignKey(_ notification: Notification) {
-        coordinator.closeHeadingMenu()
+        coordinator.closeBarMenu()
     }
 
     /// `contentMinSize` alone leaks frames below it; AppKit takes whatever this returns verbatim.

@@ -77,7 +77,7 @@ into a store to mutate it. `AppCore` holds only the wiring: `run(_:)` maps a `Ho
 `NotesCoordinator` call, `showSettings()` builds the Settings window, `handleReopen()` answers a Dock
 click, and `flushNotesForTermination()` is what quit waits on.
 
-- `NotesView`, `NoteSwitcherView`, `NoteHeadingMenuView` and `NoteFormattingBar` receive only
+- `NotesView`, `NoteSwitcherView`, `NoteBarMenuView` and `NoteFormattingBar` receive only
   `NotesCoordinator` through `@Environment`.
 - `SettingsView` receives `AppCore`, `NotoSettings` and `HotKeyManager`. It uses `AppCore` as the
   locator for `notesCoordinator` (Choose… and Use Default) and for `updates` (the Updates row), and
@@ -129,9 +129,9 @@ driven imperatively from AppKit.
   `NotesWindowController`. Its height fits the note up to 860pt and AppKit autosaves the frame; its
   MDTextKit editor renders the Markdown in place and stays visible on focus loss. Its hosting view sets
   `sizingOptions = []` so SwiftUI never drives the window size.
-- The switcher and the heading menu — two more `NotesPanel`s, borderless child windows of the note
-  window, managed by `NoteSwitcherWindowController` and `NoteHeadingMenuWindowController`. The switcher
-  takes key and dismisses when it resigns it; the heading menu never becomes key, so the editor keeps
+- The switcher and the bar menu — two more `NotesPanel`s, borderless child windows of the note
+  window, managed by `NoteSwitcherWindowController` and `NoteBarMenuWindowController`. The switcher
+  takes key and dismisses when it resigns it; the bar menu never becomes key, so the editor keeps
   its caret beneath it. See [features/notes.md](features/notes.md).
 - The Settings window — a titled `NSWindow` with a preference toolbar, built by
   `Noto/Features/Settings/SettingsWindowController.swift`, hosting `SettingsView`. SwiftUI's `Settings` scene is unreliable for accessory apps, so this is
@@ -229,7 +229,7 @@ Noto/
         Model/      pure — the harness inputs
         Service/    NotesRepository, NotesStore
         UI/         NotesCoordinator, NotesDialogs, the panel, the window controllers, the editor
-                    host and its theme, the switcher, the formatting bar, the heading menu
+                    host and its theme, the switcher, the formatting bar, the bar menus
     HotKeys/
         Model/      HotKeyCommand
         Service/    KeyShortcut, HotKeyCenter, HotKeyManager, ShortcutCaptureSession

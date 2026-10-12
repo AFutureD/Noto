@@ -18,12 +18,15 @@ and the versions follow the version rule in [release.md](docs/release.md#the-ver
 - Dragging a list item, heading, table, rule or quote moves it as a whole line.
 - The Editor pane has an accent colour setting. Underlines, links and the selection use it; the
   default is the macOS accent colour.
+- ⌘U toggles `~underline~`.
 
 ### Changed
 
 - The editor is MDTextKit. Block markers (headings, bullets, checkboxes, quotes, rules) draw as
   attachments, and the caret reveals the markers of its construct rather than its whole line.
 - The Formatting Bar setting no longer depends on another setting.
+- The formatting bar groups the three list buttons under one List menu and moves Underline,
+  Strikethrough, Inline Code and Code Block into a More menu at its trailing end.
 - Return on an empty list item removes the marker and keeps the line.
 
 ### Removed

@@ -16,8 +16,7 @@ final class NotesCoordinator {
     @ObservationIgnored private lazy var windowController = NotesWindowController(coordinator: self)
     @ObservationIgnored private lazy var switcherController = NoteSwitcherWindowController(
         coordinator: self)
-    @ObservationIgnored private lazy var headingMenuController = NoteHeadingMenuWindowController(
-        coordinator: self)
+    @ObservationIgnored private lazy var barMenuController = NoteBarMenuWindowController(coordinator: self)
     @ObservationIgnored private var loadTask: Task<Void, Never>?
     @ObservationIgnored private var issueTask: Task<Void, Never>?
     @ObservationIgnored private var operationTask: Task<Void, Never>?
@@ -30,11 +29,11 @@ final class NotesCoordinator {
     private(set) var characterCount = 0
     private(set) var formatting = NoteFormatting.plain
     private(set) var isFormattingBarExpanded: Bool
-    private(set) var isHeadingMenuPresented = false
-    /// A press closes the menu before its button fires, so the button must not reopen it.
-    @ObservationIgnored private var headingMenuWasOpenAtPress = false
-    /// The heading button in the panel's flipped content space, reported by the bar as it lays out.
-    @ObservationIgnored var headingButtonFrame: CGRect = .zero
+    private(set) var presentedBarMenu: NoteBarMenu?
+    /// A press closes the menu before its button fires, so that button must not reopen it.
+    @ObservationIgnored private var barMenuOpenAtPress: NoteBarMenu?
+    /// Each menu button in the panel's flipped content space, reported by the bar as it lays out.
+    @ObservationIgnored var barMenuButtonFrames: [NoteBarMenu: CGRect] = [:]
     private var switcherRename = NoteSwitcherRenameState()
     private var presentationGeneration = 0
 
@@ -126,7 +125,7 @@ final class NotesCoordinator {
 
     func openSwitcher() {
         guard store.isLoaded else { return }
-        closeHeadingMenu()
+        closeBarMenu()
         if isSwitcherPresented {
             switcherFocusRevision &+= 1
             return
@@ -148,7 +147,7 @@ final class NotesCoordinator {
     }
 
     func hide() {
-        closeHeadingMenu()
+        closeBarMenu()
         presentationGeneration &+= 1
         pendingPresentation = nil
         closeSwitcher(focusEditor: false)
@@ -157,8 +156,8 @@ final class NotesCoordinator {
     }
 
     func handleEscape() {
-        if isHeadingMenuPresented {
-            closeHeadingMenu()
+        if presentedBarMenu != nil {
+            closeBarMenu()
         } else if isSwitcherPresented {
             closeSwitcher()
         } else {
@@ -304,7 +303,7 @@ final class NotesCoordinator {
     }
 
     func updateSource(_ source: String) {
-        closeHeadingMenu()
+        closeBarMenu()
         store.updateSource(source)
     }
 
@@ -326,10 +325,10 @@ final class NotesCoordinator {
         windowController.format(action)
     }
 
-    /// Collapsing takes the heading button with it, so its menu cannot outlive it.
+    /// Collapsing takes the menu buttons with it, so no menu can outlive them.
     func toggleFormattingBar() {
         guard showsFormattingBar else { return }
-        closeHeadingMenu()
+        closeBarMenu()
         // Explicit, because the chord changes this from outside any view's transaction.
         withAnimation(Self.barMotion) { isFormattingBarExpanded.toggle() }
         saveFormattingBarExpanded(isFormattingBarExpanded)
@@ -340,30 +339,31 @@ final class NotesCoordinator {
             ? nil : Theme.MenuMotion.chevronAnimation
     }
 
-    func toggleHeadingMenu() {
-        guard !headingMenuWasOpenAtPress else {
-            headingMenuWasOpenAtPress = false
-            return
-        }
-        guard !isHeadingMenuPresented else { return closeHeadingMenu() }
-        isHeadingMenuPresented = true
-        windowController.presentHeadingMenu(headingMenuController)
+    func toggleBarMenu(_ menu: NoteBarMenu) {
+        let reopening = barMenuOpenAtPress == menu
+        barMenuOpenAtPress = nil
+        guard !reopening else { return }
+        guard presentedBarMenu != menu else { return closeBarMenu() }
+        closeBarMenu()
+        presentedBarMenu = menu
+        windowController.presentBarMenu(menu, with: barMenuController)
     }
 
-    func chooseHeading(_ level: Int) {
-        closeHeadingMenu()
-        format(.setHeading(level: level))
+    /// A menu row: the menu closes first, so the edit lands in a bar that is already settled.
+    func choose(_ action: NoteEditAction) {
+        closeBarMenu()
+        format(action)
     }
 
-    func closeHeadingMenu() {
-        guard isHeadingMenuPresented else { return }
-        isHeadingMenuPresented = false
-        headingMenuController.hide()
+    func closeBarMenu() {
+        guard presentedBarMenu != nil else { return }
+        presentedBarMenu = nil
+        barMenuController.hide()
     }
 
     func noteWindowMouseDown() {
-        headingMenuWasOpenAtPress = isHeadingMenuPresented
-        closeHeadingMenu()
+        barMenuOpenAtPress = presentedBarMenu
+        closeBarMenu()
     }
 
     func editorReady(_ textView: NoteTextView) {
@@ -371,7 +371,7 @@ final class NotesCoordinator {
     }
 
     private func request(_ presentation: Presentation) {
-        closeHeadingMenu()
+        closeBarMenu()
         pendingPresentation = presentation
         guard loadTask == nil else { return }
         loadTask = Task { [weak self] in

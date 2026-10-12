@@ -17,6 +17,7 @@ final class NoteTextView: MDTextView {
         case .toggleInline(.bold): editorController.toggleStrong(in: self)
         case .toggleInline(.italic): editorController.toggleEmphasis(in: self)
         case .toggleInline(.strikethrough): editorController.toggleStrikethrough(in: self)
+        case .toggleInline(.underline): editorController.toggleUnderline(in: self)
         case .toggleInline(.highlight): editorController.toggleHighlighter(in: self)
         case .toggleInline(.code): editorController.toggleCode(in: self)
         case .toggleLink: toggleLink()
@@ -136,6 +137,7 @@ final class NoteTextView: MDTextView {
             case "b": return .toggleInline(.bold)
             case "i": return .toggleInline(.italic)
             case "e": return .toggleInline(.code)
+            case "u": return .toggleInline(.underline)
             case "k": return .toggleLink
             default: return nil
             }
@@ -218,6 +220,7 @@ extension NoteFormatting {
         if formatting.inline.contains(.strong) { styles.insert(.bold) }
         if formatting.inline.contains(.emphasis) { styles.insert(.italic) }
         if formatting.inline.contains(.strikethrough) { styles.insert(.strikethrough) }
+        if formatting.inline.contains(.underline) { styles.insert(.underline) }
         if formatting.inline.contains(.highlighter) { styles.insert(.highlight) }
         if formatting.inline.contains(.code) { styles.insert(.code) }
         let list: NoteEditAction.ListStyle? =

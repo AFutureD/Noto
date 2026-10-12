@@ -10,7 +10,7 @@ final class NotesPanel: NSPanel {
     var commandChords: [String: () -> Void] = [:]
     /// The same, for ⌥⌘-letter chords.
     var optionCommandChords: [String: () -> Void] = [:]
-    /// False for the heading menu, so the editor keeps its caret, reveal and chords beneath it.
+    /// False for a bar menu, so the editor keeps its caret, reveal and chords beneath it.
     var acceptsKey = true
     var onMouseDown: (() -> Void)?
     /// Above other windows and on every Space; off, an ordinary window on the Space it is shown on.

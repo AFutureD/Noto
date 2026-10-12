@@ -15,7 +15,7 @@ struct NotesView: View {
         // The band above is the title bar; AppKit must not inset the content a second time.
         .ignoresSafeArea()
         .onChange(of: notes.showsFormattingBar && notes.hasActiveNote) { _, shown in
-            if !shown { notes.closeHeadingMenu() }
+            if !shown { notes.closeBarMenu() }
         }
     }
 

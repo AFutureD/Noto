@@ -263,12 +263,15 @@ The formatting bar:
 - Buttons light for the selection: inside bold, on a list, quote, heading or code line; clicking a lit
   button removes that formatting and the button goes dark
 - Hovering a button shows its name and shortcut above it, fully visible and not clipped by the capsule;
-  the heading button's tooltip does not show while its menu is open
-- The heading menu opens above the capsule, aligned to its left edge, shows the current level checked,
+  a menu button's tooltip does not show while its menu is open
+- The Heading menu opens above the capsule, aligned to its left edge, shows the current level checked,
   and applies a level on click; it closes on Escape, on a click anywhere in the note window (including
-  the heading button itself, which must not reopen it), on typing, on ⌘P, and when another app is clicked
-- At the smallest window size all eleven controls show and the count is hidden, the note's text keeps
-  its inset in both states, the heading menu still opens in full above the capsule, and widening the
+  the Heading button itself, which must not reopen it), on typing, on ⌘P, and when another app is clicked
+- The List menu lists Bullet, Numbered and Task List, and the More menu lists Underline,
+  Strikethrough, Inline Code and Code Block; the More menu stays inside the window; a click on the
+  List button while the More menu is open swaps the menus
+- At the smallest window size all nine controls show and the count is hidden, the note's text keeps
+  its inset in both states, each menu still opens in full above the capsule, and widening the
   window brings the count back
 - With VoiceOver, the bar reads as "Formatting" with each button named, lit ones as selected, the round
   button announcing Expanded or Collapsed, and the heading button its level; menu rows read their titles

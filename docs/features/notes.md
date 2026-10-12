@@ -95,7 +95,7 @@ performs filesystem effects; `NotesStore` drives its blocking work from detached
 the coordinator through `@Environment`; it never receives `AppCore` or mutates the store.
 
 The coordinator lazily owns three window controllers: `NotesWindowController` (the note window),
-`NoteSwitcherWindowController` and `NoteHeadingMenuWindowController` (its two child windows). Nothing
+`NoteSwitcherWindowController` and `NoteBarMenuWindowController` (its two child windows). Nothing
 lists or creates the Notes directory until the first show, create or search — which, with Show in Dock
 on, is launch.
 
@@ -119,7 +119,7 @@ Every route lands on `AppCore.run(_:)` or straight on the coordinator:
 
 Command-N creates, Command-P opens or refocuses the switcher, Command-O reveals the active note in
 Finder (or opens the folder when there is none), and Command-F opens AppKit's find bar in the active
-note. Escape closes the find bar, the heading menu or the switcher before hiding; Command-W and the red
+note. Escape closes the find bar, a bar menu or the switcher before hiding; Command-W and the red
 traffic light both hide directly. Hiding restores the prior external application or Noto window and
 flushes without delaying the order-out — but only while that app is still the frontmost one, so closing
 a window the user has already left behind leaves them in whatever app they moved to.
@@ -128,7 +128,7 @@ Command-Q quits Noto: `AppDelegate.applicationShouldTerminate` awaits the draft'
 All three windows are one `NotesPanel`, a non-activating panel that owns the Escape rule and
 reads ⌘⌫. They differ only in style mask, key acceptance and the chords their controller installs: the
 note window claims ⌘N, ⌘P, ⌘O, ⌘F and ⌘W in `commandChords` and ⌥⌘T and ⌥⌘P in `optionCommandChords`; the
-switcher reads ⌘N plus ⌘W and ⌘P as dismissals; the heading menu never becomes key.
+switcher reads ⌘N plus ⌘W and ⌘P as dismissals; a bar menu never becomes key.
 
 AppKit draws the note window's frame and traffic lights; `NotesView` draws the rest of the chrome. Its
 52-point title band holds the traffic lights, the centred active title, and one frosted capsule of
@@ -221,6 +221,7 @@ replaced typed text with an attachment.
 | ⌘Z, ⇧⌘Z | undo, redo |
 | ⌘B, ⌘I, ⌘E | bold, italic, inline code |
 | ⇧⌘X | strikethrough |
+| ⌘U | underline |
 | ⇧⌘H | highlight |
 | ⌥⌘C | code block |
 | ⇧⌘B | quote |
@@ -248,10 +249,19 @@ While Show Formatting Bar is on, the band under the editor holds the
 character count at its leading edge and the formatting bar at its trailing edge. The bar is
 `NoteFormattingBar`, a frosted capsule in the title bar's recipe. It starts collapsed to one round
 `paintbrush` button; ⌥⌘T or a click expands it, and the buttons slide out from behind that button:
-a heading menu, Bold, Italic, Strikethrough, Highlight, Inline Code and Link, then Code Block and
-Quote, then
-Numbered, Bullet and Task List. Hovering a button shows its name and shortcut. Each button is a
-28-point square. The count hides when the row leaves it no lane, and the band never widens the note.
+a Heading menu, Bold, Italic, Highlight and Link, then Quote, then a List menu and a More menu.
+Hovering a button shows its name and shortcut. Each button is a 28-point square, and a menu button
+adds a chevron. The count hides when the row leaves it no lane, and the band never widens the note.
+
+`NoteBarMenu` lists the three menus and their rows:
+
+| Menu | Rows |
+| --- | --- |
+| Heading (`textformat.size`) | Heading 1, Heading 2, Heading 3, Text |
+| List (`list.bullet`) | Bullet List, Numbered List, Task List |
+| More (`ellipsis`) | Underline, Strikethrough, Inline Code, Code Block |
+
+A menu button lights while one of its rows applies, and the open row shows a checkmark.
 
 Expanded or collapsed is window state, not a preference: `AppCore` reads and writes it under
 `notesFormattingBarExpanded` in `UserDefaults` and hands it to `NotesCoordinator`, the way it hands
@@ -264,10 +274,11 @@ query reads the same annotations the toggles use, so a lit button always undoes.
 `NotesCoordinator.format` → `NotesWindowController.format` → `NoteTextView.format`. The buttons never
 take focus, so the caret and its revealed construct stay put.
 
-The heading button opens `NoteHeadingMenuView` (Heading 1 to 3 and Text, the current one checked) in a
-borderless child window that never becomes key, so it can extend past a short note window while the
-editor keeps its caret and chords. It closes on a choice, Escape, any mouse down in the note window,
-an edit, the note window losing key, opening the switcher, and hiding.
+A menu button opens `NoteBarMenuView` for its `NoteBarMenu` in one borderless child window,
+`NoteBarMenuWindowController`, that never becomes key, so it can extend past a short note window
+while the editor keeps its caret and chords. `NotesCoordinator.presentedBarMenu` names the open menu.
+It closes on a choice, Escape, any mouse down in the note window, an edit, the note window losing
+key, opening the switcher, and hiding. A click on another menu button opens that menu instead.
 
 ### The settings
 
@@ -298,7 +309,7 @@ Four controls change the setting:
 
 `NotesPanel.staysOnTop` applies the level and the Space behaviour.
 `NotesWindowController.observeKeepsOnTop` copies the setting to the open panel, thus a change applies
-immediately. The switcher and the heading menu take the value of the note window when they open.
+immediately. The switcher and a bar menu take the value of the note window when they open.
 
 ### Fonts
 

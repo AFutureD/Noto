@@ -1,7 +1,7 @@
-/// One formatting gesture of the bar, the heading menu or a chord. `NoteTextView.format` applies it.
+/// One formatting gesture of the bar, a bar menu or a chord. `NoteTextView.format` applies it.
 enum NoteEditAction: Sendable, Equatable {
     enum InlineStyle: Sendable, CaseIterable {
-        case bold, italic, strikethrough, highlight, code
+        case bold, italic, strikethrough, underline, highlight, code
     }
 
     enum ListStyle: Sendable {

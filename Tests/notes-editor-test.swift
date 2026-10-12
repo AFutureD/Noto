@@ -298,6 +298,13 @@ struct NotesEditorTests {
                 && editor.textView.markdown == "make **bold**")
         undo.undo()
         check("⌘B undoes in one step", editor.textView.markdown == "make bold")
+        check(
+            "⌘U underlines the selection",
+            editor.textView.performKeyEquivalent(with: keyDown("u", keyCode: kVK_ANSI_U, in: editor.window))
+                && editor.textView.markdown == "make ~bold~"
+                && editor.textView.formatting.inlineStyles.contains(.underline))
+        undo.undo()
+        check("⌘U undoes in one step", editor.textView.markdown == "make bold")
         editor.textView.setSelectedRange(NSRange(location: 0, length: 4))
         _ = editor.textView.performKeyEquivalent(
             with: keyDown("8", keyCode: kVK_ANSI_8, modifiers: [.command, .shift], in: editor.window))

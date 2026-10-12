@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// The title bar capsule's recipe along the bottom, one button per Markdown edit.
+/// The title bar capsule's recipe along the bottom: a button per common edit, a menu for the rest.
 struct NoteFormattingBar: View {
     @Environment(NotesCoordinator.self) private var notes
 
@@ -20,37 +20,13 @@ struct NoteFormattingBar: View {
             $0.inlineStyles.contains(.italic)
         },
         Control(
-            symbol: "strikethrough", title: "Strikethrough", shortcut: "⇧⌘X",
-            action: .toggleInline(.strikethrough)
-        ) { $0.inlineStyles.contains(.strikethrough) },
-        Control(
             symbol: "highlighter", title: "Highlight", shortcut: "⇧⌘H", action: .toggleInline(.highlight)
         ) { $0.inlineStyles.contains(.highlight) },
-        Control(
-            symbol: "chevron.left.forwardslash.chevron.right", title: "Inline Code", shortcut: "⌘E",
-            action: .toggleInline(.code)
-        ) { $0.inlineStyles.contains(.code) },
         Control(symbol: "link", title: "Link", shortcut: "⌘K", action: .toggleLink) { $0.isLink }
     ]
 
     private static let blocks = [
-        Control(symbol: "curlybraces", title: "Code Block", shortcut: "⌥⌘C", action: .toggleCodeBlock) {
-            $0.isCodeBlock
-        },
         Control(symbol: "text.quote", title: "Quote", shortcut: "⇧⌘B", action: .toggleQuote) { $0.isQuote }
-    ]
-
-    private static let lists = [
-        Control(symbol: "list.number", title: "Numbered List", shortcut: "⇧⌘7", action: .toggleList(.ordered))
-        {
-            $0.list == .ordered
-        },
-        Control(symbol: "list.bullet", title: "Bullet List", shortcut: "⇧⌘8", action: .toggleList(.bullet)) {
-            $0.list == .bullet
-        },
-        Control(symbol: "checklist", title: "Task List", shortcut: "⇧⌘9", action: .toggleList(.task)) {
-            $0.list == .task
-        }
     ]
 
     var body: some View {
@@ -59,13 +35,11 @@ struct NoteFormattingBar: View {
         HStack(spacing: Theme.Spacing.sm) {
             if isExpanded {
                 HStack(spacing: Theme.Spacing.sm) {
-                    NoteHeadingButton(
-                        level: formatting.headingLevel, isOpen: notes.isHeadingMenuPresented,
-                        action: notes.toggleHeadingMenu
-                    ) { notes.headingButtonFrame = $0 }
+                    menuButton(.heading, formatting, tooltipAlignment: .leading)
                     group(Self.styles, formatting)
                     group(Self.blocks, formatting)
-                    group(Self.lists, formatting)
+                    menuButton(.list, formatting, tooltipAlignment: .center)
+                    menuButton(.more, formatting, tooltipAlignment: .trailing)
                 }
                 // Grows out of the round button; nothing leaves the capsule, so no clip is needed.
                 .transition(.scale(scale: 0.6, anchor: .trailing).combined(with: .opacity))
@@ -94,6 +68,15 @@ struct NoteFormattingBar: View {
                 .tooltip("\(control.title)  \(control.shortcut)")
             }
         }
+    }
+
+    private func menuButton(
+        _ menu: NoteBarMenu, _ formatting: NoteFormatting, tooltipAlignment: HorizontalAlignment
+    ) -> some View {
+        NoteMenuButton(
+            menu: menu, isLit: menu.isLit(formatting), isOpen: notes.presentedBarMenu == menu,
+            tooltipAlignment: tooltipAlignment, action: { notes.toggleBarMenu(menu) }
+        ) { notes.barMenuButtonFrames[menu] = $0 }
     }
 }
 
@@ -124,19 +107,20 @@ private struct NoteBarGlyph: View {
     }
 }
 
-private struct NoteHeadingButton: View {
-    let level: Int?
+/// A glyph with a chevron that opens one of the bar's menus.
+private struct NoteMenuButton: View {
+    let menu: NoteBarMenu
+    let isLit: Bool
     let isOpen: Bool
+    let tooltipAlignment: HorizontalAlignment
     let action: () -> Void
     let onFrameChange: (CGRect) -> Void
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    private var isHeading: Bool { (1...6).contains(level ?? 0) }
-
     var body: some View {
-        BarButton(isSelected: isHeading || isOpen, isCompact: true, action: action) {
+        BarButton(isSelected: isLit || isOpen, isCompact: true, action: action) {
             HStack(spacing: Theme.Spacing.xs) {
-                NoteBarGlyph(name: "textformat.size")
+                NoteBarGlyph(name: menu.symbol)
                 // Rotates rather than swaps, so opening the menu cannot shift the bar.
                 Image(systemName: "chevron.down")
                     .font(Theme.Typography.disclosure)
@@ -151,18 +135,8 @@ private struct NoteHeadingButton: View {
             onFrameChange($0)
         }
         .focusable(false)
-        .accessibilityLabel("Heading")
-        .accessibilityValue(accessibilityValue)
-        .accessibilityAddTraits(isHeading ? .isSelected : [])
-        // The leading end of an expanded capsule, which a narrow note pushes against the edge.
-        .tooltip(isOpen ? nil : "Heading", alignment: .leading)
-    }
-
-    private var accessibilityValue: String {
-        switch level {
-        case nil: ""
-        case 0: "Text"
-        case let level?: "Heading \(level)"
-        }
+        .accessibilityLabel(menu.title)
+        .accessibilityAddTraits(isLit ? .isSelected : [])
+        .tooltip(isOpen ? nil : menu.title, alignment: tooltipAlignment)
     }
 }

@@ -11,7 +11,7 @@ Read this before touching any view body, `Theme` value, or the panel chrome.
 The note window is a panel whose surface is the OS glass under a 40% black scrim — there is
 no gray chrome. Everything on that surface is white at a fixed alpha ramp. There are no hard-edged
 bars, strips or dividers: the title band and the bottom band are just regions of the same surface.
-Floating controls (the title-bar capsule, the formatting bar, the switcher, the heading menu, the
+Floating controls (the title-bar capsule, the formatting bar, the switcher, the bar menus, the
 recorder callout) are Liquid Glass.
 
 That paragraph describes Dark, which is the design. Light is the same design with the ink
@@ -78,7 +78,7 @@ the same for the tokens `InterfaceMetrics` carries (`spacing.xxs`–`md`, `radiu
 `panel 26` · `menuPanel 16` · `row 10` · `menuRow 10` · `barControl 8` · `tooltip 8` · `keyCap 6` ·
 `menu 6` · `recorderKeyCap 4`
 
-`panel` is the note window. `menuPanel` is the switcher, the heading menu and the recorder callout.
+`panel` is the note window. `menuPanel` is the switcher, a bar menu and the recorder callout.
 `row` is a switcher row's fill and `menuRow` a heading-menu row's hover. `menu` is the small-control
 corner: the recorder field and the ends of a code band.
 
@@ -96,9 +96,9 @@ The note window: `noteWindow 440×180` (the opening size and the height floor), 
 `noteTitlebar 52`, `noteTitleInset 120`, `noteTrafficLightInset 20`, `noteEditorInset 16`,
 `noteEditorTopInset 6`, `noteFooterHeight 28`, `bottomBarHeight 52`, `noteGlyph 16`, `noteEmptyGlyph 28`.
 
-The switcher and the heading menu: `noteSwitcher 300×240`, `noteSearchHeight 34`,
-`noteSwitcherEmptyHeight 96`, `noteSwitcherDrop 56`, `rowIcon 24`, `noteHeadingMenu` (220 wide, exactly
-four rows tall), `menuRowHeight` (`menuIcon 20` + `md` × 2), `menuRowSpacing 1`.
+The switcher and the bar menus: `noteSwitcher 300×240`, `noteSearchHeight 34`,
+`noteSwitcherEmptyHeight 96`, `noteSwitcherDrop 56`, `rowIcon 24`, `noteBarMenu(rows:)` (220 wide,
+exactly its rows tall), `menuRowHeight` (`menuIcon 20` + `md` × 2), `menuRowSpacing 1`.
 
 Controls: `barButtonHeight 28`, `keyCap 18`, `compactKeyCap 15`, `heroKeyCap 22`.
 
@@ -140,7 +140,7 @@ overrides, and MDTextKit builds the `NSFont`s.
 | `border` | white 0.20 | black 0.18 | outlined keycap borders, quote bars, code band and table borders |
 | `textSecondary` | white 0.60 | black 0.60 | secondary labels, quotes, list markers |
 | `textTertiary` | white 0.40 | black 0.42 | placeholders, the count, revealed markers |
-| `menuSymbol` | white 0.70 | black 0.70 | the heading menu's checkmark |
+| `menuSymbol` | white 0.70 | black 0.70 | a bar menu's checkmark |
 | `noteText` | white 0.90 | black 0.85 | note body text and caret |
 | `cardFill` | white 0.05 | black 0.04 | code bands, inline code, table header and alternate rows, the recorder field |
 | `cardStroke` | white 0.10 | black 0.10 | the recorder field's border |
@@ -215,9 +215,10 @@ count is in a `ViewThatFits` and gives way first. Lit buttons
 use `BarButton.isSelected`; hovering shows a `Tooltip` with the name and shortcut. The glass is a
 `background`, never a wrapper, and nothing clips the row, because either one swallows that tooltip. The
 round button aligns its tooltip trailing and the heading button leading, so neither runs past the
-window edge. The heading menu is a borderless child window like the switcher, `noteHeadingMenu` in
-size, hung off the heading button's own reported frame and `xs` above it, on `menuPanel` glass; each
-row is a checkmark slot, a title and outlined keycaps for its shortcut.
+window edge. A bar menu (Heading, List or More) is a borderless child window like the switcher,
+`noteBarMenu(rows:)` in size, hung off its button's own reported frame and `xs` above it, on
+`menuPanel` glass; each row is a checkmark slot, a title and outlined keycaps for its shortcut. A
+menu that would leave the window's trailing edge moves left to stay `xs` inside it.
 
 The switcher is its own glass panel hung `noteSwitcherDrop` below the title band, sized to its list up
 to a 240-point ceiling and never resizing the note window. Its plain search field and
@@ -251,12 +252,12 @@ Source: `Theme.swift` (`frosted(in:)`), `Noto/DesignSystem/GlassEffectView.swift
 - `View.frosted(in:)` is `glassEffect(.regular.interactive(), in:)` — regular, interactive glass, so
   it follows the system Liquid Glass (clear ↔ tinted) setting. Used on the title-bar capsule, the
   formatting bar and the empty state's Create Note button. Retune it there, not per call site.
-- The switcher, the heading menu and the recorder callout use plain `glassEffect(.regular)` on their
+- The switcher, a bar menu and the recorder callout use plain `glassEffect(.regular)` on their
   root shape with no hand-tuned shadow — Tahoe glass carries its own elevation; adding a drop shadow
   reads heavy and non-native.
 - `GlassEffectView` wraps `NSGlassEffectView` and is only ever a panel's backdrop, under `panelScrim`.
-- A menu's size is fixed, never intrinsic, so it cannot jitter as its rows change: `noteHeadingMenu`
-  is a token, and the switcher's height is computed from its content and capped.
+- A menu's size is fixed, never intrinsic, so it cannot jitter as its rows change: `noteBarMenu(rows:)`
+  is a token per row count, and the switcher's height is computed from its content and capped.
 - Menus are child windows, not `.contextMenu` or `NSMenu`, so they can extend past a short note
   window.
 
@@ -271,7 +272,7 @@ never re-renders its owner.
 
 `KeyCapChip` (`Noto/DesignSystem/KeyCapChip.swift`) is one keycap: `.filled` on `controlSurface` or
 `.outline` in `border`. `KeyCapChip.Scale` is `compact` / `standard` / `hero` — three tokenised sizes,
-no stray frames. The heading menu uses outlined standard caps; the recorder callout uses hero caps and
+no stray frames. A bar menu uses outlined standard caps; the recorder callout uses hero caps and
 a compact `esc`.
 
 `Tooltip` (`Noto/DesignSystem/Tooltip.swift`) is `.tooltip(_:alignment:edge:)`: a label that appears

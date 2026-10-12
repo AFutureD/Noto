@@ -1,34 +1,21 @@
 import SwiftUI
 
-/// The heading menu's rows: Heading 1–3 and Text, in the shared menu-row look.
-struct NoteHeadingMenuView: View {
+/// The open bar menu's rows, in the shared menu-row look.
+struct NoteBarMenuView: View {
     @Environment(NotesCoordinator.self) private var notes
-
-    private struct Row {
-        let level: Int
-        let title: String
-        let shortcut: String
-    }
-
-    private static let rows = [
-        Row(level: 1, title: "Heading 1", shortcut: "⌥⌘1"),
-        Row(level: 2, title: "Heading 2", shortcut: "⌥⌘2"),
-        Row(level: 3, title: "Heading 3", shortcut: "⌥⌘3"),
-        Row(level: 0, title: "Text", shortcut: "⌥⌘0")
-    ]
 
     private var surface: RoundedRectangle {
         RoundedRectangle(cornerRadius: Theme.Radius.menuPanel, style: .continuous)
     }
 
     var body: some View {
+        let menu = notes.presentedBarMenu ?? .heading
         VStack(spacing: Theme.Size.menuRowSpacing) {
-            ForEach(Self.rows, id: \.level) { row in
-                NoteHeadingMenuRow(
-                    title: row.title, shortcut: row.shortcut,
-                    isCurrent: notes.formatting.headingLevel == row.level
+            ForEach(menu.rows, id: \.title) { row in
+                NoteBarMenuRow(
+                    title: row.title, shortcut: row.shortcut, isCurrent: row.isCurrent(notes.formatting)
                 ) {
-                    notes.chooseHeading(row.level)
+                    notes.choose(row.action)
                 }
             }
         }
@@ -37,11 +24,11 @@ struct NoteHeadingMenuView: View {
         .glassEffect(.regular, in: surface)
         .clipShape(surface)
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("Heading")
+        .accessibilityLabel(menu.title)
     }
 }
 
-private struct NoteHeadingMenuRow: View {
+private struct NoteBarMenuRow: View {
     let title: String
     let shortcut: String
     let isCurrent: Bool
