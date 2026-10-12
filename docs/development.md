@@ -108,7 +108,7 @@ developed. Its Notes changes are ported into Noto manually, one commit at a time
 | --- | --- |
 | Upstream repository | `https://github.com/abue-ammar/tinycast` |
 | Upstream path | `Tinycast/Features/Notes` |
-| Last ported commit | `46beb10a` — `Add an AI Chat window with a conversations sidebar` (2026-10-05) |
+| Last ported commit | `78729983` — `Reload externally edited notes when reopening` (2026-10-06) |
 
 To list the upstream Notes changes that Noto has not seen, run this in a Tinycast checkout:
 

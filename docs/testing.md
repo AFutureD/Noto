@@ -66,7 +66,7 @@ suite takes about ten seconds, so in practice run both.
 
 | Harness | Guards |
 | --- | --- |
-| `notes-test` | all of `Noto/Features/Notes/Model/` and `Noto/Features/Notes/Service/`: the repository, the store's autosave, selection and relocation, derived titles, search with the real `FuzzyMatch`, the Markdown parser, every edit plan, the formatting reports, the reveal policy, switcher interaction and window placement |
+| `notes-test` | all of `Noto/Features/Notes/Model/` and `Noto/Features/Notes/Service/`: the repository, the store's autosave, external reloads, draft preservation, selection and relocation, derived titles, search with the real `FuzzyMatch`, the Markdown parser, every edit plan, the formatting reports, the reveal policy, switcher interaction and window placement |
 | `notes-editor-test` | the Notes editor, rendered and literal, with real TextKit 2 and AppKit editing objects: styling, reveal, layout fragments, keys, chords, checkboxes, links, undo, the character count and custom fonts. Also compiles `Noto/DesignSystem/Theme.swift` and `InterfaceMetrics.swift`, so a token those lose breaks it |
 
 Nothing automated covers `Noto/Features/HotKeys/`, `Noto/Features/Settings/`,

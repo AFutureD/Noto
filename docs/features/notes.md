@@ -25,8 +25,8 @@ search, or extend the collection. Notes is the app: there is no switch that turn
 - Only the active note can be dirty. Switching, creating, renaming, and deleting first flush it, so
   collection navigation cannot abandon an in-memory draft.
 - Noto is the only writer. There is no watcher and no revision check: a save replaces the file
-  with what is in the editor. Every show re-lists the folder, so a note added outside appears, but the
-  active draft is never re-read from disk.
+  with what is in the editor. Every show re-lists the folder and reloads the active note when it is
+  clean. An unsaved draft stays in the editor, also after a failed save.
 - Search is on demand and unindexed. An empty switcher query reads metadata plus the head of every
   unnamed note; a nonempty query reads bodies sequentially off-main and retains no collection-sized
   source cache.
@@ -410,8 +410,12 @@ vetoes the quit.
 A save overwrites whatever is on disk. There is no watcher, no revision comparison and no conflict
 state: editing the active note in another app while Noto has it open loses that edit the next time
 the debounce fires. Open Notes Folder (⌘O) invites exactly that, and this is the accepted trade for an
-app whose whole job is one local editor. Every other external change is picked up, because showing
-the window re-lists the folder before it presents anything.
+app whose whole job is one local editor. Each show re-lists the folder. When the active note is clean,
+the show also reloads it from disk. A save that is in flight completes first. An unsaved draft stays
+in the editor, also when its save failed. An edit or a selection change during the read discards the
+read's result. Unchanged contents keep the editor history; a changed source or a changed note identity
+resets it. When the active file was removed, the load selects a remaining note, or the empty state
+when none remains.
 
 ## Verification
 
