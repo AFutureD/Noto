@@ -160,6 +160,7 @@ final class NoteTextView: NSTextView {
             }
         case [.command, .shift]:
             if key == "x" { return .toggleInline(.strikethrough) }
+            if key == "h" { return .toggleInline(.highlight) }
             if key == "b" { return .toggleQuote }
             switch event.keyCode {
             case DigitKey.seven: return .toggleList(.ordered)

@@ -12,6 +12,7 @@ struct NotesTests {
         testMarkdownParser()
         testMarkdownEditing()
         testMarkdownFormatting()
+        testHighlightColor()
         testRevealPolicy()
         try testUnnamedNotesTitleThemselves()
         testSwitcherInteraction()
@@ -170,6 +171,9 @@ struct NotesTests {
         check(
             "a bold title drops its delimiters", NoteTitle.firstLine(of: "Buy **milk** now") == "Buy milk now"
         )
+        check(
+            "a highlighted title drops its delimiters",
+            NoteTitle.firstLine(of: "==Urgent== call") == "Urgent call")
         check(
             "a link title keeps only its label",
             NoteTitle.firstLine(of: "[Plan](https://a.com) v2") == "Plan v2")
@@ -589,6 +593,14 @@ struct NotesTests {
             "nested spans are separate values, outer first",
             spans("**bold _both_**") == [.init(.strong, "bold _both_"), .init(.emphasis, "both")])
         check("unmatched delimiters stay text", spans("**open and * alone ~~no").isEmpty)
+        check(
+            "a highlight is exactly two equals signs",
+            spans("a ==mark== b") == [.init(.highlight, "mark")] && spans("a =one= b").isEmpty
+                && spans("a ===three=== b").isEmpty && spans("x == y == z").isEmpty)
+        check(
+            "a highlight nests with emphasis",
+            spans("==**a**==") == [.init(.highlight, "**a**"), .init(.strong, "a")])
+        check("an escaped equals sign stays text", spans("\\==no==").isEmpty)
         check("intraword underscores stay text", spans("snake_case_name").isEmpty)
         check("whitespace-flanked delimiters do not open", spans("a * b * c").isEmpty)
         check("an escape stops a delimiter", spans("\\*not\\* *yes*") == [.init(.emphasis, "yes")])
@@ -747,6 +759,8 @@ struct NotesTests {
             edit(.toggleInline(.italic), "say wo|rd now") == "say _wo|rd_ now")
         check("⌘E inserts a pair", edit(.toggleInline(.code), "a | b") == "a `|` b")
         check("⇧⌘X strikes through", edit(.toggleInline(.strikethrough), "«gone»") == "~~«gone»~~")
+        check("⇧⌘H highlights", edit(.toggleInline(.highlight), "«mark»") == "==«mark»==")
+        check("⇧⌘H unwraps from the caret", edit(.toggleInline(.highlight), "==ma|rk==") == "ma|rk")
         check(
             "unwrapping bold from bold italic keeps the italic",
             edit(.toggleInline(.bold), "***«both»***") == "*«both»*"
@@ -838,6 +852,21 @@ struct NotesTests {
         check("⇧⌘B leaves code alone", edit(.toggleQuote, "```\nx|\n```") == nil)
     }
 
+    private static func testHighlightColor() {
+        let colour = NoteHighlightColor(red: 1, green: 0.5, blue: 0, alpha: 0.6)
+        check("a colour stores as #RRGGBBAA", colour.hex == "#FF800099")
+        check(
+            "a stored colour reads back within a channel step",
+            NoteHighlightColor(hex: colour.hex).map {
+                abs($0.red - 1) < 0.005 && abs($0.green - 0.5) < 0.005 && $0.blue == 0
+                    && abs($0.alpha - 0.6) < 0.005
+            } == true)
+        check(
+            "a malformed colour is nil",
+            NoteHighlightColor(hex: "FF800099") == nil && NoteHighlightColor(hex: "#FF8000") == nil
+                && NoteHighlightColor(hex: "#GG800099") == nil)
+    }
+
     private static func testMarkdownFormatting() {
         check("an empty note carries nothing", formatting("|") == .plain)
         var paragraph = NoteFormatting.plain
@@ -853,6 +882,7 @@ struct NotesTests {
                 && formatting("a **«bold»** b").inlineStyles == [.bold])
         check("part of a bold span is not bold", formatting("a **b«ol»d** b").inlineStyles == [])
         check("strikethrough reports", formatting("~~st|rike~~").inlineStyles == [.strikethrough])
+        check("a highlight reports", formatting("==ma|rk==").inlineStyles == [.highlight])
         check("inline code reports", formatting("`co|de`").inlineStyles == [.code])
         check("a link reports", formatting("[la|bel](https://example.com)").isLink)
         check(

@@ -2,7 +2,7 @@ import Foundation
 
 /// A Markdown-aware editing gesture the text view asks `NoteMarkdownEditing` to plan.
 enum NoteEditAction: Sendable, Equatable {
-    enum InlineStyle: Sendable, CaseIterable { case bold, italic, strikethrough, code }
+    enum InlineStyle: Sendable, CaseIterable { case bold, italic, strikethrough, highlight, code }
     enum ListStyle: Sendable { case bullet, ordered, task }
 
     case newline

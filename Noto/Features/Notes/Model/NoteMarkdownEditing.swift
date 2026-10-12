@@ -652,6 +652,7 @@ enum NoteMarkdownEditing {
             case .bold: "**"
             case .italic: "_"
             case .strikethrough: "~~"
+            case .highlight: "=="
             case .code: "`"
             }
         }
@@ -661,7 +662,8 @@ enum NoteMarkdownEditing {
         ) -> Bool {
             switch (kind, style) {
             case (.strong, .bold), (.strongEmphasis, .bold), (.emphasis, .italic),
-                (.strongEmphasis, .italic), (.strikethrough, .strikethrough), (.code, .code):
+                (.strongEmphasis, .italic), (.strikethrough, .strikethrough), (.highlight, .highlight),
+                (.code, .code):
                 true
             default:
                 false

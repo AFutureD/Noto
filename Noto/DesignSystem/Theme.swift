@@ -150,6 +150,10 @@ enum Theme {
         static let noteText = ramp(dark: 0.90, light: 0.85)
         static let cardFill = ramp(dark: 0.05, light: 0.04)
         static let cardStroke = ramp(dark: 0.10, light: 0.10)
+        /// A `==highlight==` span's default background: the marker-pen yellow, dimmed over Dark.
+        static let highlight = adaptive(
+            dark: NSColor(srgbRed: 1.0, green: 0.84, blue: 0.0, alpha: 0.35),
+            light: NSColor(srgbRed: 1.0, green: 0.90, blue: 0.20, alpha: 0.60))
         static let destructive = Color.red
     }
 }

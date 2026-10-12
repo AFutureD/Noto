@@ -123,6 +123,7 @@ run notes-editor-test      Noto/Platform/Signposts.swift \
                            Noto/Platform/NotificationToken.swift \
                            Noto/Features/Notes/Model/NoteDocument.swift \
                            Noto/Features/Notes/Model/NoteFontSettings.swift \
+                           Noto/Features/Notes/Model/NoteHighlightColor.swift \
                            Noto/Features/Notes/Model/NoteMarkdown.swift \
                            Noto/Features/Notes/Model/NoteMarkdownParser.swift \
                            Noto/Features/Notes/Model/NoteInlineScanner.swift \
@@ -149,6 +150,7 @@ run -O index notes-editor-performance \
                            Noto/Platform/NotificationToken.swift \
                            Noto/Features/Notes/Model/NoteDocument.swift \
                            Noto/Features/Notes/Model/NoteFontSettings.swift \
+                           Noto/Features/Notes/Model/NoteHighlightColor.swift \
                            Noto/Features/Notes/Model/NoteMarkdown.swift \
                            Noto/Features/Notes/Model/NoteMarkdownParser.swift \
                            Noto/Features/Notes/Model/NoteInlineScanner.swift \

@@ -77,6 +77,7 @@ enum NoteMarkdownParser {
         static let zero: UInt16 = 0x30
         static let nine: UInt16 = 0x39
         static let colon: UInt16 = 0x3A
+        static let equals: UInt16 = 0x3D
         static let greaterThan: UInt16 = 0x3E
         static let upperX: UInt16 = 0x58
         static let openBracket: UInt16 = 0x5B

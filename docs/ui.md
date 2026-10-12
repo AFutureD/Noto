@@ -145,9 +145,11 @@ takes those.
 | `cardFill` | white 0.05 | black 0.04 | code bands, the recorder field |
 | `cardStroke` | white 0.10 | black 0.10 | the recorder field's border |
 | `tooltipShadow` | black 0.18 | black 0.18 | the tooltip tile's shadow |
+| `highlight` | yellow 0.35 | yellow 0.60 | the default background of a `==highlight==` span |
 
 `panelScrim` is the ramp's inverse — it darkens the dark surface and lightens the light one — so it
-is an `adaptive` pair, not a `ramp`. `destructive` is `Color.red` and adapts on its own.
+is an `adaptive` pair, not a `ramp`. `highlight` is a marker-pen yellow in two alphas, so it is an
+`adaptive` pair too. `destructive` is `Color.red` and adapts on its own.
 
 Beyond these, `.secondary`/`.tertiary` foreground styles are fine for SF Symbols. Selection always
 beats hover when a row or a button is both.
@@ -183,7 +185,8 @@ The editor is one native TextKit 2 surface. Its string is the canonical Markdown
 Markdown styles it in place. Notes type sits one system text style above the rest
 of the app, because a note is for reading: body text is the title3 size in `noteText`, and headings 1
 to 3 use the largeTitle, title1 and title2 sizes (bold, bold, semibold). Inline code is monospaced on
-`controlSurface`, and links use the system link colour. Quotes and
+`controlSurface`, a highlight draws `highlight` or the chosen colour behind its text, and links use
+the system link colour. Quotes and
 checked tasks dim to `textSecondary`, and a checked task is struck through. Most markers show in
 `textTertiary` on the caret's line and are hidden elsewhere. Bullets keep their rendered dot even under
 the caret; revealed list markers stay `textSecondary`. Revealed non-bullet list and quote markers hang
@@ -339,7 +342,7 @@ The panes:
 | Pane | Rows |
 | --- | --- |
 | General | Window (Keep on top), Dock (Show in Dock), Updates (Check for updates automatically, Check Now, the version), Notes folder (Choose…, Use Default, the path) |
-| Editor | Text size, Text font, Heading font, CJK font, Code font, Defaults (Reset Fonts), Markdown (Render Markdown, Show formatting bar) |
+| Editor | Text size, Text font, Heading font, CJK font, Code font, Defaults (Reset Fonts), Highlight (a colour well, Use Default), Markdown (Render Markdown, Show formatting bar) |
 | Shortcuts | One row for each `HotKeyCommand`, with a `ShortcutRecorder` and the subtitle of the command |
 
 - Text size is a slider with a step of 1 point. The value shows to the right of the slider.
@@ -348,6 +351,8 @@ The panes:
   The CJK menu shows only families with Han characters. The code menu shows only fixed-pitch families.
 - If a stored family is not installed, its menu shows the name with "(Not Installed)".
 - Each font menu has the width `settingsPicker`.
+- The Highlight row is a `ColorPicker` with opacity. It shows `Theme.Colors.highlight` until the user
+  picks a colour, and Use Default appears only while a colour is set.
 - A `ShortcutRecorder` is not in a `LabeledContent`, because that container stops the click.
 
 ## Rules for agents working on the UI

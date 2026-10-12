@@ -19,6 +19,7 @@ struct NotesEditorTests {
         testCharacterCountReports()
         testRenderingKeepsSourceAndUndo()
         testHiddenMarkersAndReveal()
+        testHighlightBackground()
         testRestyleFollowsEdits()
         testRenderingOffIsLiteral()
         testTaskSpacing()
@@ -207,7 +208,7 @@ struct NotesEditorTests {
 
     private static let everyConstruct = """
         # Heading
-        Some **bold**, _italic_, ~~gone~~, `code` and [a link](https://example.com) or https://a.com.
+        Some **bold**, _italic_, ~~gone~~, ==marked==, `code` and [a link](https://example.com) or https://a.com.
         - bullet
             - nested
         1. first
@@ -279,6 +280,32 @@ struct NotesEditorTests {
             "an unfocused editor reveals nothing",
             editor.coordinator.renderer.revealed.isEmpty
                 && font(in: editor.textView, at: 0)?.pointSize == 0.01)
+    }
+
+    private static func testHighlightBackground() {
+        let source = "Title\n\nplain ==marked== text"
+        let input = NoteEditorInput(id: NoteID(rawValue: "Highlight.md"), source: source, epoch: 1)
+        let editor = makeEditor(input: input, rendersMarkdown: true)
+        editor.textView.setSelectedRange(NSRange(location: 0, length: 0))
+        let marker = (source as NSString).range(of: "==").location
+        let content = (source as NSString).range(of: "marked").location
+        let themed = background(in: editor.textView, at: content)
+        check(
+            "a highlight draws a background behind its content and none behind its markers",
+            themed != nil && background(in: editor.textView, at: marker) == nil
+                && background(in: editor.textView, at: content - 4) == nil
+                && font(in: editor.textView, at: marker)?.pointSize == 0.01)
+
+        let chosen = NoteHighlightColor(red: 0.2, green: 0.6, blue: 1, alpha: 0.5)
+        editor.coordinator.setHighlight(chosen)
+        let custom = background(in: editor.textView, at: content)?.usingColorSpace(.sRGB)
+        check(
+            "a chosen colour replaces the theme's at once",
+            custom != nil && custom != themed && custom.map { abs($0.blueComponent - 1) < 0.005 } == true
+                && editor.textView.string == source && !editor.coordinator.editorUndoManager.canUndo)
+
+        editor.coordinator.setHighlight(nil)
+        check("clearing the colour returns to the theme's", background(in: editor.textView, at: content) == themed)
     }
 
     private static func testRestyleFollowsEdits() {
@@ -935,6 +962,10 @@ struct NotesEditorTests {
 
     private static func font(in textView: NSTextView, at location: Int) -> NSFont? {
         textView.textStorage?.attribute(.font, at: location, effectiveRange: nil) as? NSFont
+    }
+
+    private static func background(in textView: NSTextView, at location: Int) -> NSColor? {
+        textView.textStorage?.attribute(.backgroundColor, at: location, effectiveRange: nil) as? NSColor
     }
 
     private static func color(in textView: NSTextView, at location: Int) -> NSColor? {

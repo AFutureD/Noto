@@ -22,8 +22,8 @@ struct NoteInlineScanner {
 
     private static func mayStartInline(_ unit: UInt16) -> Bool {
         switch unit {
-        case Unit.asterisk, Unit.underscore, Unit.tilde, Unit.backtick, Unit.openBracket,
-            Unit.backslash, Unit.colon:
+        case Unit.asterisk, Unit.underscore, Unit.tilde, Unit.equals, Unit.backtick,
+            Unit.openBracket, Unit.backslash, Unit.colon:
             true
         default:
             false
@@ -207,7 +207,7 @@ struct NoteInlineScanner {
         while index < content.upperBound {
             let marker = units[index]
             guard !blocked[index - content.lowerBound],
-                marker == Unit.asterisk || marker == Unit.underscore || marker == Unit.tilde
+                marker == Unit.asterisk || marker == Unit.underscore || Self.isPairMarker(marker)
             else {
                 index += 1
                 continue
@@ -217,7 +217,7 @@ struct NoteInlineScanner {
                 end += 1
             }
             defer { index = end }
-            if marker == Unit.tilde, end - index != 2 { continue }
+            if Self.isPairMarker(marker), end - index != 2 { continue }
 
             let before = index > content.lowerBound ? units[index - 1] : nil
             let after = end < content.upperBound ? units[end] : nil
@@ -236,7 +236,7 @@ struct NoteInlineScanner {
                 let openerIndex = openers.lastIndex(where: { $0.marker == marker })
             {
                 var opener = openers[openerIndex]
-                let use = marker == Unit.tilde ? 2 : min(opener.length, run.length, 3)
+                let use = Self.isPairMarker(marker) ? 2 : min(opener.length, run.length, 3)
                 let open = (opener.end - use)..<opener.end
                 let close = run.start..<(run.start + use)
                 found.append(
@@ -259,8 +259,13 @@ struct NoteInlineScanner {
         return found
     }
 
+    private static func isPairMarker(_ marker: UInt16) -> Bool {
+        marker == Unit.tilde || marker == Unit.equals
+    }
+
     private static func emphasisKind(marker: UInt16, length: Int) -> NoteMarkdown.Inline.Kind {
-        guard marker != Unit.tilde else { return .strikethrough }
+        if marker == Unit.tilde { return .strikethrough }
+        if marker == Unit.equals { return .highlight }
         switch length {
         case 1: return .emphasis
         case 2: return .strong

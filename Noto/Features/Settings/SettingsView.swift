@@ -96,6 +96,17 @@ private struct EditorSettingsPane: View {
                 .disabled(settings.fonts == .standard)
         }
         Divider()
+        SettingsRow("Highlight") {
+            HStack(spacing: Theme.Spacing.md) {
+                ColorPicker("Highlight colour", selection: highlightColor)
+                    .labelsHidden()
+                if settings.highlightColor != nil {
+                    Button("Use Default") { settings.highlightColor = nil }
+                }
+            }
+            SettingsCaption("The background behind ==highlighted== text.")
+        }
+        Divider()
         SettingsRow("Markdown") {
             Toggle("Render Markdown", isOn: $settings.rendersMarkdown)
             Toggle("Show formatting bar", isOn: $settings.showsFormattingBar)
@@ -103,6 +114,22 @@ private struct EditorSettingsPane: View {
             SettingsCaption("With rendering off, the editor shows the source as you type it.")
         }
         .task { families = await FontCatalog.families() }
+    }
+
+    /// An unset colour shows the theme's own; the first pick makes it explicit and fixed.
+    private var highlightColor: Binding<Color> {
+        Binding(
+            get: {
+                guard let chosen = settings.highlightColor else { return Theme.Colors.highlight }
+                return Color(
+                    .sRGB, red: chosen.red, green: chosen.green, blue: chosen.blue, opacity: chosen.alpha)
+            },
+            set: {
+                guard let srgb = NSColor($0).usingColorSpace(.sRGB) else { return }
+                settings.highlightColor = NoteHighlightColor(
+                    red: srgb.redComponent, green: srgb.greenComponent, blue: srgb.blueComponent,
+                    alpha: srgb.alphaComponent)
+            })
     }
 
     /// An unset size shows as the standard one; the first move of the slider makes it explicit.

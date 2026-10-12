@@ -32,6 +32,16 @@
 			path = Tests;
 			sourceTree = "<group>";
 		};
+		19A605C9307C9B6600A02CA2 /* docs */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = docs;
+			sourceTree = "<group>";
+		};
+		19A605CF307C9B6C00A02CA2 /* Resource */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Resource;
+			sourceTree = "<group>";
+		};
 		4E4F544F0000000000000003 /* Noto */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
@@ -59,8 +69,10 @@
 			children = (
 				19A603A6307379D500A02CA2 /* README.md */,
 				19A603BD307379FA00A02CA2 /* AGENTS.md */,
+				19A605C9307C9B6600A02CA2 /* docs */,
 				4E4F544F0000000000000003 /* Noto */,
 				19A603B9307379EB00A02CA2 /* Tests */,
+				19A605CF307C9B6C00A02CA2 /* Resource */,
 				4E4F544F0000000000000006 /* Products */,
 			);
 			sourceTree = "<group>";

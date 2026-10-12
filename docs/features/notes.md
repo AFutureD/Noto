@@ -172,7 +172,8 @@ terminator, and an empty source, get a final zero-length line, so a caret on the
 a real line like any other. Inline spans are not stored: `NoteMarkdown.inlines(of:)` scans the one line
 asked for, which is all the styler, the editing rules and `NoteTitle` ever need.
 
-It covers headings 1 to 6 (4 to 6 look like 3), bold, italic, bold italic, strikethrough, inline code,
+It covers headings 1 to 6 (4 to 6 look like 3), bold, italic, bold italic, strikethrough, highlight
+(`==text==`), inline code,
 links, bare `http` and `https` URLs, bullet, numbered and task lists with nesting, quotes, fenced code
 blocks and horizontal rules. Inline spans never cross a line. Images, underline, HTML, setext headings,
 indented code, footnotes, reference links and blocks nested inside quotes stay plain text. A GFM table
@@ -247,6 +248,7 @@ reaches autosave.
 | ⌘Z, ⇧⌘Z | undo, redo |
 | ⌘B, ⌘I, ⌘E | bold, italic, inline code |
 | ⇧⌘X | strikethrough |
+| ⇧⌘H | highlight |
 | ⌥⌘C | code block |
 | ⇧⌘B | quote |
 | ⌘K | link |
@@ -273,7 +275,8 @@ While Render Markdown and Show Formatting Bar are both on, the band under the ed
 character count at its leading edge and the formatting bar at its trailing edge. The bar is
 `NoteFormattingBar`, a frosted capsule in the title bar's recipe. It starts collapsed to one round
 `paintbrush` button; ⌥⌘T or a click expands it, and the buttons slide out from behind that button:
-a heading menu, Bold, Italic, Strikethrough, Inline Code and Link, then Code Block and Quote, then
+a heading menu, Bold, Italic, Strikethrough, Highlight, Inline Code and Link, then Code Block and
+Quote, then
 Numbered, Bullet and Task List. Hovering a button shows its name and shortcut. Each button is a
 28-point square. The count hides when the row leaves it no lane, and the band never widens the note.
 
@@ -353,6 +356,17 @@ Settings > Editor sets five font values. `NotoSettings.fonts` holds them as one 
 `NotesView` gives `notes.fonts` to `NoteEditorView`. `Coordinator.setFonts` calls
 `NoteMarkdownStyler.apply`, then `NoteMarkdownRenderer.reset()`. A font change applies to the open
 note immediately. It does not change the undo history and does not make the note dirty.
+
+### Highlight colour
+
+Settings > Editor > Highlight is `NotoSettings.highlightColor` (key `notesHighlightColor`). It is the
+background of a `==highlight==` span. The value is nil when absent, and the span then draws
+`Theme.Colors.highlight`, which follows the appearance. A chosen colour is stored as `#RRGGBBAA` in
+sRGB and draws the same in Dark and Light. Use Default clears the value.
+
+`NotesView` gives `notes.highlightColor` to `NoteEditorView`. `Coordinator.setHighlight` calls
+`NoteMarkdownStyler.apply(highlight:)`, then `NoteMarkdownRenderer.reset()`. A colour change applies
+to the open note immediately. It does not change the undo history and does not make the note dirty.
 
 #### The CJK family
 

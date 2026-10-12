@@ -48,7 +48,7 @@ struct NoteMarkdown: Sendable, Equatable {
 
     struct Inline: Sendable, Equatable {
         enum Kind: Sendable, Equatable {
-            case strong, emphasis, strongEmphasis, strikethrough, code
+            case strong, emphasis, strongEmphasis, strikethrough, highlight, code
             case link(destination: String)
             case autolink
         }

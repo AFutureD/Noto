@@ -189,7 +189,7 @@ Commands and the collection:
 Rendering:
 
 - A note using every construct renders in Dark and Light: sized headings, emphasis, strikethrough,
-  inline code, coloured links, bullets, numbers, checkboxes with space between tasks, lists nested at
+  a yellow highlight behind `==text==`, inline code, coloured links, bullets, numbers, checkboxes with space between tasks, lists nested at
   two and four spaces, quote bars, a code band with its language label, and a rule
 - The caret's line shows raw Markdown in the tertiary colour and re-renders when the caret leaves; a
   multi-line selection reveals every selected line, and Select All shows the whole source
@@ -302,6 +302,8 @@ The window:
 - With Text Font `Menlo` and CJK Font `Songti SC`, Latin text is Menlo and Han text is Songti
 - With Text Font `Monaco`, italic text slants and bold text is heavier
 - Reset Fonts restores the system fonts, and it is disabled when no font setting is set
+- A colour picked in the Highlight well applies to the open note immediately, in both appearances;
+  Use Default appears, and it restores the yellow and disappears
 - Render Markdown and Show Formatting Bar take effect in the open note immediately; Show Formatting Bar
   is disabled while Render Markdown is off
 - Check Now opens Sparkle's update window, and Check for Updates… in the menu bar item is disabled

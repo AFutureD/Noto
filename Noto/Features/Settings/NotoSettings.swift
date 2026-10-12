@@ -16,6 +16,7 @@ final class NotoSettings {
         static let cjkFont = "notesCJKFont"
         static let codeFont = "notesCodeFont"
         static let fontSize = "notesFontSize"
+        static let highlightColor = "notesHighlightColor"
     }
 
     @ObservationIgnored private let defaults: UserDefaults
@@ -47,6 +48,10 @@ final class NotoSettings {
             defaults.set(fonts.size, forKey: Key.fontSize)
         }
     }
+    /// Nil draws `Theme.Colors.highlight`, which follows the appearance; a chosen colour does not.
+    var highlightColor: NoteHighlightColor? {
+        didSet { defaults.set(highlightColor?.hex, forKey: Key.highlightColor) }
+    }
     /// Unbound commands are absent; nothing is bound until the user records a shortcut.
     var shortcuts: [HotKeyCommand: KeyShortcut] {
         didSet {
@@ -70,6 +75,7 @@ final class NotoSettings {
             codeFamily: defaults.string(forKey: Key.codeFont),
             size: (defaults.object(forKey: Key.fontSize) as? Double)
                 .map { min(max($0, NoteFontSettings.sizeRange.lowerBound), NoteFontSettings.sizeRange.upperBound) })
+        highlightColor = defaults.string(forKey: Key.highlightColor).flatMap(NoteHighlightColor.init(hex:))
         let stored = defaults.data(forKey: Key.shortcuts)
             .flatMap { try? JSONDecoder().decode([String: KeyShortcut].self, from: $0) }
         shortcuts = (stored ?? [:]).reduce(into: [:]) { shortcuts, entry in

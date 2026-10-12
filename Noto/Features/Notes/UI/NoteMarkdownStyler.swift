@@ -29,12 +29,22 @@ enum NoteMarkdownStyler {
     /// Only these get a `.link` attribute, and only these are opened when one is clicked.
     static let openableSchemes: Set<String> = ["http", "https", "mailto"]
 
+    /// The chosen highlight background; nil draws the theme's own, resolved per appearance.
+    private(set) static var highlight: NoteHighlightColor?
+
     /// The one way to change the editor's fonts: the attributes built from them are rebuilt here.
     static func apply(_ fonts: NoteFontSettings) -> Bool {
         guard NoteMarkdownTypography.apply(fonts) else { return false }
         literal = makeLiteral()
         hiddenEmptyListMarker = makeHiddenEmptyListMarker()
         listSlot = makeListSlot()
+        return true
+    }
+
+    /// Returns false when `next` is what the highlight already draws with.
+    static func apply(highlight next: NoteHighlightColor?) -> Bool {
+        guard next != highlight else { return false }
+        highlight = next
         return true
     }
 
@@ -143,6 +153,8 @@ enum NoteMarkdownStyler {
                 runs.append((inline.contentRange, look))
             case .strikethrough:
                 runs.append((inline.contentRange, [.strikethroughStyle: NSUnderlineStyle.single.rawValue]))
+            case .highlight:
+                runs.append((inline.contentRange, [.backgroundColor: highlightColor]))
             case .code:
                 let codeFont = NoteMarkdownTypography.inlineCode(matching: font)
                 if isRevealed { markerLook[.font] = codeFont }
@@ -173,6 +185,12 @@ enum NoteMarkdownStyler {
         }
         return traits.isEmpty
             ? [.font: lineFont] : NoteMarkdownTypography.emphasized(lineFont, with: traits)
+    }
+
+    private static var highlightColor: NSColor {
+        guard let highlight else { return color(Theme.Colors.highlight) }
+        return NSColor(
+            srgbRed: highlight.red, green: highlight.green, blue: highlight.blue, alpha: highlight.alpha)
     }
 
     /// A revealed link is plain coloured text, so a click places the caret to edit its URL.

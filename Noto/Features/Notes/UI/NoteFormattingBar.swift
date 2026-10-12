@@ -24,6 +24,9 @@ struct NoteFormattingBar: View {
             action: .toggleInline(.strikethrough)
         ) { $0.inlineStyles.contains(.strikethrough) },
         Control(
+            symbol: "highlighter", title: "Highlight", shortcut: "⇧⌘H", action: .toggleInline(.highlight)
+        ) { $0.inlineStyles.contains(.highlight) },
+        Control(
             symbol: "chevron.left.forwardslash.chevron.right", title: "Inline Code", shortcut: "⌘E",
             action: .toggleInline(.code)
         ) { $0.inlineStyles.contains(.code) },

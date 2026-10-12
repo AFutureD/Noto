@@ -103,6 +103,7 @@ to `UserDefaults` in its `didSet`. The keys are that file's private `Key` enum:
 | `showsInDock` | `showsInDock` | off |
 | `keepsOnTop` | `notesKeepsOnTop` | off |
 | `fonts` | `notesTextFont`, `notesHeadingFont`, `notesCJKFont`, `notesCodeFont`, `notesFontSize` | nil — see [notes.md](features/notes.md#fonts) |
+| `highlightColor` | `notesHighlightColor` | nil — see [notes.md](features/notes.md#highlight-colour) |
 | `shortcuts` | `hotKeys` | empty — see [hotkeys.md](features/hotkeys.md#persistence) |
 
 One preference is not here. Check for updates automatically is Sparkle's own
