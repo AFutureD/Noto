@@ -11,7 +11,7 @@ contradicts the code is a defect, so fix it in the change that made it wrong.
 | [architecture.md](architecture.md) | How the app is wired: the layers, who owns what, the windows, the Observation model, the folder tree | a layer boundary, an owner, or the tree changes |
 | [standards.md](standards.md) | How code here is written: posture, naming, style, concurrency, comments | a convention changes, or a check is added |
 | [testing.md](testing.md) | How to verify a change: the definition of done, the harnesses, the purity check, the editor budget, the manual sweep | a harness moves, a budget changes, or a user-visible behaviour is added |
-| [development.md](development.md) | The local loop: requirements, build, Debug and Release, the project file, lint | the local toolchain or the project setup changes |
+| [development.md](development.md) | The local loop: requirements, build, Debug and Release, the project file, the Tinycast upstream and its last ported commit, lint | the local toolchain or the project setup changes, or a Tinycast commit is ported |
 | [ui.md](ui.md) | The design system: tokens, the Notes panel, glass, the shared controls, the Settings window | a token or a presentation rule changes |
 | [release.md](release.md) | How a version ships: the two repositories, the workflow, the version rule, the secrets | the workflow, a secret or the version rule changes |
 

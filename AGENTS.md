@@ -6,7 +6,8 @@ menu-bar agent (`LSUIElement`) with an optional Dock icon. One third-party depen
 which updates the app.
 
 Noto was extracted from the Notes feature of [Tinycast](https://github.com/abue-ammar/tinycast) and is
-licensed AGPL-3.0; see [NOTICE.md](NOTICE.md).
+licensed AGPL-3.0; see [NOTICE.md](NOTICE.md). Upstream Notes changes are ported manually.
+[development.md](docs/development.md#upstream) records the last ported commit.
 
 ## Posture: latest-only, always
 

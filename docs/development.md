@@ -99,6 +99,30 @@ in `project.pbxproj`). The ones that define the app:
 The entitlements file turns the App Sandbox off: Noto reads and writes a folder the user names by
 path.
 
+## Upstream
+
+Noto's Notes code came from [Tinycast](https://github.com/abue-ammar/tinycast). Tinycast is still
+developed. Its Notes changes are ported into Noto manually, one commit at a time.
+
+| | |
+| --- | --- |
+| Upstream repository | `https://github.com/abue-ammar/tinycast` |
+| Upstream path | `Tinycast/Features/Notes` |
+| Last ported commit | `46beb10a` — `Add an AI Chat window with a conversations sidebar` (2026-10-05) |
+
+To list the upstream Notes changes that Noto has not seen, run this in a Tinycast checkout:
+
+```sh
+git log --oneline 46beb10a..origin/main -- Tinycast/Features/Notes
+```
+
+Port one commit at a time, from the oldest. Noto's files map 1:1 onto Tinycast's:
+`Noto/Features/Notes/…` is `Tinycast/Features/Notes/…`. Not every upstream change applies. If a
+change depends on a Tinycast feature that Noto does not have, skip it and say so in the Noto commit
+message. After each port, update the `Last ported commit` row in this table in the same change. That
+row is the only record of how far the port has gone. `NOTICE.md` keeps the original extraction
+commit, which never changes.
+
 ## Editor
 
 Xcode works out of the box and needs nothing here.

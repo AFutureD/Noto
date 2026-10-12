@@ -6,6 +6,11 @@ Abue Ammar, and is distributed under the same licence: the GNU Affero General Pu
 
 ## What was taken from Tinycast
 
+The code was taken from Tinycast at commit
+[`46beb10a`](https://github.com/abue-ammar/tinycast/commit/46beb10a) on 2026-10-05. Later Tinycast
+changes to the Notes feature are ported manually. [development.md](docs/development.md#upstream)
+records the last ported commit.
+
 - The Notes feature: the Markdown model, parser and edit planning, the notes repository and store, the
   TextKit 2 editor, the note window, switcher, heading menu and formatting bar.
 - The parts of the design system those views use: the `Theme` tokens, `InterfaceMetrics`, `BarButton`,
