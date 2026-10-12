@@ -1,257 +1,243 @@
 # Notes
 
-Notes is an unlimited local collection of plain Markdown files in one persistent editor window, which
-renders the Markdown in place. One window edits one active note at a time; a title-bar button opens the
-searchable switcher, and the menu bar item, the main menu, global shortcuts and the Dock icon can show,
-search, or extend the collection. Notes is the app: there is no switch that turns it off.
+Notes is the app: a folder of plain Markdown files, edited one at a time in one window that renders
+the Markdown in place. A title-bar button opens the searchable switcher. The menu bar item, the main
+menu, the global shortcuts and the Dock icon show, search or extend the collection.
 
 ## Invariants
 
-- One regular, non-hidden `.md` file is one note. Its filename without the extension is its title;
-  the source contains no frontmatter, embedded ID, or title field, and there is no database or sidecar.
-- A note the user has not named shows its first line instead. Only the names `create` claims yield
-  it, it is presentation and nothing else, and naming the note replaces it.
-- The Markdown is the source. `NoteTextView.markdown`, `NotesStore`, search, and the file are
-  identical. The text storage holds an attachment for each block marker, so its string is a display
-  form that nothing outside the editor reads.
-- The caret's construct is raw. Every construct under the selection shows its markers; an unfocused
+- One regular, non-hidden `.md` file is one note. Its filename without the extension is its title.
+  The source holds no frontmatter, no embedded id and no title field. There is no database and no
+  sidecar.
+- A note the user has not named shows its first line instead. Only the names `create` claims get a
+  derived title. It is presentation only, and a name replaces it.
+- The Markdown is the source. `NoteTextView.markdown`, `NotesStore`, search and the file are
+  identical. The text storage holds an attachment per block marker, so its string is a display form
+  that nothing outside the editor reads.
+- The caret's construct is raw. Every construct under the selection shows its markers. An unfocused
   editor reveals nothing.
-- Styling never reaches undo. A restyle writes with undo registration off, and `MDTextView` records
-  one undo step per typing run or format gesture itself; AppKit records none.
+- Styling never reaches undo. A restyle writes with undo registration off. `MDTextView` records one
+  undo step per typing run or format gesture. AppKit records none.
 - The formatting bar is another way to press a shortcut. Each button sends its chord's
-  `NoteEditAction` through `NoteTextView.format`, so it has the chord's gate, undo step and autosave,
-  and a button is lit exactly when its toggle would remove that formatting.
-- Only the active note can be dirty. Switching, creating, renaming, and deleting first flush it, so
-  collection navigation cannot abandon an in-memory draft.
-- Noto is the only writer. There is no watcher and no revision check: a save replaces the file
-  with what is in the editor. Every show re-lists the folder and reloads the active note when it is
-  clean. An unsaved draft stays in the editor, also after a failed save.
-- Search is on demand and unindexed. An empty switcher query reads metadata plus the head of every
-  unnamed note; a nonempty query reads bodies sequentially off-main and retains no collection-sized
-  source cache.
-- The collection may be empty. Deleting the last note is allowed and creates no replacement; the
-  window shows its empty state and Create Note still works from there.
-- The window's height always fits the note. Each edit, note switch and bar toggle grows or shrinks
-  it between the 180pt floor and 860pt, or the screen's visible height. Past that, the editor scrolls.
+  `NoteEditAction` through `NoteTextView.format`, so it has the chord's gate, undo step and autosave.
+  A button is lit exactly when its toggle would remove that formatting.
+- Only the active note can be dirty. A switch, create, rename or delete flushes it first, so
+  navigation cannot abandon a draft.
+- Noto is the only writer. There is no watcher and no revision check. A save replaces the file with
+  the editor's content. Every show re-lists the folder and reloads a clean active note. An unsaved
+  draft stays in the editor, also after a failed save.
+- Search is on demand and unindexed. An empty switcher query reads metadata plus the head of each
+  unnamed note. A nonempty query reads bodies one by one off the main actor and keeps no cache of the
+  collection's sources.
+- The collection may be empty. The last note can be deleted. The window shows its empty state, and
+  Create Note still works.
+- The window's height fits the note. Each edit, note switch and bar toggle grows or shrinks it
+  between the 180pt floor and 860pt, or the screen's visible height. Past that, the editor scrolls.
   The top edge holds until the bottom would leave the visible frame; then the window moves up. A
   dragged height lasts until the next edit. The height is the layout manager's used height, laid out
-  from the top only until it passes the tallest window. The text view's frame never gets shorter than
-  its clip view, so the frame is not readable on `didChange`.
+  from the top only until it passes the tallest window.
 - Notes code asks through `NotesDialogs`, never builds an alert itself. The coordinator names the
   question; `NotesDialogs.alerts` is the one place an `NSAlert` is constructed.
 - The editor gets each colour and font from `NoteEditorTheme`, which builds them from `Theme` and the
-  font settings. A theme change restyles the note; nothing else sets a font.
+  settings. A theme change restyles the note. Nothing else sets a font.
 
-## Storage and identity
+## Storage
 
-The default directory is:
+The default directory is `~/Library/Application Support/<bundle-id>/Notes/`.
 
-```text
-~/Library/Application Support/<bundle-id>/Notes/
-```
+Notes Folder in Settings (`NotoSettings.notesFolder`) uses another folder, absolute or under `~/`, as
+it is. Nothing moves out of the old one. `AppCore` observes the setting and calls `NotesStore.relocate`,
+which saves the open draft into the old folder before it lists the new one. A draft the old folder
+cannot take yet holds the move until its save lands. `AppPaths.contentFolder` resolves the stored path.
+`AppPaths.contentFolderSetting` stores a chosen folder `~`-relative where it can, or nil for the default.
 
-Notes Folder in Settings (`NotoSettings.notesFolder`, UserDefaults key `notesFolder`) uses another
-folder, absolute or under `~/`, as it is: nothing moves out of the old one. `AppCore` observes the
-setting and calls `NotesStore.relocate`, which saves the open draft where it was before it lists the
-new folder; a draft the old folder cannot take yet holds the move until its save lands.
-`AppPaths.contentFolder` resolves the stored path and `AppPaths.contentFolderSetting` stores a chosen
-one `~`-relative where it can be, or nil when it is the default. Nothing is migrated from Tinycast.
+`NoteID` is the relative filename, so a rename gives a new identity. The immediate regular `.md`
+children are sorted by modification date, then localized title. Subdirectories, hidden files and
+symbolic links are ignored.
 
-`NoteID` is the relative filename, so a rename returns a new identity. Immediate regular `.md` children
-are sorted by modification date, then localized title. Subdirectories, hidden files, and symbolic links
-are ignored.
+Create uses `Untitled.md`, then `Untitled 2.md`, and so on. Rename claims a free name by the same rule.
+A collision with another note is case- and diacritic-insensitive, so `plán` beside `Plan` becomes
+`plán 2.md`. A note never collides with itself: only an exact filename match is a no-op, which lets a
+rename change only the case or the accents. The active filename is window state under the
+`UserDefaults` key `notesActiveFileName`, read and written through closures `AppCore` hands the store.
 
-Create uses `Untitled.md`, then `Untitled 2.md`, and so on, and rename claims a free name by the same
-rule. Collisions with another note are case- and diacritic-insensitive, so `plán` beside `Plan`
-becomes `plán 2.md`. A note never collides with itself: only an exact filename match is a no-op, which
-is what lets a rename change nothing but the case or the accents. The active filename is local UI state
-under the UserDefaults key `notesActiveFileName`, read and written by closures `AppCore` hands the
-store.
+`NotesRepository` owns list, create, load, save, rename, Trash and the search reads. It validates
+every URL as an immediate child of the injected directory. `NotesStore` drives its blocking work from
+detached tasks.
 
 ## Derived titles
 
-A note still carrying a name `create` claimed — `Untitled`, `Untitled 2`, … — shows the first line of
-its source that carries visible text. `NoteTitle` owns that rule: blank, rule and fence lines are
-skipped, block and inline Markdown markers are dropped whether or not rendering is on, and the line is
-capped to 120 characters so no row or title bar has to carry a paragraph. `NoteSummary.title` remains
-the filename; `displayTitle` is what every surface renders — switcher rows and their VoiceOver labels,
-the Trash confirmation, the window title, and the title band of `NoteSearch`, so a fuzzy query reaches
-a note nobody has named.
+A note that still carries a name `create` claimed (`Untitled`, `Untitled 2`, …) shows the first line of
+its source with visible text. `NoteTitle` owns that rule: it skips blank, rule and fence lines, drops
+block and inline markers, and caps the line at 120 characters. `NoteSummary.title` stays the filename.
+`displayTitle` is what every surface renders: the switcher rows and their VoiceOver labels, the Trash
+confirmation, the window title, and the title band of `NoteSearch`, so a fuzzy query reaches a note
+nobody has named.
 
-`list()` reads at most 4 KB of each unnamed note to derive it, and a named note costs nothing beyond
-the enumeration it already pays for. The active note derives from the live draft rather than the
-last listing, so its window title follows the first line as it is typed while its switcher row catches
-up on the next autosave. Renaming edits the filename, so the rename field starts from `title`: a
-derived line stands in for a name, and is never one.
-
-`NotesRepository` owns list, create, load, save, rename, Trash, and search reads. Every
-URL is validated as an immediate child of the injected directory. It lives in `Service/` because it
-performs filesystem effects; `NotesStore` drives its blocking work from detached tasks.
+`list()` reads at most 4 KB of each unnamed note. A named note costs nothing beyond the enumeration.
+The active note derives its title from the live draft, so the window title follows the first line as
+you type, and its switcher row catches up on the next autosave. Rename edits the filename, so the
+rename field starts from `title`.
 
 ## Ownership
 
-`AppCore` owns `NotesStore` and lazily constructs `NotesCoordinator`, handing it the store,
-`NotoSettings`, `NotesDialogs.alerts`, and the formatting bar's saved state. `NotesView` receives only
-the coordinator through `@Environment`; it never receives `AppCore` or mutates the store.
+`AppCore` owns `NotesStore` and lazily builds `NotesCoordinator`, with the store, `NotoSettings`,
+`NotesDialogs.alerts` and the formatting bar's saved state. `NotesView` receives only the coordinator,
+through `@Environment`. It never sees `AppCore` and never mutates the store.
 
 The coordinator lazily owns three window controllers: `NotesWindowController` (the note window),
-`NoteSwitcherWindowController` and `NoteBarMenuWindowController` (its two child windows). Nothing
-lists or creates the Notes directory until the first show, create or search — which, with Show in Dock
-on, is launch.
+`NoteSwitcherWindowController` and `NoteBarMenuWindowController` (two child windows). Nothing lists or
+creates the Notes directory until the first show, create or search. With Show in Dock on, that is
+launch.
 
-## Commands, switcher, and window
+## Commands and the window
 
 - Show Notes shows the last active note. From a global shortcut or the menu bar item it is a toggle
-  (`NotesCoordinator.toggle`), so a second press hides a visible window; from the main menu and the
-  Dock icon it only brings the window forward (`show`).
-- Create Note creates and selects one unique Untitled note, including from an empty folder.
-- Search Notes shows the same panel with the switcher open and its search field focused.
-
-Every route lands on `AppCore.run(_:)` or straight on the coordinator:
+  (`NotesCoordinator.toggle`): a second press hides a visible window. From the main menu and the Dock
+  icon it only brings the window forward (`show`).
+- Create Note creates and selects one unique Untitled note, also from an empty folder.
+- Search Notes shows the window with the switcher open and its search field focused.
 
 | Entry point | Reaches |
 | --- | --- |
 | Menu bar item (`MenuBarMenu`) | `AppCore.run` for the three commands; Keep on Top writes the setting |
 | Main menu, File (`NotoApp`) | New Note ⌘N and Search Notes through `AppCore.run`; Show Notes calls `show()` |
 | Global shortcuts (`HotKeyManager`) | `AppCore.run`; see [hotkeys.md](hotkeys.md) |
-| Dock icon click | `AppCore.handleReopen` → `show()` |
-| Launch with Show in Dock on | `AppCore.start` → `show()` |
+| Dock icon click | `AppCore.handleReopen`, then `show()` |
+| Launch with Show in Dock on | `AppCore.start`, then `show()` |
 
-Command-N creates, Command-P opens or refocuses the switcher, Command-O reveals the active note in
-Finder (or opens the folder when there is none), and Command-F opens AppKit's find bar in the active
-note. Escape closes the find bar, a bar menu or the switcher before hiding; Command-W and the red
-traffic light both hide directly. Hiding restores the prior external application or Noto window and
-flushes without delaying the order-out — but only while that app is still the frontmost one, so closing
-a window the user has already left behind leaves them in whatever app they moved to.
-Command-Q quits Noto: `AppDelegate.applicationShouldTerminate` awaits the draft's flush first.
+In the window: ⌘N creates, ⌘P opens or refocuses the switcher, ⌘O reveals the active note in Finder
+(or opens the folder when there is none), and ⌘F opens AppKit's find bar. Escape closes the find bar, a
+bar menu or the switcher before it hides the window. ⌘W and the red traffic light hide at once. A hide
+restores the previous external app or Noto window and flushes the draft, but only while that app is
+still frontmost. ⌘Q quits: `applicationShouldTerminate` awaits the flush first.
 
-All three windows are one `NotesPanel`, a non-activating panel that owns the Escape rule and
-reads ⌘⌫. They differ only in style mask, key acceptance and the chords their controller installs: the
-note window claims ⌘N, ⌘P, ⌘O, ⌘F and ⌘W in `commandChords` and ⌥⌘T and ⌥⌘P in `optionCommandChords`; the
-switcher reads ⌘N plus ⌘W and ⌘P as dismissals; a bar menu never becomes key.
+All three windows are one `NotesPanel`, a non-activating panel that owns the Escape rule and reads
+⌘⌫. They differ in style mask, key acceptance and the chords their controller installs. The note window
+claims ⌘N, ⌘P, ⌘O, ⌘F and ⌘W in `commandChords`, and ⌥⌘T and ⌥⌘P in `optionCommandChords`. The
+switcher reads ⌘N, and ⌘W and ⌘P as dismissals. A bar menu never becomes key.
 
-AppKit draws the note window's frame and traffic lights; `NotesView` draws the rest of the chrome. Its
-52-point title band holds the traffic lights, the centred active title, and one frosted capsule of
-Create, Browse, and Open Folder. The title is drawn, not native, so it centres on the window; it is not
-hit-testable, so the drag region under it moves the window. The yellow and green traffic lights are
-disabled; double-clicking the free title bar moves the unchanged window to the top-right of its current
-screen's visible area, 40 points in.
+AppKit draws the note window's frame and traffic lights. `NotesView` draws the rest: a 52-point title
+band with the traffic lights, the centred active title, and one frosted capsule with Create, Browse
+and Open Folder. The title is drawn, not native, so it centres on the window. It is not hit-testable,
+so the drag region under it moves the window. The yellow and green lights are disabled. A double-click
+on the free title bar moves the window to the top-right of its screen's visible area, 40 points in.
 
-The switcher is a borderless child window centred on its host and hung below the title bar, not an
-in-window screen — a note window may be 180pt tall, and the list must not be. It is regular glass on a
-`menuPanel` corner, and its 240-point height is a ceiling rather than a size: the list reports
-its own height and the window shrinks to it with the top edge pinned. It travels with its host, dismisses
-like a popover when it resigns key, and closes outright when the last note goes. An empty query lists
-metadata by recency; a nonempty query searches titles and literal bodies after a 120-millisecond
-debounce. Results are capped at 200, and generation checks prevent superseded search or selection work
+### The switcher
+
+The switcher is a borderless child window, centred on its host and hung below the title bar. A note
+window may be 180pt tall; the list must not be. It is regular glass on a `menuPanel` corner. Its
+240-point height is a ceiling: the list reports its own height, and the window shrinks to it with the
+top edge pinned. It travels with its host, dismisses like a popover when it resigns key, and closes
+when the last note goes.
+
+An empty query lists metadata by recency. A nonempty query searches titles and literal bodies after a
+120 ms debounce. Results are capped at 200. Generation checks stop a superseded search or selection
 from publishing.
 
-Arrow keys and Return do not intercept an inline rename. Command-Delete moves the selected row to Trash
-only while the switcher is not renaming; in the editor and title field it remains a native text command.
-Trash asks first through `NotesDialogs.confirm`; after confirmation it chooses its successor from the
-current visible ordering. Each row exposes VoiceOver actions to activate, rename, and move the actual
-note title to Trash.
+Arrow keys and Return do not intercept an inline rename. ⌘⌫ moves the selected row to Trash only while
+the switcher is not renaming; in the editor and the title field it stays a native text command. Trash
+asks first through `NotesDialogs.confirm`, then picks its successor from the visible order. Each row
+exposes VoiceOver actions to activate, rename and move the note to Trash.
 
-## Dialogs
+### Dialogs
 
 `NotesDialogs` is two injected closures: `confirm` (title, message, confirm button) and `reportFailure`
-(title, message, optional recovery button). `NotesDialogs.alerts` backs both with `NSAlert.runModal`,
-activating the app first because the note panel never does. The coordinator uses them for the Trash
-confirmation and for the three `NotesStore.Issue` cases: a load failure and a save failure offer Retry,
-an operation failure only reports. One issue is presented at a time; a second one waits for the first.
+(title, message, optional recovery button). `NotesDialogs.alerts` backs both with `NSAlert.runModal`
+and activates the app first, because the note panel never does. The coordinator uses them for the
+Trash confirmation and for the three `NotesStore.Issue` cases: a load failure and a save failure
+offer Retry; an operation failure only reports. One issue shows at a time.
 
 ## Editor
 
-`NoteEditorView` hosts one `NoteTextView`, an `MDTextView` from MDTextKit, inside an `NSScrollView`.
-MDTextKit is a TextKit 1 engine: PolarMark parses the Markdown into an AST, `MDTextStorage` keeps
-that AST beside the attributed string, and `MDEditorController` styles each edit. The Markdown is the
+`NoteEditorView` hosts one `NoteTextView`, an `MDTextView` from MDTextKit, in an `NSScrollView`.
+MDTextKit is a TextKit 1 engine: PolarMark parses the Markdown into an AST, `MDTextStorage` keeps that
+AST beside the attributed string, and `MDEditorController` styles each edit. The Markdown is the
 source; `NoteTextView.markdown` expands the attachments back into it.
 
 ### Parsing
 
-PolarMark parses the whole note on each edit and reports the block range that must be restyled. It
-covers headings 1 to 6, bold, italic, strikethrough, underline, highlight (`==text==`), inline code,
-links, bare URLs, images, bullet, numbered and task lists with nesting by tab or indent, quotes,
-callouts (`> [!NOTE]` and the other four kinds), fenced code blocks, horizontal rules, hard line
-breaks, pipe tables and folding comments. A numbered item's label is decimal digits, then `.` or `)`.
-A table line joins the table only once it ends in a newline, so the row under the caret stays text until
-Return.
-HTML, setext headings, indented code, footnotes and reference links stay plain text.
+PolarMark re-parses the blocks an edit touches and reports the range to restyle. It covers headings 1
+to 6, bold, italic, strikethrough, underline, highlight (`==text==`), inline code, links, bare URLs,
+images, bullet, numbered and task lists with nesting by tab or indent, quotes, callouts (`> [!NOTE]`
+and the other four kinds), fenced code blocks, rules, hard line breaks, pipe tables and folding
+comments. A numbered item's label is decimal digits, then `.` or `)`. A table line joins the table only
+after it ends in a newline, so the row under the caret stays text until Return. HTML, setext headings,
+indented code, footnotes and reference links stay plain text.
 
 ### Rendering
 
-`MDTextStorage` holds the Markdown AST and an attributed string in which a block marker is an
-attachment: a heading's `#`, a bullet, a checkbox, a quote bar, a rule, a table, an image and a fold
-pill. Inline markers stay in the string; `MDMarkdownHider` gives them a 0.01-point font until the
-caret enters their construct. `MDLayoutManager` draws code bands, inline code and highlight
-backgrounds, quote bars and callout boxes. A table is a grid attachment with a live cell editor:
-click a cell to edit it, Tab and the arrows move between cells, and the `⋮` menu adds and removes
-rows and columns. A heading or list item folds with ⌘-click on its marker.
+`MDTextStorage` holds the AST and an attributed string in which a block marker is an attachment: a
+heading's `#`, a bullet, a checkbox, a quote bar, a rule, a table, an image and a fold pill. Inline
+markers stay in the string; `MDMarkdownHider` gives them a 0.01-point font until the caret enters
+their construct. `MDLayoutManager` draws code bands, inline code and highlight backgrounds, quote bars
+and callout boxes. A table is a grid attachment with a live cell editor: click a cell to edit it, Tab
+and the arrows move between cells, and the `⋮` menu adds and removes rows and columns. A heading or
+list item folds on ⌘-click on its marker.
 
-`NoteEditorTheme` builds MDTextKit's theme from `Theme`: every colour is a dynamic `NSColor`, so the
-editor follows the appearance. `NoteTextView` restyles on an appearance change, because an
-attachment caches its drawing. Body text is the `title3` size in `noteText`; headings scale from it.
+`NoteEditorTheme` builds MDTextKit's theme from `Theme`. Every colour is a dynamic `NSColor`, so the
+editor follows the appearance. `NoteTextView` restyles on an appearance change, because an attachment
+caches its drawing. Body text is the `title3` size in `noteText`; headings scale from it.
 
-Every construct under the selection shows its markers. Nothing is revealed unless the editor is first
-responder in the key window: `NoteTextView` hides every marker when it resigns or its window resigns
-key, and reveals the selection's constructs when it becomes first responder again.
+Every construct under the selection shows its markers. `NoteTextView` hides every marker when it
+resigns first responder or its window resigns key, and reveals the selection's constructs when it
+becomes first responder again.
 
 ### Editing
 
-`MDEditorController` turns Return, Tab, Shift-Tab, Delete and the format toggles into AST operations,
-and each one is one undo step. Native typing and deletion go through `MDTextView`, which records one
-undo step per typing run; AppKit's own undo is off, because its records went stale when styling
-replaced typed text with an attachment.
+`MDEditorController` turns Return, Tab, Shift-Tab, Delete and the format toggles into AST operations.
+Each one is one undo step. Native typing and deletion go through `MDTextView`, which records one undo
+step per typing run. AppKit's own undo is off: its records went stale when styling replaced typed text
+with an attachment.
 
-- Return continues a list or quote. On an empty item it removes the marker and keeps the line.
-  Tab and Shift-Tab nest and unnest list items. Delete at an item's content start removes its marker.
+- Return continues a list or quote. On an empty item it removes the marker and keeps the line. Tab
+  and Shift-Tab nest and unnest items. Delete at an item's content start removes its marker.
 - ⌥⌘C wraps the paragraph in a fenced block, or removes the fences of the block the caret is in.
 - ⇧⌘B adds `> ` to the paragraph, or removes it.
-- ⌘K wraps the selection as `[selection]()` with the caret inside the parentheses, or unwraps the
-  link under the caret to its label.
-- Clicking a checkbox toggles `[ ]` and `[x]`.
-- Clicking a link icon, or link text while the editor is not first responder, opens the link. Only
-  `http`, `https` and `mailto` open; `NoteEditorView.Coordinator.open` is the one place that leaves
-  the app, and the harness replaces it.
-- Pasting a URL over selected text makes a link. Pasting rich text converts it to Markdown.
+- ⌘K wraps the selection as `[selection]()` with the caret inside the parentheses, or unwraps the link
+  under the caret to its label.
+- A checkbox click toggles `[ ]` and `[x]`.
+- A link icon click, or a click on link text while the editor is not first responder, opens the link.
+  Only `http`, `https` and `mailto` open. `NoteEditorView.Coordinator.open` is the one place that
+  leaves the app, and the harness replaces it.
+- A URL pasted over selected text makes a link. Pasted rich text becomes Markdown.
 - A whole list item, heading, table, rule or quote drags as a block and drops as whole lines.
 
 | Shortcut | Does |
 | --- | --- |
 | ⌘Z, ⇧⌘Z | undo, redo |
-| ⌘B, ⌘I, ⌘E | bold, italic, inline code |
-| ⇧⌘X | strikethrough |
-| ⌘U | underline |
-| ⇧⌘H | highlight |
-| ⌥⌘C | code block |
-| ⇧⌘B | quote |
+| ⌘B, ⌘I, ⌘E, ⌘U | bold, italic, inline code, underline |
+| ⇧⌘X, ⇧⌘H | strikethrough, highlight |
 | ⌘K | link |
+| ⌥⌘C, ⇧⌘B | code block, quote |
 | ⇧⌘7, ⇧⌘8, ⇧⌘9 | numbered, bullet, task list |
-| ⌥⌘1, ⌥⌘2, ⌥⌘3 | heading 1, 2, 3 |
-| ⌥⌘0 | plain paragraph |
+| ⌥⌘1, ⌥⌘2, ⌥⌘3, ⌥⌘0 | heading 1, 2, 3, plain paragraph |
+| ⌥⌘T | expand or collapse the formatting bar |
 
 Digits match by key code. `NoteTextView` sees these chords before `NotesPanel` claims its own, and
-none collide. `.setHeading` sets a level rather than toggling it: choosing the current level changes
-nothing, and Text removes the heading.
+none collide. `.setHeading` sets a level; the current level changes nothing, and Text removes the
+heading.
 
-AppKit still owns typing, selection, Cut, Copy, Paste, Select All, Find, marked text, emoji and
-combining characters. The editor handles ⌘Z and ⇧⌘Z while focused, including in the non-activating
-panel. `MDTextView.editorUndoManager` holds one linear history in memory; editing after undo discards
-redo. The coordinator observes `MDTextViewTextDidChangeNotification`, which the text view posts
-synchronously after each change, undo and redo, so all of them reach autosave, the formatting reports
-and the character count. Copy yields raw Markdown. Changing the note identity or editor epoch
-reinstalls the Markdown and clears the previous document's undo history. The empty-note placeholder
-is drawn in the text view, so opening the find bar moves it with the editor content.
+AppKit owns typing, selection, Cut, Copy, Paste, Select All, Find, marked text, emoji and combining
+characters. `MDTextView.editorUndoManager` holds one linear history in memory; an edit after undo
+discards redo. The text view posts `MDTextViewTextDidChangeNotification` synchronously after each
+change, undo and redo, and the coordinator observes it, so all of them reach autosave, the formatting
+reports and the character count. Copy yields raw Markdown. A new note identity or editor epoch
+reinstalls the Markdown and clears the history.
 
-### The formatting bar
+An empty note shows a `Start writing…` placeholder, drawn in the text view, so the find bar moves it
+with the content. The character count is the Markdown's UTF-16 length. It sits in a footer under the
+editor, or at the leading end of the formatting bar's band. Both belong to the editor surface, so
+neither shows without a note.
 
-While Show Formatting Bar is on, the band under the editor holds the
-character count at its leading edge and the formatting bar at its trailing edge. The bar is
-`NoteFormattingBar`, a frosted capsule in the title bar's recipe. It starts collapsed to one round
-`paintbrush` button; ⌥⌘T or a click expands it, and the buttons slide out from behind that button:
-a Heading menu, Bold, Italic, Highlight and Link, then Quote, then a List menu and a More menu.
-Hovering a button shows its name and shortcut. Each button is a 28-point square, and a menu button
-adds a chevron. The count hides when the row leaves it no lane, and the band never widens the note.
+## The formatting bar
+
+With Show Formatting Bar on, the band under the editor holds the character count at its leading edge
+and `NoteFormattingBar` at its trailing edge: a frosted capsule in the title bar's recipe. It starts
+collapsed to one round `paintbrush` button. ⌥⌘T or a click expands it, and the buttons slide out from
+behind that button: a Heading menu, Bold, Italic, Highlight and Link, then Quote, then a List menu and
+a More menu. Hover shows a button's name and shortcut. Each button is a 28-point square; a menu button
+adds a chevron. The count hides when the row leaves it no room, and the band never widens the note.
 
 `NoteBarMenu` lists the three menus and their rows:
 
@@ -261,61 +247,50 @@ adds a chevron. The count hides when the row leaves it no lane, and the band nev
 | List (`list.bullet`) | Bullet List, Numbered List, Task List |
 | More (`ellipsis`) | Underline, Strikethrough, Inline Code, Code Block |
 
-A menu button lights while one of its rows applies, and the open row shows a checkmark.
-
-Expanded or collapsed is window state, not a preference: `AppCore` reads and writes it under
-`notesFormattingBarExpanded` in `UserDefaults` and hands it to `NotesCoordinator`, the way it hands
-the store the active note's filename. It is deliberately not a `NotoSettings` property. With Show
-Formatting Bar off there is no round button at all and the count returns to its own footer.
+A menu button lights while one of its rows applies, and that row shows a checkmark. A menu button opens
+`NoteBarMenuView` in one borderless child window, `NoteBarMenuWindowController`, that never becomes
+key, so it can extend past a short note window while the editor keeps its caret and chords.
+`NotesCoordinator.presentedBarMenu` names the open menu. The menu closes on a choice, Escape, a mouse
+down in the note window, an edit, the window's loss of key, the switcher, and a hide. A click on
+another menu button opens that menu instead.
 
 `NoteEditorView` reports `MDEditorController.formatting(in:)`, mapped onto `NoteFormatting`, on every
-install, edit and selection change, and `NotesCoordinator` publishes it only when it changed. That
-query reads the same annotations the toggles use, so a lit button always undoes. A click goes
-`NotesCoordinator.format` → `NotesWindowController.format` → `NoteTextView.format`. The buttons never
-take focus, so the caret and its revealed construct stay put.
+install, edit and selection change. `NotesCoordinator` publishes it only when it changed. The query
+reads the annotations the toggles use, so a lit button always undoes. A click goes
+`NotesCoordinator.format`, then `NotesWindowController.format`, then `NoteTextView.format`. The
+buttons never take focus, so the caret and its revealed construct stay.
 
-A menu button opens `NoteBarMenuView` for its `NoteBarMenu` in one borderless child window,
-`NoteBarMenuWindowController`, that never becomes key, so it can extend past a short note window
-while the editor keeps its caret and chords. `NotesCoordinator.presentedBarMenu` names the open menu.
-It closes on a choice, Escape, any mouse down in the note window, an edit, the note window losing
-key, opening the switcher, and hiding. A click on another menu button opens that menu instead.
+Expanded or collapsed is window state, not a preference. `AppCore` reads and writes it under
+`notesFormattingBarExpanded` and hands it to `NotesCoordinator`. With Show Formatting Bar off there is
+no round button, and the count returns to its own footer.
 
-### The settings
+## Settings
+
+### Show formatting bar
 
 Settings > Editor > Show formatting bar is `NotoSettings.showsFormattingBar` (key
 `notesShowsFormattingBar`), on when absent.
 
-An empty note shows a `Start writing…` placeholder at the text container's origin. The
-character count is the Markdown's UTF-16 length and sits in a footer under the editor, or at
-the leading end of the formatting bar's band while the bar shows. Both belong to the editor surface,
-so neither appears when no note is active.
-
 ### Keep on Top
 
-Settings > General > Keep on top is `NotoSettings.keepsOnTop` (key `notesKeepsOnTop`). It is off when
-absent.
+Settings > General > Keep on top is `NotoSettings.keepsOnTop` (key `notesKeepsOnTop`), off when absent.
 
 | State | Window level | Spaces |
 | --- | --- | --- |
-| Off | `.normal`. Other windows can cover the note window. | The window moves to the Space where you show it. |
-| On | `.floating`. The note window stays above other windows. | The window shows on every Space. |
+| Off | `.normal`; other windows can cover the note window | the window moves to the Space where you show it |
+| On | `.floating`; the note window stays above other windows | the window shows on every Space |
 
-Four controls change the setting:
-
-- The Keep on top checkbox in Settings.
-- The Keep on Top item in the menu bar menu. A check mark shows the state.
-- ⌥⌘P in the note window.
-- The Keep on Top global shortcut. See [hotkeys.md](hotkeys.md).
-
-`NotesPanel.staysOnTop` applies the level and the Space behaviour.
-`NotesWindowController.observeKeepsOnTop` copies the setting to the open panel, thus a change applies
-immediately. The switcher and a bar menu take the value of the note window when they open.
+Four controls change it: the checkbox in Settings, the Keep on Top item in the menu bar menu (a check
+mark shows the state), ⌥⌘P in the note window, and the global shortcut. `NotesPanel.staysOnTop`
+applies the level and the Space behaviour. `NotesWindowController.observeKeepsOnTop` copies the
+setting to the open panel, so a change applies at once. The switcher and a bar menu take the value of
+the note window when they open.
 
 ### Fonts
 
 Settings > Editor sets five font values. `NotoSettings.fonts` holds them as one `NoteFontSettings`.
 
-| Setting | Member | UserDefaults key | When absent |
+| Setting | Member | Key | When absent |
 | --- | --- | --- | --- |
 | Text Font | `textFamily` | `notesTextFont` | the system font |
 | Heading Font | `headingFamily` | `notesHeadingFont` | the text family |
@@ -323,101 +298,61 @@ Settings > Editor sets five font values. `NotoSettings.fonts` holds them as one 
 | Code Font | `codeFamily` | `notesCodeFont` | the system monospaced font |
 | Text size | `size` | `notesFontSize` | the `title3` size |
 
-- The text family draws body text.
-- The heading family draws headings, in its bold face. Heading sizes do not change with the family.
-- The code family draws inline code, code blocks and tables.
-- The size is the body size. Headings, list indents, bullets and checkboxes scale with it.
-- The size range is 10 to 32 points.
-- If a family is not installed, the editor uses the theme's own font. The setting keeps its value.
+- The text family draws body text. The heading family draws headings in its bold face; heading sizes
+  do not change with the family. The code family draws inline code, code blocks and tables.
+- The size is the body size, 10 to 32 points. Headings, list indents, bullets and checkboxes scale
+  with it.
+- A family that is not installed leaves the theme's own font in place. The setting keeps its value.
+- MDTextKit uses a family's real faces only. A family without an italic face shows emphasis upright;
+  one without a bold face shows strong text at its regular weight. `Monaco`, `PingFang SC` and
+  `Songti SC` have no italic face.
+- The code menu shows only fixed-pitch families. A fixed-pitch text family is permitted; inline code
+  then differs from body text only by its background. In most monospaced families a Han character is
+  not two Latin columns wide (1.66 in `Menlo`); use a family with a 2:1 design to align them.
 
-`NotesView` gives `notes.fonts` to `NoteEditorView`. `Coordinator.setFonts` rebuilds the theme
-overrides with `NoteEditorTheme.overrides`, applies the theme to the text view and restyles the note.
-A font change applies to the open note immediately. It does not change the undo history and does
-not make the note dirty.
+The CJK family is a font cascade, not a second font attribute. `NoteEditorTheme.overrides` names it in
+the `cjk` override of the text, heading and code fonts, and `SFThemeManager` adds it to each font's
+cascade list. Core Text uses the cascade for each character the primary family lacks, so one `NSFont`
+is enough for a mixed line. A bold font gets a bold cascade entry. The primary family draws each
+character it has, so a Latin family draws the curly quotes and the ellipsis in CJK text. If the text
+family has Han characters, the CJK family has no effect on body text. The CJK menu shows only families
+with Han characters.
+
+`NotesView` gives `notes.fonts` to `NoteEditorView`. `Coordinator.setFonts` rebuilds the overrides with
+`NoteEditorTheme.overrides`, applies the theme and restyles the note. The change applies at once. It
+does not touch the undo history and does not make the note dirty. The highlight and accent colours
+follow the same path.
 
 ### Highlight colour
 
-Settings > Editor > Highlight is `NotoSettings.highlightColor` (key `notesHighlightColor`). It is the
-background of a `==highlight==` span. The value is nil when absent, and the span then draws
-`Theme.Colors.highlight`, which follows the appearance. A chosen colour is stored as `#RRGGBBAA` in
-sRGB and draws the same in Dark and Light. Use Default clears the value.
-
-`NotesView` gives `notes.highlightColor` to `NoteEditorView`. `Coordinator.setHighlight` writes the
-colour into the theme overrides and restyles the note. A colour change applies to the open note
-immediately. It does not change the undo history and does not make the note dirty.
+Settings > Editor > Highlight is `NotoSettings.highlightColor` (key `notesHighlightColor`): the
+background of a `==highlight==` span. When nil, the span draws `Theme.Colors.highlight`, which follows
+the appearance. A chosen colour is stored as `#RRGGBBAA` in sRGB and draws the same in Dark and Light.
+Use Default clears it.
 
 ### Accent colour
 
-Settings > Editor > Accent is `NotoSettings.accentColor` (key `notesAccentColor`). It is the colour of
-a `~underline~`, a link and the selection. The selection draws the accent at
-`NoteEditorTheme.selectionAlpha`. The value is nil when absent, and the editor then uses
-`NSColor.controlAccentColor`, the accent the user chose in System Settings. A chosen colour is stored
-as `#RRGGBB` in sRGB, has no alpha and draws the same in Dark and Light. Use Default clears the value.
-
-`NotesView` gives `notes.accentColor` to `NoteEditorView`. `Coordinator.setAccent` writes the colour
-into the theme overrides, applies the theme to the text view and restyles the note. A colour change
-applies to the open note immediately. It does not change the undo history and does not make the
-note dirty.
-
-#### The CJK family
-
-The CJK family is a font cascade, not a second font attribute. `NoteEditorTheme.overrides` names it
-in the `cjk` override of the text, heading and code fonts, and `SFThemeManager` adds it to each
-font's cascade list. Core Text uses the cascade for each character that the primary family does not
-have. Thus one `NSFont` is sufficient for a mixed line.
-
-- A bold font gets a bold cascade entry. MDTextKit carries the cascade into each face it derives.
-- The primary family draws each character that it has. Thus a Latin family draws the curly quotes
-  and the ellipsis in CJK text.
-- If the text family has Han characters, the CJK family has no effect on body text.
-- The CJK font menu shows only the families that have Han characters.
-
-#### Faces
-
-MDTextKit uses a family's real faces only. A family without an italic face shows emphasis upright,
-and a family without a bold face shows strong text at its regular weight. `Monaco`, `PingFang SC` and
-`Songti SC` lack an italic face.
-
-#### Monospaced families
-
-- The code font menu shows only fixed-pitch families.
-- A fixed-pitch text family is permitted. Inline code then differs from body text only by its
-  background.
-- CJK characters do not align with Latin columns in most monospaced families. In `Menlo`, a Han
-  character is 1.66 times the width of a Latin character. Use a family with a 2:1 design to align
-  them.
+Settings > Editor > Accent is `NotoSettings.accentColor` (key `notesAccentColor`): the colour of a
+`~underline~`, a link and the selection. The selection draws the accent at
+`NoteEditorTheme.selectionAlpha`. When nil, the editor uses `NSColor.controlAccentColor`, the accent
+chosen in System Settings. A chosen colour is stored as `#RRGGBB` in sRGB, has no alpha, and draws the
+same in Dark and Light. Use Default clears it.
 
 ## Autosave
 
-Editor changes update the main-actor draft immediately and debounce save for 300 milliseconds. Only the
-active source is retained. A successful save refreshes metadata ordering; switching waits for the same
-flush before loading another source. Termination awaits that flush before the app exits, but never
-vetoes the quit.
+An edit updates the main-actor draft at once and debounces the save for 300 ms. Only the active
+source is kept. A successful save refreshes the metadata order. A switch waits for the same flush
+before it loads another source. Termination awaits the flush and never vetoes the quit.
 
-A save overwrites whatever is on disk. There is no watcher, no revision comparison and no conflict
-state: editing the active note in another app while Noto has it open loses that edit the next time
-the debounce fires. Open Notes Folder (⌘O) invites exactly that, and this is the accepted trade for an
-app whose whole job is one local editor. Each show re-lists the folder. When the active note is clean,
-the show also reloads it from disk. A save that is in flight completes first. An unsaved draft stays
-in the editor, also when its save failed. An edit or a selection change during the read discards the
-read's result. Unchanged contents keep the editor history; a changed source or a changed note identity
-resets it. When the active file was removed, the load selects a remaining note, or the empty state
-when none remains.
+A save overwrites the file. There is no watcher and no conflict state: an edit to the active note in
+another app while Noto holds a draft is lost at the next debounce. Open Notes Folder (⌘O) invites
+exactly that, and this is the accepted trade. Each show re-lists the folder. When the active note is
+clean, the show also reloads it from disk; a save in flight completes first. An edit or a selection
+change during the read discards the read's result. Unchanged content keeps the editor history; a
+changed source or identity resets it. When the active file is gone, the load selects another note, or
+the empty state.
 
 ## Verification
 
-`Tests/notes-test.swift` compiles the shipped Notes model and service sources with the real fuzzy
-matcher and PolarMark. It covers repository safety, unique-name claiming, derived titles, search,
-selection, autosave, empty collections, relocation, switcher interaction, window placement and
-cancellation, the highlight colour and the accent colour.
-
-`Tests/notes-editor-test.swift` compiles MDTextKit's modules and uses real TextKit 1 and AppKit
-objects. It runs the native Cut/Copy/Paste, the native find bar, Unicode and marked-text cases, and
-covers the Markdown round trip, undo isolation, undo and redo shortcut routing, source publication and
-the character count, exact Markdown after styling and after a font, highlight or accent change, list keys,
-chords, headings, links, checkbox clicks, link schemes, tables, custom fonts with the CJK cascade,
-the formatting reports and `format(_:)`, and the text height.
-`Tests/notes-editor-performance.swift` times install, typing, the window fit's height read and caret
-moves on a 100,000-character note; its budget is in [testing.md](../testing.md#performance-measurement). Window
-chrome is not automated: the Notes manual sweep in [testing.md](../testing.md#notes) covers commands,
-shortcuts, switcher, focus restoration, Finder, Trash recovery, and accessibility.
+`notes-test` and `notes-editor-test` cover this feature; the window chrome is manual. See
+[testing.md](../testing.md).

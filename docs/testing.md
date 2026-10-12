@@ -1,153 +1,116 @@
 # Testing and verification
 
-How to check that a change holds up. Noto has no XCTest target and no UI tests: the automated half
-is a pair of standalone harnesses, and the manual half is the sweep at the bottom of this file.
+How to check that a change holds up. Noto has no XCTest target and no UI tests. The automated half is
+two standalone harnesses. The manual half is the sweep at the end of this file.
 
 ## Definition of done
 
-The mechanical bar, in one place so it cannot drift. All five pass before a change is finished.
+All five checks pass before a change is finished. No workflow runs them; run them locally.
 
 | Check | Command |
 | --- | --- |
 | The harnesses | `./Scripts/run-tests.sh` |
 | Lint | `./Scripts/lint.sh` |
-| Pure-layer purity | `grep -rln 'import AppKit\|import SwiftUI\|import Cocoa' Noto/Features/*/Model/` returns nothing |
-| A clean build | the Debug `xcodebuild` below, zero warnings |
-| Docs still true | any doc your change made wrong, fixed in the same change |
+| Model purity | `grep -rln 'import AppKit\|import SwiftUI\|import Cocoa' Noto/Features/*/Model/` returns nothing |
+| A clean build | the Debug `xcodebuild` below, with zero warnings |
+| Docs still true | each doc your change made wrong, fixed in the same change |
 
-No workflow runs these checks: every item is on you, run locally. The only workflow is the release
-build in [release.md](release.md). Each is expanded below; the manual sweep at the end
-of this file is the sixth, judged by what you touched.
+Then run the part of the [manual sweep](#manual-regression-sweep) that covers what you touched.
 
 ## The harnesses
 
 ```sh
 ./Scripts/run-tests.sh                      # both
-./Scripts/run-tests.sh notes-editor-test    # just one, while iterating
+./Scripts/run-tests.sh notes-editor-test    # one, while you iterate
 ```
 
-`Scripts/run-tests.sh` is the only place the harness set is written down: one `run` line per harness,
-naming the shipped sources it compiles. Each harness is one Swift file in `Tests/` with its own
-`@main`; the runner compiles it with `swiftc -swift-version 6` beside those sources into
-`$TMPDIR/noto-harness/` and runs the binary. A non-zero exit is a failed assertion, a signal is a
-crash, and both are reported apart from a harness that did not compile.
+`Scripts/run-tests.sh` is the only list of harnesses: one `run` line per harness, with the shipped
+sources it compiles. Each harness is one Swift file in `Tests/` with its own `@main`. The runner
+compiles it with `swiftc -swift-version 6` beside those sources into `$TMPDIR/noto-harness/` and runs
+the binary. A non-zero exit is a failed assertion, a signal is a crash, and a harness that did not
+compile is reported apart from both.
 
-Before the first harness, the runner compiles MDTextKit's five modules from `MDTEXTKIT_DIR` (default
-`../MDTextKit`) into `$TMPDIR/noto-harness/modules/`, as static libraries, and links every harness
-against them. It repeats that only when a package source changed. A harness therefore sees the
-package the app sees, and a package change breaks a harness before it breaks the app.
+Before the first harness, the runner compiles MDTextKit's modules from `MDTEXTKIT_DIR` (default
+`../MDTextKit`) into `$TMPDIR/noto-harness/modules/` as static libraries, and links every harness
+against them. It repeats that only when a package source changed. So a harness sees the package the
+app sees, and a package change breaks a harness before it breaks the app.
 
-Up to four harnesses run at a time; `NOTO_TEST_JOBS` overrides that. Each result is numbered against
-the total and shows its run and compile time, a quiet stretch names the harnesses still running, and a
-harness that runs longer than `NOTO_TEST_TIMEOUT` seconds (default 300) is killed and reported as timed
-out. Status lines arrive in completion order, and a failing harness's compiler diagnostics or assertion
-output are replayed together at the bottom, under its name, rather than streamed where they happened.
+| Harness | Compiles | Covers |
+| --- | --- | --- |
+| `notes-test` | all of `Notes/Model/` and `Notes/Service/`, with the real `FuzzyMatch` and PolarMark | the repository, autosave, external reloads, draft preservation, selection, relocation, derived titles, search, the highlight and accent colours, switcher interaction, window placement |
+| `notes-editor-test` | the editor host, its theme, `Theme.swift` and `InterfaceMetrics.swift`, with the real MDTextKit modules and AppKit | the Markdown round trip, styling, keys, chords, headings, links, checkboxes, tables, undo, the character count, the fonts, the colours, the text height |
 
-A `run` line takes optional markers before the harness name. `-O` compiles that harness optimised.
-`slow` dispatches it in the first wave. `index` marks a harness that is compiled by hand rather than by
-the suite: the runner never queues it (see [Performance measurement](#performance-measurement)).
+Nothing automated covers `HotKeys/`, `Settings/`, `Updates/`, `App/` or the Notes window chrome. The
+manual sweep verifies a change there.
 
-Each harness compiles the shipped sources it guards rather than a copy of them, which is what makes
-the pure-layer boundary real: a harness that stops compiling means AppKit or SwiftUI has leaked into a
-`Model/` folder, or an effect has leaked into a decision. That is a more common failure than a broken
-assertion, and it is the more important one. Adding a source file to the editor means adding it to the
-`notes-editor-test` and `notes-editor-performance` lists; `notes-test` globs `Model/` and `Service/`.
+Rules for the harnesses:
 
-A harness also runs in your own login session against the real system, with no sandbox and no fixture
-world, so it must never mutate state the machine shares with the apps you use. `notes-test` roots its
-scratch folders under a UUID-suffixed `temporaryDirectory`. `notes-editor-test` drives the
-`writeSelection(to:types:)` and `readSelection(from:)` primitives against
-`NSPasteboard.withUniqueName()` rather than calling `copy:` or `paste:` on the general pasteboard, and
-records a clicked link instead of opening a browser. A new harness must keep doing that.
+- A harness compiles the shipped sources, never a copy. That is what makes the `Model/` boundary
+  real. When you add a source file to the editor, add it to the `notes-editor-test` and
+  `notes-editor-performance` lists. `notes-test` globs `Model/` and `Service/`.
+- A harness runs in your login session against the real system. It must never change state the
+  machine shares with your apps. `notes-test` roots its scratch folders under a UUID-suffixed
+  `temporaryDirectory`. `notes-editor-test` uses `NSPasteboard.withUniqueName()` instead of the general
+  pasteboard, and records a clicked link instead of opening a browser.
+- Never join a compile to its run with `&&` in a `set -e` script. `set -e` ignores a failure inside an
+  AND-OR list, so the script would continue past a compile error. The runner keeps the two steps
+  apart.
 
-Never join a compile to its run with `&&` in a `set -e` script. `set -e` is specified to ignore a
-failing command in a non-final AND-OR list member, so `swiftc … && /tmp/x` swallows a compile error and
-the script sails on. `run-tests.sh` keeps the two steps separate and records both kinds of failure.
+Runner options: up to four harnesses run at a time (`NOTO_TEST_JOBS`); a harness that runs longer than
+`NOTO_TEST_TIMEOUT` seconds (default 300) is killed. A `run` line takes markers before the name: `-O`
+compiles optimised, `slow` dispatches in the first wave, and `index` records the source list without
+a run (see [Performance measurement](#performance-measurement)).
 
-### What to run when
+## Model purity
 
-If a change touches anything in the right column, the harness on the left is mandatory. The whole
-suite takes about ten seconds, so in practice run both.
-
-| Harness | Guards |
-| --- | --- |
-| `notes-test` | all of `Noto/Features/Notes/Model/` and `Noto/Features/Notes/Service/`: the repository, the store's autosave, external reloads, draft preservation, selection and relocation, derived titles through PolarMark, search with the real `FuzzyMatch`, the highlight colour, switcher interaction and window placement |
-| `notes-editor-test` | the Notes editor with the real MDTextKit modules and AppKit editing objects: the Markdown round trip, styling, keys, chords, headings, links, checkboxes, tables, undo, the character count, custom fonts and the text height. Also compiles `Noto/DesignSystem/Theme.swift` and `InterfaceMetrics.swift`, so a token those lose breaks it |
-
-Nothing automated covers `Noto/Features/HotKeys/`, `Noto/Features/Settings/`,
-`Noto/Features/Updates/`, `Noto/App/` or the Notes window chrome. A change there is verified by the
-manual sweep.
-
-### Purity checks
-
-The layering rule reduces to one grep, and it must return nothing:
+The layering rule reduces to one grep, which must return nothing:
 
 ```sh
 grep -rln 'import AppKit\|import SwiftUI\|import Cocoa' Noto/Features/*/Model/
 ```
 
-Beyond the imports, the injected-environment half is not mechanically checkable, so it is worth an eye
-when touching a pure file:
+The injected-environment half is not mechanical. When you touch a pure file, check that:
 
-- `Notes/Model/` still reads no file, clock or `UserDefaults`; `NotesRepository` is handed its
-  directory and its Trash operation
-- `NotesStore` still takes the saved selection as two closures rather than reading `UserDefaults`
-- `NoteWindowPlacement` still takes the visible frame as a parameter and touches no `NSScreen`
+- `Notes/Model/` reads no file, clock or `UserDefaults`.
+- `NotesRepository` is handed its directory and its Trash operation.
+- `NotesStore` takes the saved selection as two closures.
+- `NoteWindowPlacement` takes the visible frame as a parameter and touches no `NSScreen`.
 
-## Build check
-
-A clean build is part of the bar; nothing builds the app for you.
+## Build and lint
 
 ```sh
 xcodebuild -project Noto.xcodeproj -scheme Noto -configuration Debug \
     -derivedDataPath build/DerivedData build
-xcodebuild -project Noto.xcodeproj -scheme Noto -configuration Release \
-    -derivedDataPath build/DerivedData build
+./Scripts/lint.sh
 ```
-
-The products are `build/DerivedData/Build/Products/Debug/Noto Dev.app` and
-`build/DerivedData/Build/Products/Release/Noto.app`.
 
 - Zero compiler warnings. The `appintentsmetadataprocessor` "Metadata extraction skipped" line is
-  build-tool output, not one.
+  tool output, not a warning.
 - No `@unchecked Sendable`, `nonisolated(unsafe)` or `assumeIsolated` added without a stated reason.
 - The type-checker did not time out. The fix for a timeout is an annotation, not a restructure.
-
-### Lint
-
-```sh
-./Scripts/lint.sh
-./Scripts/lint.sh --fix    # auto-correct the mechanical subset first
-```
-
-SwiftLint owns the rules that catch defects, over `Noto/` and `Tests/`. Errors block; warnings do not.
-The comment rules in [standards.md](standards.md#comments) are not among them. There is no formatter,
-deliberately — see [development.md](development.md#linting).
+- Lint errors block; warnings do not. See [development.md](development.md#lint).
 
 ## Performance measurement
 
 `Noto/Platform/Signposts.swift` emits one interval, `Notes.search`, on the `app.huanan.noto.perf`
-subsystem. Open the `os_signpost` instrument in Instruments and filter to that subsystem; nothing needs
-recompiling.
+subsystem. Filter the `os_signpost` instrument to that subsystem.
 
-`Tests/notes-editor-performance.swift` installs a 100,000-character note in a real rendered editor and
-prints, as JSON, the median over 30 runs of the install with its full restyle, one typed character at
-the end, middle and start, the window fit's height read after the install and after each of those
-characters, and a caret move between distant lines. `NOTO_PERF_RUNS` lowers the run count for a quick
-read. The budget is 150 ms for the install, 8 ms per character at the end and middle, and 4 ms at the
-start. The fit's read gets 10 ms after the install and 1 ms after a character.
+`Tests/notes-editor-performance.swift` installs a 100,000-character note in a rendered editor and
+prints, as JSON, the median over 30 runs of: the install with its restyle, one typed character at the
+end, middle and start, the window fit's height read after each of those, and a caret move between
+distant lines. `NOTO_PERF_RUNS` lowers the run count.
 
-MDTextKit does not meet the whole budget yet. On 2026-10-13, after the package learned to re-parse
-and annotate only the blocks an edit touches, to map coordinates through an attachment table and to
-keep its storage primitives in Objective-C, ten runs on the 100,000-character note measured an install
-of 800 ms, a character of 12 ms at the end, 15 ms in the middle and 16 ms at the start, and a fit's
-read of 3 ms after the install. The install styles and lays out the whole note; the keystroke cost
-that remains is the styling of the edited block and TextKit's own attribute fixing. Both are tasks in
-the MDTextKit repository.
+| Measure | Budget | 2026-10-13 |
+| --- | --- | --- |
+| Install | 150 ms | 800 ms |
+| A character at the end, middle, start | 8, 8, 4 ms | 12, 15, 16 ms |
+| The fit's read after the install, after a character | 10, 1 ms | 3, 0.01 ms |
 
-It is a timing harness, not an assertion one, so it stays out of the suite: `run-tests.sh` registers it
-as `run -O index`, which records its source list without queueing it. Compile it by hand, from the repo
-root, and keep this command and that list matching:
+The install styles and lays out the whole note. The keystroke cost that remains is the styling of the
+edited block and TextKit's attribute fixing. Both are tasks in the MDTextKit repository.
+
+It is a timing harness, so it stays out of the suite: `run-tests.sh` lists it as `run -O index`.
+Compile it by hand from the repository root, and keep this command equal to that list:
 
 ```sh
 N=Noto/Features/Notes
@@ -163,204 +126,186 @@ swiftc -O -swift-version 6 $NOTO_LINK \
 "$TMPDIR/notes-editor-performance"
 ```
 
-Measure before optimising, and measure the same way twice: on a quiet machine, a few fresh processes
-per build, compared against the same run on the unchanged tree. No baseline is recorded here, because
-one machine's numbers are not another's.
-
-`Signposts.interval` owns an explicit `defer` around the wrapped work on purpose. The obvious spelling
-leaks the interval when the work throws, because the end emit is skipped on the throw path and the
-instrument then shows an interval that never closes.
+Measure on a quiet machine, a few fresh processes per build, against the same run on the unchanged
+tree. One machine's numbers are not another's.
 
 ## Manual regression sweep
 
-There is no UI test suite, so this is it. Run the section for whatever you touched; run all of it for a
-change to `AppCore`, `AppDelegate` or a window controller.
+Run the section for what you touched. Run all of it for a change to `AppCore`, `AppDelegate` or a
+window controller.
 
-Run against a Debug build (`Noto Dev.app`). It shares `app.huanan.noto` with a Release build, so the
-sweep works on the real preferences and the real notes folder: use throwaway notes, or choose a
-scratch Notes Folder in Settings first.
+Run it against a Debug build. It shares `app.huanan.noto` with a Release build, so the sweep works on
+the real preferences and the real notes. Use throwaway notes, or choose a scratch Notes Folder first.
 
-### Notes
+### Notes: commands and the collection
 
-Commands and the collection:
+- Show Notes opens the last active note. From a global shortcut or the menu bar item a second press
+  hides the window. From the main menu or the Dock icon it only brings the window forward.
+- Create Note makes one unique Untitled file, also as the first action in an empty folder.
+- ⌘P and the Browse button focus search; arrows move the selection, Return opens, ⌘N creates.
+- An empty switcher search lists every note by recency. Title and body searches rank correctly, and a
+  superseded query never publishes.
+- An Untitled note titles itself from its first line as you type, in the title bar, and after the
+  autosave in the browse list. A name replaces that. The derived title shows no Markdown markers.
+- Inline rename changes the filename and not the source. It starts from the filename, also where the
+  row shows a derived title. A collision receives a suffix.
+- Delete confirms through an alert that opens in front and moves the file to Trash. Selecting another
+  note never loses an unsaved edit.
+- Deleting every note closes the browse list and shows the empty state with no character count. ⌘N
+  from there creates and selects one note.
+- A `.md` file dropped into the folder from Finder appears the next time the window shows.
 
-- Show Notes opens the last active note; from a global shortcut or the menu bar item a second press
-  hides the window, from the main menu or the Dock icon it only brings it forward
-- Create Note makes one unique Untitled file, including as the first action in an empty folder
-- Command-P and the Browse button focus search, arrows move selection, Return opens, and Command-N
-  creates
-- Empty switcher search reads the complete recent list; title and body searches rank correctly and a
-  superseded query never publishes
-- An Untitled note titles itself from its first line as it is typed, in the title bar and — after the
-  autosave — in the browse list; naming it replaces that, and the derived title shows no Markdown
-  markers
-- Inline rename updates the Markdown filename without changing source, and starts from that filename
-  even where the row shows a derived title; collisions receive a suffix
-- Delete confirms through an alert that opens in front, moves the file to Trash, and selecting another
-  note never loses an unsaved edit
-- Deleting every note closes the browse list and leaves one clean empty state with no character count;
-  Command-N from there creates and selects one note
-- A `.md` file dropped into the folder from Finder appears the next time the window is shown
+### Notes: rendering
 
-Rendering:
+- A note with every construct renders in Dark and Light: sized headings, emphasis, strikethrough,
+  underline, a highlight behind `==text==`, inline code, links with their icon, bullets, numbers,
+  checkboxes, nested lists, quote bars, a callout box, a code band, a rule, an image and a table grid.
+- The caret's construct shows its markers in the tertiary colour and hides them when the caret leaves.
+  A heading's `#` attachment shows while the caret is on its line.
+- A click on another app hides every marker. A click back reveals the caret's construct.
+- Inside a code block both fences show, and Markdown inside it stays literal.
+- A table shows as a grid. A click on a cell edits it in place, Tab moves to the next cell, and the
+  `⋮` menu adds a row. The file on disk holds pipe-table Markdown.
+- ⌘-click on a heading marker folds its section to a pill. A click on the pill unfolds it.
+- Bullets, numbers and checkboxes are a neutral gray.
+- A narrow window wraps list items under their text, not under the marker.
+- New lines, wrapped text and a paste grow the window and do not change its width. A delete shrinks
+  it back to the 180pt floor. The top edge holds until the bottom reaches the screen's bottom; then the
+  window moves up. It stops at 860pt or the screen's usable height and scrolls. A switch to a shorter
+  note shrinks it. Repeat with Find and the formatting bar open, and on a second display.
+- Typing, Return and Delete in a list grow or shrink the window by whole rows. They never shrink it
+  for one frame, scroll the first line away or flash the scrollbar.
+- A system appearance switch repaints the open note: text, markers, bands, bars, checkboxes and the
+  table follow it.
 
-- A note using every construct renders in Dark and Light: sized headings, emphasis, strikethrough,
-  underline, a yellow highlight behind `==text==`, inline code, coloured links with their icon,
-  bullets, numbers, checkboxes, lists nested by tab, quote bars, a callout box, a code band, a rule,
-  an image and a table grid
-- The caret's construct shows its markers in the tertiary colour and hides them when the caret leaves;
-  a heading's `#` attachment shows while the caret is on its line
-- Clicking another app hides every marker; clicking back reveals the caret's construct again
-- Inside a code block both fences show and Markdown inside it stays literal
-- A table shows as a grid; clicking a cell edits it in place, Tab moves to the next cell, and the `⋮`
-  menu adds a row; the file on disk holds pipe-table Markdown
-- ⌘-clicking a heading marker folds its section to a pill, and clicking the pill unfolds it
-- Bullets, numbers and checkboxes are a neutral gray
-- A narrow window wraps list items under their text, not under the marker
-- New lines, wrapped text and a paste grow the window vertically and do not change its width. A
-  delete shrinks it back to the 180pt floor. The top edge holds until the bottom reaches the screen's
-  bottom; then the window moves up. It stops at 860pt or the screen's usable height and scrolls.
-  Switching to a shorter note shrinks it. Repeat with Find and the formatting bar open, and on a
-  secondary display
-- Typing, Return and Delete in a bulleted list, in its last item and in the middle, grow or shrink
-  the window by whole rows. They never shrink it for one frame, scroll the first line away or flash
-  the scrollbar
-- Switching the system appearance repaints the open note: text, markers, bands, bars, checkboxes and
-  the table follow it
+### Notes: editing
 
-Editing:
+- A checkbox click toggles without a caret move, autosaves, and ⌘Z restores it. The file shows `[x]`.
+- A link icon click opens the browser. A `file:` link does nothing. Link text on the caret's line is
+  editable text.
+- Return continues and leaves lists and quotes. Tab and Shift-Tab nest. Ordered lists renumber. Every
+  formatting shortcut works and undoes in one step.
+- ⌥⌘C and ⇧⌘B toggle a code block and a quote. ⌘K wraps a selection as a link and unwraps a link.
+- A URL pasted over selected text makes a link. Pasted rich text becomes Markdown.
+- Copy from a rendered line pastes raw Markdown into another app.
+- A list item dragged by its text moves as a whole line.
+- Edit one note, switch to a shorter note, then Undo and Redo: the new note stays intact and the app
+  does not terminate.
+- ⌘Z and ⇧⌘Z undo and redo a typing run, a deletion and a paste while another app's menu bar is
+  visible. Both update the count and autosave. An edit after undo discards redo. A note reopened
+  after a switch starts with no history.
+- Marked-text input, emoji, combining marks, Copy, Cut, Paste, Select All, Undo and Redo preserve the
+  exact source. ⌘F finds in the active note, and Escape closes the find bar before it hides the window.
+- An empty note shows `Start writing…`. ⌘F moves it below the find bar. The count is right after
+  typing, a paste and an undo.
 
-- A checkbox click toggles without moving the caret, autosaves, and Command-Z restores it; the file on
-  disk shows `[x]`
-- A link icon click opens the browser, a `file:` link does nothing, and link text on the caret's line
-  is editable text
-- Return continues and leaves lists and quotes, Tab and Shift-Tab nest, ordered lists renumber, and
-  every formatting shortcut works and undoes in one step
-- ⌥⌘C and ⇧⌘B toggle a code block and a quote; ⌘K wraps a selection as a link and unwraps a link
-- Pasting a URL over selected text makes a link; pasting rich text becomes Markdown
-- Copy from a rendered line pastes raw Markdown into another app
-- Dragging a list item by its text moves the whole item as a line
-- Edit one note, switch to a shorter note, then Undo and Redo: the new note remains intact and the app
-  does not terminate
-- ⌘Z undoes and ⇧⌘Z redoes a typing run, a deletion and a paste while another app's menu bar is
-  visible; both update the count and autosave the restored source. Editing after undo discards redo;
-  reopening a note after switching away starts with no history
-- Marked-text input, emoji, combining marks, Copy, Cut, Paste, Select All, Undo, and Redo preserve
-  exact source; ⌘F finds occurrences in the active note, and Escape closes the find bar before
-  hiding the window
-- An empty note shows `Start writing…`; ⌘F moves it below the find bar without overlap, and closing Find
-  restores its position. The count is right after typing, pasting and undoing
+### Notes: the formatting bar
 
-The formatting bar:
+- With Show Formatting Bar on, the band under a note holds the count on the left and the round
+  formatting button on the right. With it off, the centred count footer is back.
+- The bar starts collapsed. ⌥⌘T and the round button expand and collapse it, the buttons slide out
+  from behind that button, and the state survives a note switch, a hide and a relaunch.
+- Each bar button applies its formatting, undoes in one step and autosaves. A click keeps the caret
+  where it was, and the caret's line stays revealed.
+- A button lights for the selection: inside bold, on a list, quote, heading or code line. A click on a
+  lit button removes that formatting.
+- Hover shows the name and shortcut above the button, not clipped by the capsule. A menu button's
+  tooltip does not show while its menu is open.
+- The Heading menu opens above the capsule, aligned to its left edge, with the current level checked.
+  It closes on Escape, on a click anywhere in the note window (also on the Heading button, which must
+  not reopen it), on typing, on ⌘P, and when another app is clicked.
+- The List menu lists Bullet, Numbered and Task List. The More menu lists Underline, Strikethrough,
+  Inline Code and Code Block, and it stays inside the window. A click on the List button while the
+  More menu is open swaps the menus.
+- At the smallest window size all nine controls show and the count is hidden. Each menu opens in full
+  above the capsule. A wider window brings the count back.
+- With VoiceOver, the bar reads as "Formatting", each button is named, a lit one is selected, the round
+  button announces Expanded or Collapsed, the Heading button its level, and a menu row reads its title.
 
-- With Show Formatting Bar on, the band under a note holds the character count on the left and the
-  round formatting button on the right; with the setting off, the centred count footer is back and
-  nothing else moved
-- The bar starts collapsed, ⌥⌘T and the round button both expand and collapse it, the buttons slide out
-  from behind that button, and the state survives switching notes, hiding the window and a relaunch
-- Every bar button applies its formatting, undoes in one step with ⌘Z, and autosaves; clicking keeps the
-  caret where it was and the caret's line stays revealed
-- Buttons light for the selection: inside bold, on a list, quote, heading or code line; clicking a lit
-  button removes that formatting and the button goes dark
-- Hovering a button shows its name and shortcut above it, fully visible and not clipped by the capsule;
-  a menu button's tooltip does not show while its menu is open
-- The Heading menu opens above the capsule, aligned to its left edge, shows the current level checked,
-  and applies a level on click; it closes on Escape, on a click anywhere in the note window (including
-  the Heading button itself, which must not reopen it), on typing, on ⌘P, and when another app is clicked
-- The List menu lists Bullet, Numbered and Task List, and the More menu lists Underline,
-  Strikethrough, Inline Code and Code Block; the More menu stays inside the window; a click on the
-  List button while the More menu is open swaps the menus
-- At the smallest window size all nine controls show and the count is hidden, the note's text keeps
-  its inset in both states, each menu still opens in full above the capsule, and widening the
-  window brings the count back
-- With VoiceOver, the bar reads as "Formatting" with each button named, lit ones as selected, the round
-  button announcing Expanded or Collapsed, and the heading button its level; menu rows read their titles
-  and the current one as selected
+### Notes: the window
 
-The window:
-
-- Traffic lights sit top-left, the title is centred on the window, and the capsule is top-right, all
-  on one line; the yellow and green lights are disabled
-- Each capsule button shows a hover capsule and a native tooltip, and fires its action
-- Dragging the title bar moves the window and dragging an edge resizes it, never below the minimum;
-  both survive relaunch. A dragged height holds until the next keystroke. A double-click on the free title bar moves it to the top-right of the screen
-- Clicking another app leaves the panel visible; Escape, Command-W, and the red light hide it
-- Hiding restores the previous external app, or the Settings window when that was in front; if another
-  app was brought forward meanwhile, focus stays there
-- Open Notes Folder opens Finder with the active Markdown file selected, or the folder with no note.
-  With the Settings window open, or Show in Dock on, Finder still comes to the front
-- The browse list fades only at its bottom edge and rests opaque once it reaches the end
-- Command-Q quits; quitting inside the debounce window saves the last edit
+- The traffic lights sit top-left, the title is centred, and the capsule is top-right, on one line. The
+  yellow and green lights are disabled.
+- Each capsule button shows a hover capsule and a native tooltip, and fires its action.
+- A drag on the title bar moves the window. A drag on an edge resizes it, never below the minimum.
+  Both survive a relaunch. A dragged height holds until the next keystroke. A double-click on the free
+  title bar moves the window to the top-right of the screen.
+- A click on another app leaves the panel visible. Escape, ⌘W and the red light hide it.
+- A hide restores the previous external app, or the Settings window when that was in front. If another
+  app came forward meanwhile, focus stays there.
+- Open Notes Folder opens Finder with the active file selected, or the folder when there is no note.
+  Finder comes to the front also with the Settings window open or Show in Dock on.
+- The browse list fades only at its bottom edge and rests opaque at the end.
+- ⌘Q quits. A quit inside the debounce window saves the last edit.
 - Over a light desktop, the 26-point corner is clean, the shadow follows it, and no dark edge shows
-  around the glass controls
+  around the glass controls.
 
 ### Hotkeys
 
-- Each of the four recorders starts empty on a clean install and reads "Record Hotkey"
-- Clicking a recorder shows the callout above it with the `⌥ A` example; holding modifiers shows them
-  live with "Add a key"; a full combo saves, closes the callout and shows as keycaps
-- Show Notes toggles the window from any app; Create Note and Search Notes each do what their menu
-  item does
-- The old binding does not fire while any recorder is listening
+- Each of the four recorders starts empty on a clean install and reads "Record Hotkey".
+- A click on a recorder shows the callout above it with the `⌥ A` example. Held modifiers show live
+  with "Add a key". A full combo saves, closes the callout and shows as keycaps.
+- Show Notes toggles the window from any app. Create Note and Search Notes do what their menu items do.
+- The old binding does not fire while a recorder listens.
 - A combo another Noto command holds is rejected: the callout names its owner in orange and keeps
-  listening
-- A bare letter is ignored; a bare function key and a Globe combo both record
+  listening.
+- A bare letter is ignored. A bare function key and a Globe combo both record.
 - Escape cancels, Delete clears, the hover ✕ clears, a click on another recorder moves the recording
-  there, and switching to another app cancels
-- A recorder near the top of the Settings list opens its callout below the field instead, with the
-  caret still aimed at it
-- Every binding survives quit and relaunch
-- A combo another app already owns records but does not fire, and Console shows the
-  "could not register hotkey" line
+  there, and a switch to another app cancels.
+- A recorder near the top of the Settings list opens its callout below the field, with the caret
+  still aimed at it.
+- Every binding survives a quit and relaunch.
+- A combo another app holds records but does not fire, and Console shows the "could not register
+  hotkey" line.
 
 ### Settings
 
-- Settings… opens from the menu bar item and with ⌘,; a second request raises the same window; Escape
-  and the red light close it; it reopens centred
-- The toolbar shows General, Editor and Shortcuts. Select each pane: the title changes, the window
-  height changes, and the top edge does not move
-- Keep on Top is off on a clean install. Click a different app, and its window can cover the note window
-- With Keep on Top on, the note window stays above other windows and shows on each Space
-- Each control changes the state immediately: the Settings row, the menu bar item, ⌥⌘P and the global
-  shortcut. The check mark in the menu bar menu agrees with the state
-- Each font setting applies to the open note immediately: Text font, Heading font, CJK font, Code font
-  and Text size
-- With Heading Font set, headings use that family and body text does not change
-- With Text Font `Menlo` and CJK Font `Songti SC`, Latin text is Menlo and Han text is Songti
-- With Text Font `Monaco`, bold text is heavier and italic text stays upright, because Monaco has no
-  italic face
-- Reset Fonts restores the system fonts, and it is disabled when no font setting is set
-- A colour picked in the Highlight well applies to the open note immediately, in both appearances;
-  Use Default appears, and it restores the yellow and disappears
-- A colour picked in the Accent well colours an underline, a link and the selection immediately;
-  Use Default restores the macOS accent colour
-- Show Formatting Bar takes effect in the open note immediately
+- Settings… opens from the menu bar item and with ⌘,. A second request raises the same window. Escape
+  and the red light close it. It reopens centred.
+- The toolbar shows General, Editor and Shortcuts. For each pane the title changes, the height
+  changes, and the top edge does not move.
+- Keep on Top is off on a clean install. With it off, another app's window can cover the note window.
+  With it on, the note window stays above other windows and shows on each Space.
+- Each Keep on Top control changes the state at once: the Settings row, the menu bar item, ⌥⌘P and the
+  global shortcut. The check mark in the menu bar menu agrees.
+- Each font setting applies to the open note at once: Text font, Heading font, CJK font, Code font and
+  Text size.
+- With Heading Font set, headings use that family and body text does not change.
+- With Text Font `Menlo` and CJK Font `Songti SC`, Latin text is Menlo and Han text is Songti.
+- With Text Font `Monaco`, bold text is heavier and italic text stays upright: Monaco has no italic
+  face.
+- Reset Fonts restores the system fonts. It is disabled when no font setting is set.
+- A colour picked in the Highlight well applies at once, in both appearances. Use Default appears,
+  restores the yellow and disappears.
+- A colour picked in the Accent well colours an underline, a link and the selection at once. Use
+  Default restores the macOS accent colour.
+- Show Formatting Bar takes effect in the open note at once.
 - Check Now opens Sparkle's update window, and Check for Updates… in the menu bar item is disabled
-  while it is open; Check for updates automatically survives quit and relaunch
-- Choose… opens in front, and picking a folder switches the note window to that folder's notes with
-  nothing moved; the row shows the new path, `~`-abbreviated, and Use Default appears
-- Changing the folder with an unsaved edit saves that edit into the old folder first
-- Use Default returns to the Application Support folder and the button disappears
-- Every setting survives quit and relaunch
+  while it is open. Check for updates automatically survives a quit and relaunch.
+- Choose… opens in front. A picked folder switches the note window to that folder's notes with
+  nothing moved. The row shows the new path with `~`, and Use Default appears.
+- A folder change with an unsaved edit saves that edit into the old folder first.
+- Use Default returns to the Application Support folder, and the button disappears.
+- Every setting survives a quit and relaunch.
 
 ### Menu bar and Dock
 
-- The menu bar item shows in both modes; each of its items works, and its Quit quits
-- With Show in Dock off: no Dock icon at launch and no window; the icon appears while Settings is open
-  and goes when it closes; the note window alone never brings it
-- With Show in Dock off and Settings open, Quit from the Dock icon's menu closes Settings and Noto
-  keeps running in the menu bar
-- Turning Show in Dock on shows the icon at once and it stays after Settings closes; after turning it
-  off the icon goes when Settings closes
-- With Show in Dock on: launch shows the note window; clicking the Dock icon brings it back after a
-  hide and never hides a visible one; Quit from the Dock icon's menu quits
-- Closing every window never quits the app
+- The menu bar item shows in both modes. Each item works, and its Quit quits.
+- With Show in Dock off: no Dock icon at launch and no window. The icon appears while Settings is open
+  and goes when it closes. The note window alone never brings it.
+- With Show in Dock off and Settings open, Quit from the Dock icon's menu closes Settings, and Noto
+  keeps running in the menu bar.
+- Show in Dock turned on shows the icon at once, and it stays after Settings closes. Turned off, the
+  icon goes when Settings closes.
+- With Show in Dock on: launch shows the note window. A Dock icon click brings it back after a hide and
+  never hides a visible one. Quit from the Dock icon's menu quits.
+- Closing every window never quits the app.
 
 ### Clean install
 
-The realistic storage failure is a store that crashes on an absent file rather than starting empty.
-Debug and Release share one bundle id, so this state is the real one: quit Noto and move it aside
-rather than deleting it, then put it back afterwards.
+The realistic storage failure is a store that crashes on an absent file instead of a start with no
+notes. Debug and Release share one bundle id, so this state is the real one. Quit Noto, move the state
+aside, and put it back afterwards:
 
 ```sh
 mv "$HOME/Library/Application Support/app.huanan.noto" "$HOME/Library/Application Support/app.huanan.noto.aside"
@@ -369,9 +314,9 @@ defaults export app.huanan.noto "$TMPDIR/noto-defaults.plist" && defaults delete
 
 Restore with the reverse `mv` and `defaults import app.huanan.noto "$TMPDIR/noto-defaults.plist"`.
 
-- Launches with the folder absent — no crash, no hang, no window, a menu bar item
-- The `Notes` folder is not created until Show, Create, or Search is first used, then accepts its first
-  edit; with no notes the window shows "No Notes" and Create Note works
-- Every setting shows its intended default: Show Formatting Bar on, the default folder, Show in Dock
-  off, no shortcuts
-- Quit and relaunch: everything created above persisted
+- Noto launches with the folder absent: no crash, no hang, no window, a menu bar item.
+- The `Notes` folder is created at the first Show, Create or Search, and accepts its first edit. With
+  no notes the window shows "No Notes" and Create Note works.
+- Every setting shows its default: Show Formatting Bar on, the default folder, Show in Dock off, no
+  shortcuts.
+- After a quit and relaunch, everything created above persists.

@@ -1,27 +1,27 @@
 # Development
 
-The local loop: set up, build, run. Verifying a change is [testing.md](testing.md).
+The local loop: set up, build, run. [testing.md](testing.md) tells you how to verify a change.
 
 ## Requirements
 
-- macOS 26 or later (Liquid Glass).
-- Xcode 27 or later — it provides the SwiftUI macro plugin, the SDK, and the `actool` that compiles
-  the Icon Composer icon.
-- For linting: `brew install swiftlint`.
+- macOS 26 or later.
+- Xcode 27 or later. It provides the SwiftUI macros, the SDK and the `actool` that compiles the
+  Icon Composer icon.
+- The MDTextKit checkout as a sibling folder, `../MDTextKit`.
+- For lint: `brew install swiftlint`.
 
-That is the whole setup. There is no project to generate. Xcode resolves two packages on the first
-build: MDTextKit from the sibling checkout `../MDTextKit`, and Sparkle from GitHub, so that build
-needs the network and the sibling checkout. Signing is automatic with the Apple Development
-identity of the team set in the target, and Noto asks for no permission — its hotkeys are Carbon
-registrations, so not even Accessibility.
+Xcode resolves two packages on the first build: MDTextKit from `../MDTextKit`, and Sparkle from GitHub.
+That build needs the network. Code signing is automatic with the Apple Development identity of the
+team in the target. Noto asks for no permission: its hotkeys are Carbon registrations, so it does not
+need Accessibility.
 
-## Build & run
+## Build and run
 
 ```sh
 open Noto.xcodeproj    # then ⌘R
 ```
 
-Or from the command line:
+From the command line:
 
 ```sh
 xcodebuild -project Noto.xcodeproj -scheme Noto -configuration Debug \
@@ -29,64 +29,55 @@ xcodebuild -project Noto.xcodeproj -scheme Noto -configuration Debug \
 open "build/DerivedData/Build/Products/Debug/Noto Dev.app"
 ```
 
-`xcodebuild` uses whatever `xcode-select` points at; if that's the Command Line Tools rather than
-Xcode, prefix with `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer` (the SwiftUI
-`@State`/`@FocusState` macros need Xcode's macOS platform).
+`xcodebuild` uses the toolchain that `xcode-select` points at. If that is the Command Line Tools, set
+`DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer` first. The SwiftUI macros need Xcode's
+macOS platform.
 
-`-configuration Release` builds `build/DerivedData/Build/Products/Release/Noto.app` the same way,
-with the hardened runtime on. `build/` is git-ignored. A release is not built here: see
-[release.md](release.md).
+`-configuration Release` builds `build/DerivedData/Build/Products/Release/Noto.app` with the hardened
+runtime on. `build/` is git-ignored. A release is not built here; see [release.md](release.md).
 
-The app is a menu-bar agent: a fresh launch shows only the `text.page` item in the menu bar, and no
-window until you pick Show Notes there.
+The app is a menu bar agent. A fresh launch shows only the `text.page` item in the menu bar. Pick Show
+Notes there to open the window.
 
-### Debug and Release
+## Debug and Release
 
-A Debug build is `Noto Dev.app`, a Release build is `Noto.app`, and both carry the bundle id
-`app.huanan.noto`. Every persisted thing is keyed by that id — `~/Library/Preferences/app.huanan.noto.plist`
-(every `NotoSettings` key, the hotkey bindings, the active note, the formatting bar's state and the
-window frame) and `~/Library/Application Support/app.huanan.noto/Notes/` (the notes, unless a folder
-is chosen) — so the two builds share one state. `Bundle.main.appDisplayName` is what puts "Noto Dev"
-in the menu bar item's label, the Quit item and the Settings window title.
+A Debug build is `Noto Dev.app`. A Release build is `Noto.app`. Both carry the bundle id
+`app.huanan.noto`, and every persisted value is keyed by that id:
 
-Consequences worth knowing:
+- `~/Library/Preferences/app.huanan.noto.plist` holds every `NotoSettings` key, the hotkey bindings,
+  the active note, the formatting bar's state and the window frame.
+- `~/Library/Application Support/app.huanan.noto/Notes/` holds the notes, unless a folder is chosen.
 
-- A Debug run edits the real notes and the real settings.
-- Don't run both builds at once: they would be two writers of the same files, neither watching the
-  other, and the second to launch fails to register the hotkeys the first holds.
+So the two builds share one state. A Debug run edits the real notes and the real settings. Do not run
+both builds at the same time: they would write the same files, and the second one cannot register the
+hotkeys the first one holds. `Bundle.main.appDisplayName` puts "Noto Dev" in the menu bar item, the
+Quit item and the Settings title.
 
-To test a first run without losing that state, see [testing.md](testing.md#clean-install).
+To test a first run without loss of that state, see [testing.md](testing.md#clean-install).
 
 ## The project
 
-`Noto.xcodeproj` is maintained directly — in Xcode, or by hand in `project.pbxproj`. Nothing generates
-it. There is no `Package.swift`, and `Bundle.module` must never be used.
+`Noto.xcodeproj` is the source of truth. Edit it in Xcode or by hand in `project.pbxproj`. Nothing
+generates it. There is no `Package.swift`, and never `Bundle.module`.
 
-- One app target, `Noto`, and one shared scheme, `Noto`, which builds Debug for Run and Release for
-  Archive.
-- The `Noto/` folder is a file-system synchronized group (`PBXFileSystemSynchronizedRootGroup`, project
-  object version 77). Every file under it is a member of the target by being there: adding, renaming,
-  moving or deleting a source file, or adding an asset, needs no project edit and produces no
-  `project.pbxproj` diff.
-- `Noto/AppIcon.icon` is the app icon, an Icon Composer document.
-  `ASSETCATALOG_COMPILER_APPICON_NAME` names it, and `actool` compiles its layers into `Assets.car`
-  and an `AppIcon.icns`.
-- `Noto/Info.plist` is the one membership exception: it is a build input (`INFOPLIST_FILE`), not a
-  bundle resource. `Noto/Noto.entitlements` is consumed by signing (`CODE_SIGN_ENTITLEMENTS`).
-- MDTextKit is a local package reference (`XCLocalSwiftPackageReference`) to `../MDTextKit`, the
-  editor engine, while it has no release. Before a Noto release it becomes a remote package reference
-  with a pin, because the release build checks out Noto alone. The harness runner reads the same
-  checkout from `MDTEXTKIT_DIR`, default `../MDTextKit`.
-- Sparkle is a remote package reference in `project.pbxproj`, pinned in
-  `Noto.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved`, which is committed.
-  Change its version in Xcode's package editor and commit both files.
-- `Tests/` shows in the Xcode navigator but belongs to no target, and `Scripts/` is outside the project.
-  Keep it that way: each harness has its own `@main`. The harnesses are compiled by
-  `Scripts/run-tests.sh`, so a new shipped source that a harness needs is added to that script's list —
-  that is the only list there is.
+- One app target, `Noto`, and one shared scheme, `Noto`. The scheme builds Debug for Run and Release
+  for Archive.
+- `Noto/` is a file-system synchronized group. Every file under it is a member of the target. To add,
+  move or delete a source file, change the file system; the project needs no edit.
+- `Noto/AppIcon.icon` is the app icon, an Icon Composer document. `actool` compiles it into
+  `Assets.car` and `AppIcon.icns`.
+- `Noto/Info.plist` is a build input (`INFOPLIST_FILE`), not a bundle resource. `Noto/Noto.entitlements`
+  turns the App Sandbox off, because Noto reads and writes a folder the user names.
+- MDTextKit is a local package reference (`XCLocalSwiftPackageReference`) to `../MDTextKit`. Before a
+  Noto release it becomes a remote package reference with a pin, because the release build checks out
+  Noto alone. `Scripts/run-tests.sh` reads the same checkout from `MDTEXTKIT_DIR`.
+- Sparkle is a remote package reference, pinned in
+  `Noto.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved`. Change its version in
+  Xcode's package editor and commit both files.
+- `Tests/` shows in the navigator but belongs to no target. Each harness has its own `@main`, and
+  `Scripts/run-tests.sh` compiles it. `Scripts/` is outside the project.
 
-Build settings are edited in Xcode's target editor (or the two `XCBuildConfiguration` blocks per level
-in `project.pbxproj`). The ones that define the app:
+The build settings that define the app:
 
 | Setting | Debug | Release |
 | --- | --- | --- |
@@ -94,68 +85,60 @@ in `project.pbxproj`). The ones that define the app:
 | `PRODUCT_BUNDLE_IDENTIFIER` | `app.huanan.noto` | `app.huanan.noto` |
 | `MACOSX_DEPLOYMENT_TARGET` | 26.0 | 26.0 |
 | `ARCHS` | arm64 | arm64 |
-| `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` | the version | the version — one number, equal to the tag, see [release.md](release.md#the-version-rule) |
-| `SWIFT_VERSION` / `SWIFT_STRICT_CONCURRENCY` | 6.0 / `complete` | 6.0 / `complete` |
-| `CODE_SIGN_IDENTITY` / `CODE_SIGN_STYLE` | Apple Development / Automatic | Apple Development / Automatic |
+| `MARKETING_VERSION`, `CURRENT_PROJECT_VERSION` | the version | the version, equal to the tag; see [release.md](release.md#the-version-rule) |
+| `SWIFT_VERSION`, `SWIFT_STRICT_CONCURRENCY` | 6.0, `complete` | 6.0, `complete` |
+| `CODE_SIGN_IDENTITY`, `CODE_SIGN_STYLE` | Apple Development, Automatic | Apple Development, Automatic |
 | `ENABLE_HARDENED_RUNTIME` | off | on |
 
-`Info.plist` takes its name, identifier, versions and minimum system from those settings and adds
-`LSUIElement` and the three Sparkle keys (`SUFeedURL`, `SUPublicEDKey`, `SUEnableAutomaticChecks`).
-The entitlements file turns the App Sandbox off: Noto reads and writes a folder the user names by
-path.
+`Info.plist` takes its name, identifier, versions and minimum system from these settings. It adds
+`LSUIElement` and the three Sparkle keys `SUFeedURL`, `SUPublicEDKey` and `SUEnableAutomaticChecks`.
+
+## Lint
+
+```sh
+./Scripts/lint.sh          # lint the whole project
+./Scripts/lint.sh --fix    # auto-correct the mechanical rules first
+```
+
+SwiftLint is the only code-quality tool. `.swiftlint.yml` covers `Noto/` and `Tests/` with rules that
+catch defects. Errors block, warnings do not. The comment rules in
+[standards.md](standards.md#comments) are not linted. There is no formatter: format with Xcode's
+re-indent (⌃I). `.swift-format` at the root gives an editor that uses `swift-format` this tree's
+4-space indent and 110-column lines.
+
+## Editor support
+
+`xcodebuild` never compiles the harnesses, so an editor on SourceKit-LSP cannot resolve `Tests/`.
+`./Scripts/run-tests.sh --index` writes one compile command per harness into a git-ignored `.compile`
+file at the root. It needs Node. A build server that reads `.compile` is not part of the repository.
 
 ## Upstream
 
-Noto's Notes code came from [Tinycast](https://github.com/abue-ammar/tinycast). Tinycast is still
-developed. Its Notes changes are ported into Noto manually, one commit at a time.
+Noto's Notes code came from [Tinycast](https://github.com/abue-ammar/tinycast). Tinycast's Notes
+changes are ported by hand, one commit at a time.
 
 | | |
 | --- | --- |
 | Upstream repository | `https://github.com/abue-ammar/tinycast` |
 | Upstream path | `Tinycast/Features/Notes` |
-| Last ported commit | `59c0794f` — `Keep list markers on a wrapped item's first line of text` (2026-10-10) |
+| Last ported commit | `59c0794f`, `Keep list markers on a wrapped item's first line of text` (2026-10-10) |
 
-The `/port-tinycast-notes` command in `.claude/skills/` does the whole port: it reports each upstream
-commit and its merge status, waits for a go-ahead, then ports one commit at a time and updates the row
-above. To list the upstream Notes changes that Noto has not seen by hand, run this in a Tinycast
-checkout:
+The `/port-tinycast-notes` command in `.claude/skills/` does the port: it reports each upstream commit
+and its status, waits for a go-ahead, then ports one commit at a time and moves the row above. To list
+the unported commits by hand, run this in a Tinycast checkout:
 
 ```sh
 git log --oneline 46beb10a..origin/main -- Tinycast/Features/Notes
 ```
 
-Port one commit at a time, from the oldest. Noto's collection, store, window, switcher and formatting
-bar files map 1:1 onto Tinycast's: `Noto/Features/Notes/…` is `Tinycast/Features/Notes/…`. The editor
-does not: since October 2026 it is MDTextKit, so an upstream change to Tinycast's parser, styler,
-renderer or `NoteTextView` is not ported. Not every other upstream change applies. If a change depends
-on a Tinycast feature that Noto does not have, skip it and say so in the Noto commit message. After each port, update the `Last ported commit` row in this table in the same change. That
-row is the only record of how far the port has gone. `NOTICE.md` keeps the original extraction
-commit, which never changes.
+Rules for a port:
 
-## Editor
-
-Xcode works out of the box and needs nothing here.
-
-`xcodebuild` never compiles the harnesses, so in an editor driven by SourceKit-LSP nothing in `Tests/`
-resolves by default. `./Scripts/run-tests.sh --index` exists for that: instead of running anything it
-merges one compile command per harness — including `notes-editor-performance` — into a git-ignored
-`.compile` at the repo root, with absolute paths and an explicit `-sdk`, claiming only the files under
-`Tests/`. It needs Node, and it is only useful to a build server that reads `.compile`; the repo ships
-no script that sets one up, so that part is yours.
-
-## Linting
-
-```sh
-./Scripts/lint.sh          # lint the whole project
-./Scripts/lint.sh --fix    # auto-correct the mechanical subset first
-```
-
-[SwiftLint](https://github.com/realm/SwiftLint) is the only code-quality tool here. `.swiftlint.yml` at
-the repo root covers `Noto/` and `Tests/`, sticks to rules that catch defects, and stays quiet about
-style. Errors block, warnings do not; `force_try` is an error and `force_cast` a warning. The comment
-policy in [standards.md](standards.md#comments) is deliberately not among its rules. Nothing runs the
-script for you.
-
-There is no formatter and no format script. Formatting is Xcode's re-indent (⌃I). A `.swift-format`
-config sits at the repo root so that an editor formatting through `swift-format` uses this tree's
-4-space indent and 110-column lines instead of the stock defaults; it is not part of the bar.
+- Port one commit at a time, from the oldest.
+- The collection, store, window, switcher and formatting bar files map one to one:
+  `Noto/Features/Notes/…` is `Tinycast/Features/Notes/…`.
+- Do not port a change to Tinycast's parser, styler, renderer or `NoteTextView`. Noto's editor is
+  MDTextKit.
+- If a change depends on a Tinycast feature that Noto does not have, skip it and say so in the commit
+  message.
+- Move the `Last ported commit` row in the same change. That row is the only record of the port.
+  `NOTICE.md` keeps the extraction commit, which never changes.

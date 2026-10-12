@@ -1,28 +1,30 @@
 # Noto documentation
 
-Start with [`AGENTS.md`](../AGENTS.md) at the repo root — it is the short version, and it links here for
-anything that needs more than a line.
+[`AGENTS.md`](../AGENTS.md) at the repository root is the short version. It gives the rules and links
+here for the detail.
 
-Each document below has one job and one trigger: the change that obliges you to edit it. A document that
-contradicts the code is a defect, so fix it in the change that made it wrong.
+Read the documents in this order. Each one builds on the one before it.
 
-| Document | Covers | Edit it when |
-| --- | --- | --- |
-| [architecture.md](architecture.md) | How the app is wired: the layers, who owns what, the windows, the Observation model, the folder tree | a layer boundary, an owner, or the tree changes |
-| [standards.md](standards.md) | How code here is written: posture, naming, style, concurrency, comments | a convention changes, or a check is added |
-| [testing.md](testing.md) | How to verify a change: the definition of done, the harnesses, the purity check, the editor budget, the manual sweep | a harness moves, a budget changes, or a user-visible behaviour is added |
-| [development.md](development.md) | The local loop: requirements, build, Debug and Release, the project file, the Tinycast upstream and its last ported commit, lint | the local toolchain or the project setup changes, or a Tinycast commit is ported |
-| [ui.md](ui.md) | The design system: tokens, the Notes panel, glass, the shared controls, the Settings window | a token or a presentation rule changes |
-| [release.md](release.md) | How a version ships: the two repositories, the workflow, the version rule, the secrets | the workflow, a secret or the version rule changes |
+| Step | Document | Covers | Edit it when |
+| --- | --- | --- | --- |
+| 1 | [development.md](development.md) | Requirements, build, run, Debug and Release, the project file, lint, the Tinycast upstream | the toolchain, the project setup or the upstream row changes |
+| 2 | [architecture.md](architecture.md) | The layers, the owners, the windows, the settings, Observation, concurrency, the folder tree | a layer boundary, an owner, a window or the tree changes |
+| 3 | [standards.md](standards.md) | How to write code here: posture, naming, style, concurrency rules, comments | a convention changes |
+| 4 | [ui.md](ui.md) | The design system: tokens, the note window, glass, the shared controls, the Settings window | a token or a presentation rule changes |
+| 5 | [features/](#features) | One document per feature: its invariants, then its internals | that feature changes |
+| 6 | [testing.md](testing.md) | The definition of done, the harnesses, the checks, the performance budget, the manual sweep | a check, a harness or a user-visible behaviour changes |
+| 7 | [release.md](release.md) | How a version ships: the two repositories, the version rule, the workflow, the secrets | the workflow, a secret or the version rule changes |
+
+A document that contradicts the code is a defect. Fix it in the change that made it wrong.
 
 ## Features
 
-One document per feature, covering its invariants and internals. Every one of them must open with an
-`## Invariants` section; read it before changing anything in that area.
+Each feature document opens with an `## Invariants` section. Read it before you change that feature.
 
-[notes](features/notes.md) ·
-[hotkeys](features/hotkeys.md) ·
-[updates](features/updates.md)
+- [notes.md](features/notes.md): the collection, the window, the editor, the formatting bar, the
+  editor settings
+- [hotkeys.md](features/hotkeys.md): the four global shortcuts and the recorder
+- [updates.md](features/updates.md): the Sparkle updater
 
-Settings has no document of its own: `NotoSettings` is described in
-[architecture.md](architecture.md#settings) and the window in [ui.md](ui.md#the-settings-window).
+Settings has no document of its own. [architecture.md](architecture.md#settings) describes
+`NotoSettings`, and [ui.md](ui.md#the-settings-window) describes the window.
