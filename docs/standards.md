@@ -3,15 +3,16 @@
 How code in Noto is written. This is guidance: it describes the codebase as it is, so new code reads
 as if it was always there. A good reason to depart from it is a good reason. The checks that must
 pass are in [testing.md](testing.md#definition-of-done). The rules that may never break are the
-Non-negotiables in [`AGENTS.md`](../AGENTS.md#0x01-constitution).
+invariants; [`AGENTS.md`](../AGENTS.md#0x04-before-you-change) lists where each set lives.
 
 When this document and the code disagree, the code is probably right and this file is stale. Fix it.
 
 ## Posture
 
-[`AGENTS.md`](../AGENTS.md#0x01-constitution) states the rule: latest macOS only, modern
-APIs, no compatibility layers, no backwards compatibility unless asked. This section gives the reason
-and the shape.
+Noto targets one macOS: the current stable release, built with the current Xcode toolchain in Swift 6
+language mode with complete strict concurrency. The versions are in
+[development.md](development.md#requirements). There is no compatibility floor, no shim layer and no
+deprecation debt. This section gives the reason and the shape.
 
 A compatibility floor is not a one-time cost. Each shim outlives the platform that needed it, the next
 feature copies it, and a one-line call becomes a layer nobody dares delete. Noto has no external API,
@@ -23,6 +24,9 @@ In practice:
 - `async`/`await`, never a completion handler or a `DispatchQueue` hop.
 - Structured concurrency, never detached bookkeeping you have to remember to cancel.
 - When an API gains a successor, the migration is the change. Do not wrap the old spelling.
+- A deprecated API is a defect, not a warning to live with.
+- No backwards compatibility unless asked: no version flag, no migration scaffolding, no "just in
+  case" fallback. The code carries no migration, and nothing is migrated from Tinycast.
 
 Three dependencies are deliberate gaps in the modern platform:
 

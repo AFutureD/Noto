@@ -1,7 +1,7 @@
 # Noto documentation
 
-[`AGENTS.md`](../AGENTS.md) at the repository root is the short version. It gives the rules and links
-here for the detail.
+[`AGENTS.md`](../AGENTS.md) at the repository root says how to work here. It links here for the rules
+and the detail.
 
 Read the documents in this order. Each one builds on the one before it.
 
@@ -28,3 +28,14 @@ Each feature document opens with an `## Invariants` section. Read it before you 
 
 Settings has no document of its own. [architecture.md](architecture.md#settings) describes
 `NotoSettings`, and [ui.md](ui.md#the-settings-window) describes the window.
+
+## Documentation language
+
+Write all documentation in ASD-STE100 Simplified Technical English. This applies to `AGENTS.md`,
+`README.md`, `NOTICE.md`, `CHANGELOG.md` and each file in `docs/`. Names of types, files, settings
+and commands are technical names. Write them as the code writes them.
+
+`README.zh-CN.md` is the Chinese translation of `README.md`. When you change one, change the other.
+
+`CHANGELOG.md` follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). A change the user
+can notice has a line under `Unreleased`.
