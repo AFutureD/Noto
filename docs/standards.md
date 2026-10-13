@@ -3,7 +3,7 @@
 How code in Noto is written. This is guidance: it describes the codebase as it is, so new code reads
 as if it was always there. A good reason to depart from it is a good reason. The checks that must
 pass are in [testing.md](testing.md#definition-of-done). The rules that may never break are the
-invariants; [`AGENTS.md`](../AGENTS.md#0x04-before-you-change) lists where each set lives.
+invariants; [`AGENTS.md`](../AGENTS.md#0x04-改动之前) lists where each set lives.
 
 When this document and the code disagree, the code is probably right and this file is stale. Fix it.
 

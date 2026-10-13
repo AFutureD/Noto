@@ -16,7 +16,7 @@ Every check in the table passes before a change is finished. No workflow runs th
 | Docs still true | each doc your change made wrong, fixed in the same change |
 | Docs in the house style | each doc sentence you added or changed obeys [Documentation language](README.md#documentation-language) |
 | Changelog | a change the user can notice has a line under `Unreleased` in `CHANGELOG.md` |
-| Commit message | the form in [`AGENTS.md`](../AGENTS.md#0x00-importance): a human reviewed the change, and the message says so |
+| Commit message | the form in [`AGENTS.md`](../AGENTS.md#0x00-重要性): a human reviewed the change, and the message says so |
 
 Then run the part of the [manual sweep](#manual-regression-sweep) that covers what you touched.
 

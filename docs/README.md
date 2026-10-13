@@ -31,8 +31,8 @@ Settings has no document of its own. [architecture.md](architecture.md#settings)
 
 ## Documentation language
 
-Write all documentation in ASD-STE100 Simplified Technical English. This applies to `AGENTS.md`,
-`README.md`, `NOTICE.md`, `CHANGELOG.md` and each file in `docs/`. Names of types, files, settings
+Write all documentation in ASD-STE100 Simplified Technical English. This applies to `README.md`,
+`NOTICE.md`, `CHANGELOG.md` and each file in `docs/`. `AGENTS.md` is in Chinese. Names of types, files, settings
 and commands are technical names. Write them as the code writes them.
 
 `README.zh-CN.md` is the Chinese translation of `README.md`. When you change one, change the other.
