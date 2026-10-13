@@ -3,13 +3,13 @@
 How code in Noto is written. This is guidance: it describes the codebase as it is, so new code reads
 as if it was always there. A good reason to depart from it is a good reason. The checks that must
 pass are in [testing.md](testing.md#definition-of-done). The rules that may never break are the
-Non-negotiables in [`AGENTS.md`](../AGENTS.md).
+Non-negotiables in [`AGENTS.md`](../AGENTS.md#0x01-constitution).
 
 When this document and the code disagree, the code is probably right and this file is stale. Fix it.
 
 ## Posture
 
-[`AGENTS.md`](../AGENTS.md#posture-latest-only-always) states the rule: latest macOS only, modern
+[`AGENTS.md`](../AGENTS.md#0x01-constitution) states the rule: latest macOS only, modern
 APIs, no compatibility layers, no backwards compatibility unless asked. This section gives the reason
 and the shape.
 
