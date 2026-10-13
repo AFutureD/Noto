@@ -5,6 +5,10 @@ and the versions follow the version rule in [release.md](docs/release.md#the-ver
 
 ## [Unreleased]
 
+### Changed
+
+- The copyright line in Get Info names the Noto author and the Tinycast author.
+
 ## [0.3.0] - 2026-10-13
 
 ### Added

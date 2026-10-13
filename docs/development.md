@@ -112,34 +112,3 @@ re-indent (⌃I). `.swift-format` at the root gives an editor that uses `swift-f
 `xcodebuild` never compiles the harnesses, so an editor on SourceKit-LSP cannot resolve `Tests/`.
 `./Scripts/run-tests.sh --index` writes one compile command per harness into a git-ignored `.compile`
 file at the root. It needs Node. A build server that reads `.compile` is not part of the repository.
-
-## Upstream
-
-Noto's Notes code came from [Tinycast](https://github.com/abue-ammar/tinycast). Tinycast's Notes
-changes are ported by hand, one commit at a time.
-
-| | |
-| --- | --- |
-| Upstream repository | `https://github.com/abue-ammar/tinycast` |
-| Upstream path | `Tinycast/Features/Notes` |
-| Last ported commit | `59c0794f`, `Keep list markers on a wrapped item's first line of text` (2026-10-10) |
-
-The `/port-tinycast-notes` command in `.claude/skills/` does the port: it reports each upstream commit
-and its status, waits for a go-ahead, then ports one commit at a time and moves the row above. To list
-the unported commits by hand, run this in a Tinycast checkout:
-
-```sh
-git log --oneline 46beb10a..origin/main -- Tinycast/Features/Notes
-```
-
-Rules for a port:
-
-- Port one commit at a time, from the oldest.
-- The collection, store, window, switcher and formatting bar files map one to one:
-  `Noto/Features/Notes/…` is `Tinycast/Features/Notes/…`.
-- Do not port a change to Tinycast's parser, styler, renderer or `NoteTextView`. Noto's editor is
-  MDTextKit.
-- If a change depends on a Tinycast feature that Noto does not have, skip it and say so in the commit
-  message.
-- Move the `Last ported commit` row in the same change. That row is the only record of the port.
-  `NOTICE.md` keeps the extraction commit, which never changes.

@@ -51,5 +51,6 @@ See [docs/](docs/README.md) for the architecture, the standards and each feature
 
 ## License
 
-Noto is derived from the Notes feature of [Tinycast](https://github.com/abue-ammar/tinycast); see
-[NOTICE.md](NOTICE.md). Licensed under [AGPL-3.0](LICENSE).
+Noto is licensed under [AGPL-3.0](LICENSE). Noto started as the Notes feature of
+[Tinycast](https://github.com/abue-ammar/tinycast) and still contains its code. [NOTICE.md](NOTICE.md)
+lists the parts that came from Tinycast and the licences of the other components.

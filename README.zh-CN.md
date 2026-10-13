@@ -47,5 +47,5 @@ open Noto.xcodeproj    # 然后 ⌘R
 
 ## 许可
 
-Noto 派生自 [Tinycast](https://github.com/abue-ammar/tinycast) 的 Notes 功能，见 [NOTICE.md](NOTICE.md)。
-以 [AGPL-3.0](LICENSE) 许可发布。
+Noto 以 [AGPL-3.0](LICENSE) 许可发布。Noto 起源于 [Tinycast](https://github.com/abue-ammar/tinycast)
+的 Notes 功能，至今仍包含其代码。[NOTICE.md](NOTICE.md) 列出了来自 Tinycast 的部分，以及其他组件的许可。

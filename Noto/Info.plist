@@ -27,7 +27,7 @@
 	<key>LSUIElement</key>
 	<true/>
 	<key>NSHumanReadableCopyright</key>
-	<string>Derived from Tinycast. Licensed under AGPL-3.0.</string>
+	<string>Copyright © 2026 Huanan. Contains code from Tinycast, © 2026 Abue Ammar. Licensed under AGPL-3.0.</string>
 	<key>SUEnableAutomaticChecks</key>
 	<true/>
 	<key>SUFeedURL</key>

@@ -5,9 +5,9 @@ one at a time in one window that renders the Markdown in place, with four global
 agent (`LSUIElement`) with an optional Dock icon. Two packages: MDTextKit, the Markdown editor
 engine, and Sparkle, which updates the app.
 
-Noto was extracted from the Notes feature of [Tinycast](https://github.com/abue-ammar/tinycast) and is
-licensed AGPL-3.0; see [NOTICE.md](NOTICE.md). Upstream Notes changes are ported by hand;
-[development.md](docs/development.md#upstream) records the last ported commit.
+Noto was extracted from the Notes feature of [Tinycast](https://github.com/abue-ammar/tinycast) and still
+contains its code, so Noto is licensed AGPL-3.0; see [NOTICE.md](NOTICE.md). Noto no longer takes
+changes from Tinycast.
 
 ## Posture: latest-only, always
 

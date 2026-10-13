@@ -7,7 +7,7 @@ Read the documents in this order. Each one builds on the one before it.
 
 | Step | Document | Covers | Edit it when |
 | --- | --- | --- | --- |
-| 1 | [development.md](development.md) | Requirements, build, run, Debug and Release, the project file, lint, the Tinycast upstream | the toolchain, the project setup or the upstream row changes |
+| 1 | [development.md](development.md) | Requirements, build, run, Debug and Release, the project file, lint | the toolchain or the project setup changes |
 | 2 | [architecture.md](architecture.md) | The layers, the owners, the windows, the settings, Observation, concurrency, the folder tree | a layer boundary, an owner, a window or the tree changes |
 | 3 | [standards.md](standards.md) | How to write code here: posture, naming, style, concurrency rules, comments | a convention changes |
 | 4 | [ui.md](ui.md) | The design system: tokens, the note window, glass, the shared controls, the Settings window | a token or a presentation rule changes |
