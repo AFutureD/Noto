@@ -9,7 +9,7 @@ from. This repository only starts it.
 | Repository | Holds | Secrets |
 | --- | --- | --- |
 | `AFutureD/Noto` | the source, and `.github/workflows/release.yml`, which dispatches a version | `RELEASES_REPO_TOKEN` |
-| `AFutureD/noto-releases` | `.github/workflows/release.yml`, which builds, signs, notarises and publishes; `ExportOptions.plist`; `scripts/notarize.sh`; the Releases and the Sparkle feed | the six signing secrets below |
+| `AFutureD/noto-releases` | `.github/workflows/release.yml`, which builds, signs, notarises and publishes; `ExportOptions.plist`; `scripts/notarize.sh`; the Releases and the Sparkle feed | the seven signing secrets below |
 
 The split keeps the signing secrets out of the source repository. The dispatcher needs one token. The
 build repository needs everything else, and nothing in it can change the source.
@@ -39,9 +39,11 @@ The dispatcher sends the tag and the version to noto-releases as a `repository_d
 one job on the `xcode-27` runner (only Xcode 27's `actool` compiles the Icon Composer icon):
 
 1. Checks out Noto at the tag and validates the version rule.
-2. Imports the Developer ID certificate into a temporary keychain.
+2. Imports the Developer ID certificate into a temporary keychain, and installs the Developer ID
+   provisioning profile "Noto Developer ID Application".
 3. Archives the `Noto` scheme in Release and exports it with `ExportOptions.plist` (`developer-id`,
-   manual signing, team `8GSN8K4KD9`). `ARCHS` is `arm64`, so the app runs on Apple Silicon only.
+   manual signing, team `8GSN8K4KD9`, that profile for `app.huanan.noto`). `ARCHS` is `arm64`, so the
+   app runs on Apple Silicon only.
 4. Notarises and staples the app. Then packages `Noto-<version>.dmg`, and notarises and staples that.
 5. Zips the stapled app as `Noto-<version>.zip`, the archive Sparkle installs.
 6. Downloads the previous `appcast.xml` from the latest release and adds the new version with
@@ -74,12 +76,19 @@ On `AFutureD/noto-releases` (Settings > Secrets and variables > Actions):
 | `APPSTORE_CONNECT_KEY_ID` | the id of that key |
 | `APPSTORE_CONNECT_ISSUER_ID` | the issuer id of the App Store Connect team |
 | `SPARKLE_ED_PRIVATE_KEY` | the EdDSA private key from Sparkle's `generate_keys`; its public half is `SUPublicEDKey` in `Noto/Info.plist` |
+| `DEVELOPER_ID_PROVISION_PROFILE_BASE64` | the Developer ID provisioning profile "Noto Developer ID Application", as `base64` of the `.provisionprofile` |
 
 On `AFutureD/Noto`:
 
 | Secret | Value |
 | --- | --- |
 | `RELEASES_REPO_TOKEN` | a fine-grained personal access token with Contents read and write on `AFutureD/noto-releases` only |
+
+The iCloud entitlements in `Noto/Noto.entitlements` need the provisioning profile. Make it in the
+Apple Developer portal: type Developer ID, the App ID `app.huanan.noto` with the iCloud capability
+and the container `iCloud.app.huanan.noto`, and the Developer ID Application certificate of the
+`.p12`. When the certificate, the container or an entitlement changes, make the profile again and
+replace the secret.
 
 A lost `SPARKLE_ED_PRIVATE_KEY` cannot be replaced. An installed Noto accepts only a feed signed with
 the key that matches its `SUPublicEDKey`. Keep a copy outside GitHub.

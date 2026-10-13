@@ -21,6 +21,9 @@ struct NotesTests {
         try await testCollectionMutationsFlushTheDraft()
         try await testStoreRecoversFromFailures()
         try await testStoreRelocates()
+        try await testStoreKeepsRemoteEditsBesideTheDraft()
+        try await testStoreSavesOverAMergedNote()
+        try await testStoreCopiesNotesIn()
 
         print(failures == 0 ? "Notes tests passed" : "\(failures) tests failed")
         exit(failures == 0 ? 0 : 1)
@@ -54,17 +57,28 @@ struct NotesTests {
         check("duplicate titles receive a numeric suffix", secondUntitled.id.rawValue == "Untitled 2")
 
         let source = "# Heading\n\nLiteral **Markdown** and café snow\n"
-        try stable.save(id: untitled.id, source: source)
+        try stable.save(id: untitled.id, source: source, base: "")
         check("UTF-8 Markdown round-trips unchanged", try stable.load(untitled.id).source == source)
         check(
             "the content lives in text.md inside the note folder",
             stable.fileURL(for: untitled.id).path.hasSuffix("/Untitled/text.md"))
 
-        try Data("external".utf8).write(to: stable.fileURL(for: untitled.id), options: .atomic)
-        try stable.save(id: untitled.id, source: source)
         check(
-            "Noto is the only writer, so a save replaces whatever is on disk",
-            try stable.load(untitled.id).source == source)
+            "a save over the content it read keeps no copy",
+            try stable.save(id: untitled.id, source: source + "more", base: source) == nil)
+        try Data("external".utf8).write(to: stable.fileURL(for: untitled.id), options: .atomic)
+        let copy = try stable.save(id: untitled.id, source: source, base: source + "more")
+        check("a save replaces what another writer left", try stable.load(untitled.id).source == source)
+        check(
+            "what another writer left is kept as a conflict copy",
+            try copy.map { try stable.load($0).source } == "external"
+                && copy?.rawValue.hasPrefix("Untitled (Conflict ") == true)
+        if let copy { try FileManager.default.removeItem(at: stable.folderURL(for: copy)) }
+        try FileManager.default.removeItem(at: stable.folderURL(for: untitled.id))
+        try stable.save(id: untitled.id, source: source, base: source)
+        check(
+            "a save recreates a note folder deleted elsewhere",
+            try stable.load(untitled.id).source == source && stable.list().count == 3)
 
         let plan = try stable.create(title: "Plan")
         let foldedCollision = try stable.create(title: "plán")
@@ -195,9 +209,9 @@ struct NotesTests {
         let repository = try repository(in: root)
 
         let unnamed = try repository.create()
-        try repository.save(id: unnamed.id, source: "# Groceries\n\nmilk\n")
+        try repository.save(id: unnamed.id, source: "# Groceries\n\nmilk\n", base: "")
         let named = try repository.create(title: "Plan")
-        try repository.save(id: named.id, source: "# Ignored heading\n")
+        try repository.save(id: named.id, source: "# Ignored heading\n", base: "")
 
         let summaries = try repository.list()
         let unnamedSummary = try require(summaries.first { $0.id == unnamed.id })
@@ -439,7 +453,7 @@ struct NotesTests {
             unchanged && store.source == unchecked && store.editorEpoch == refreshedEpoch)
 
         let other = try repository.create(title: "Other")
-        try repository.save(id: other.id, source: "Another note")
+        try repository.save(id: other.id, source: "Another note", base: "")
         _ = await store.start()
         check(
             "externally added notes appear without replacing the active note or its history",
@@ -467,6 +481,87 @@ struct NotesTests {
         let emptyEpoch = store.editorEpoch
         _ = await store.start()
         check("reopening an empty collection leaves the editor alone", store.editorEpoch == emptyEpoch)
+    }
+
+    private static func testStoreKeepsRemoteEditsBesideTheDraft() async throws {
+        let root = temporaryRoot("remote-edit")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let repository = try repository(in: root)
+        let store = NotesStore(repository: repository)
+        defer { store.stop() }
+        _ = await store.create()
+        let activeID = try require(store.activeID)
+        store.updateSource("Shared start")
+        _ = await store.flush()
+
+        // Another device saves while this one types.
+        try Data("Edited on the iPhone".utf8).write(to: repository.fileURL(for: activeID), options: .atomic)
+        store.updateSource("Shared start, typed on this Mac")
+        _ = await store.flush()
+        let notes = try repository.list()
+        let copy = notes.first { $0.id.rawValue.hasPrefix("\(activeID.rawValue) (Conflict ") }
+        check(
+            "the draft lands over a remote edit",
+            try repository.load(activeID).source == "Shared start, typed on this Mac")
+        check(
+            "the remote edit is kept as a conflict copy",
+            try copy.map { try repository.load($0.id).source } == "Edited on the iPhone")
+        check("the conflict copy is listed", store.summaries.contains { $0.id == copy?.id })
+
+        store.updateSource("Shared start, typed on this Mac, and more")
+        _ = await store.flush()
+        check(
+            "the next save over its own write keeps no further copy",
+            try repository.list().count == notes.count)
+    }
+
+    /// Two Macs offline both create `Untitled`; iCloud keeps one folder with the other Mac's text.
+    private static func testStoreSavesOverAMergedNote() async throws {
+        let root = temporaryRoot("merged")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let repository = try repository(in: root)
+        let store = NotesStore(repository: repository)
+        defer { store.stop() }
+        _ = await store.create()
+        let activeID = try require(store.activeID)
+        try Data("Written on the other Mac".utf8).write(to: repository.fileURL(for: activeID), options: .atomic)
+        store.updateSource("Written on this Mac")
+        _ = await store.flush()
+        let sources = try repository.list().map { try repository.load($0.id).source }
+        check(
+            "neither Mac's text is lost when both notes share one folder",
+            Set(sources) == ["Written on this Mac", "Written on the other Mac"])
+    }
+
+    private static func testStoreCopiesNotesIn() async throws {
+        let root = temporaryRoot("copy-in")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let local = try repository(in: root, support: root.appendingPathComponent("local"))
+        let cloud = try repository(in: root, support: root.appendingPathComponent("cloud"))
+        try seed(local, NoteID(rawValue: "Same"), "same text")
+        try seed(local, NoteID(rawValue: "Differs"), "local text")
+        try seed(local, NoteID(rawValue: "Only Here"), "only local")
+        let old = Date(timeIntervalSince1970: 1_700_000_000)
+        try FileManager.default.setAttributes(
+            [.modificationDate: old], ofItemAtPath: local.fileURL(for: NoteID(rawValue: "Only Here")).path)
+        try seed(cloud, NoteID(rawValue: "same"), "same text")
+        try seed(cloud, NoteID(rawValue: "Differs"), "cloud text")
+
+        let store = NotesStore(repository: cloud)
+        defer { store.stop() }
+        _ = await store.start()
+        let copied = await store.copyNotes(from: local)
+        let titles = Set(try cloud.list().map(\.id.rawValue))
+        check("a note iCloud already has with the same text is not copied", copied == 2)
+        check(
+            "a differing note of the same name takes the next name",
+            try titles == ["same", "Differs", "Differs 2", "Only Here"]
+                && cloud.load(NoteID(rawValue: "Differs 2")).source == "local text")
+        let modified = try cloud.fileURL(for: NoteID(rawValue: "Only Here"))
+            .resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate
+        check("a copied note keeps its modification date", modified == old)
+        check("the listing shows the copies", store.summaries.count == 4)
+        check("the source folder is left as it was", try local.list().count == 3)
     }
 
     private static func testStoreRefreshPreservesDrafts() async throws {

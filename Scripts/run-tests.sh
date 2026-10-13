@@ -147,6 +147,8 @@ run() {
 }
 
 run notes-test             Noto/Platform/Signposts.swift \
+                           Noto/Platform/SyncLog.swift \
+                           Noto/Platform/NotificationToken.swift \
                            Noto/Features/Notes/Model/*.swift \
                            Noto/Features/Notes/Service/*.swift
 run notes-editor-test  Noto/Platform/Signposts.swift \
@@ -163,6 +165,17 @@ run notes-editor-test  Noto/Platform/Signposts.swift \
                            Noto/Features/Notes/UI/NoteEditorTheme.swift \
                            Noto/Features/Notes/UI/NoteTextView.swift \
                            Noto/Features/Notes/UI/NoteEditorView.swift
+run settings-sync-test     Noto/Platform/NotificationToken.swift \
+                           Noto/Platform/CloudKeyValueStore.swift \
+                           Noto/Platform/SyncLog.swift \
+                           Noto/Features/Notes/Model/NoteFontSettings.swift \
+                           Noto/Features/Notes/Model/NoteHighlightColor.swift \
+                           Noto/Features/Notes/Model/NoteAccentColor.swift \
+                           Noto/Features/HotKeys/Model/HotKeyCommand.swift \
+                           Noto/Platform/ASCIIKeyboardLayout.swift \
+                           Noto/Features/HotKeys/Service/KeyShortcut.swift \
+                           Noto/Features/Settings/NotoSettings.swift \
+                           Noto/Features/Settings/CloudSettingsMirror.swift
 run -O index notes-editor-performance \
                            Noto/Platform/Signposts.swift \
                            Noto/Platform/Appearance.swift \

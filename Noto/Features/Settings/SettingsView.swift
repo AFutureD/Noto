@@ -9,6 +9,7 @@ struct SettingsView: View {
             case .general: GeneralSettingsPane()
             case .editor: EditorSettingsPane()
             case .shortcuts: ShortcutsSettingsPane()
+            case .sync: SyncSettingsPane()
             }
         }
         .padding(Theme.Spacing.xxl)
@@ -53,8 +54,19 @@ private struct GeneralSettingsPane: View {
                     Button("Use Default", action: core.notesCoordinator.resetNotesFolder)
                 }
             }
-            SettingsCaption((core.notesStore.notesDirectory.path as NSString).abbreviatingWithTildeInPath)
+            // The folder applies again once sync is off, so it stays visible but cannot change.
+            .disabled(settings.syncsWithICloud)
+            SettingsCaption(notesFolderCaption)
         }
+    }
+
+    /// Finder's name for the iCloud folder, not the container path behind it.
+    private var notesFolderCaption: String {
+        let folder = core.notesStore.notesDirectory
+        if case .available(let documents) = core.cloudNotes.state, documents == folder {
+            return "iCloud Drive › Noto"
+        }
+        return (folder.path as NSString).abbreviatingWithTildeInPath
     }
 }
 
@@ -64,39 +76,33 @@ private struct EditorSettingsPane: View {
 
     var body: some View {
         @Bindable var settings = settings
-        SettingsRow("Text size") {
-            HStack(spacing: Theme.Spacing.md) {
-                Text("A").font(.caption)
-                Slider(value: fontSize, in: NoteFontSettings.sizeRange, step: 1)
+        SettingsRow("Text font") {
+            FontFamilyButton(standard: "System", families: families.all, selection: $settings.fonts.textFamily)
+        }
+        SettingsRow("Heading font") {
+            FontFamilyButton(
+                standard: "Same as Text", families: families.all, selection: $settings.fonts.headingFamily)
+        }
+        SettingsRow("CJK font") {
+            FontFamilyButton(standard: "Automatic", families: families.cjk, selection: $settings.fonts.cjkFamily)
+        }
+        SettingsRow("Code font") {
+            FontFamilyButton(
+                standard: "System Mono", families: families.fixedPitch, selection: $settings.fonts.codeFamily)
+        }
+        Divider()
+        SettingsRow("Text size", alignment: .center) {
+            HStack(spacing: Theme.Spacing.lg) {
+                Slider(value: fontSize, in: NoteFontSettings.sizeRange)
                     .frame(width: Theme.Size.settingsSlider)
                     .accessibilityLabel("Text size")
-                Text("A").font(.title2)
                 Text("\(Int(fontSize.wrappedValue)) pt")
                     .monospacedDigit()
                     .foregroundStyle(.secondary)
             }
         }
         Divider()
-        SettingsRow("Text font") {
-            FontFamilyPicker(standard: "System", families: families.all, selection: $settings.fonts.textFamily)
-        }
-        SettingsRow("Heading font") {
-            FontFamilyPicker(
-                standard: "Same as Text", families: families.all, selection: $settings.fonts.headingFamily)
-        }
-        SettingsRow("CJK font") {
-            FontFamilyPicker(standard: "Automatic", families: families.cjk, selection: $settings.fonts.cjkFamily)
-        }
-        SettingsRow("Code font") {
-            FontFamilyPicker(
-                standard: "System Mono", families: families.fixedPitch, selection: $settings.fonts.codeFamily)
-        }
-        SettingsRow("Defaults") {
-            Button("Reset Fonts") { settings.fonts = .standard }
-                .disabled(settings.fonts == .standard)
-        }
-        Divider()
-        SettingsRow("Highlight") {
+        SettingsRow("Highlight", alignment: .center) {
             HStack(spacing: Theme.Spacing.md) {
                 ColorPicker("Highlight colour", selection: highlightColor)
                     .labelsHidden()
@@ -105,7 +111,7 @@ private struct EditorSettingsPane: View {
                 }
             }
         }
-        SettingsRow("Accent") {
+        SettingsRow("Accent", alignment: .center) {
             HStack(spacing: Theme.Spacing.md) {
                 ColorPicker("Accent colour", selection: accentColor, supportsOpacity: false)
                     .labelsHidden()
@@ -118,7 +124,23 @@ private struct EditorSettingsPane: View {
         SettingsRow("Formatting bar") {
             Toggle("Show formatting bar", isOn: $settings.showsFormattingBar)
         }
+        SettingsRow("") {
+            Button("Restore Editor Defaults", action: restoreDefaults)
+                .disabled(isAtDefaults)
+        }
         .task { families = await FontCatalog.families() }
+    }
+
+    private var isAtDefaults: Bool {
+        settings.fonts == .standard && settings.highlightColor == nil && settings.accentColor == nil
+            && settings.showsFormattingBar
+    }
+
+    private func restoreDefaults() {
+        settings.fonts = .standard
+        settings.highlightColor = nil
+        settings.accentColor = nil
+        settings.showsFormattingBar = true
     }
 
     /// An unset colour shows the theme's own; the first pick makes it explicit and fixed.
@@ -155,7 +177,8 @@ private struct EditorSettingsPane: View {
     private var fontSize: Binding<Double> {
         Binding(
             get: { settings.fonts.size ?? Double(NoteEditorTheme.standardBodySize) },
-            set: { settings.fonts.size = $0 })
+            // Whole points, rounded here rather than by a slider step, which would draw tick marks.
+            set: { settings.fonts.size = $0.rounded() })
     }
 }
 
@@ -174,20 +197,49 @@ private struct ShortcutsSettingsPane: View {
     }
 }
 
+private struct SyncSettingsPane: View {
+    @Environment(AppCore.self) private var core
+    @Environment(NotoSettings.self) private var settings
+
+    var body: some View {
+        SettingsRow("") {
+            Toggle("iCloud Sync", isOn: syncsWithICloud)
+            SettingsCaption(caption)
+        }
+    }
+
+    /// Off goes through the coordinator too: only the Mac that turns sync on is asked about its notes.
+    private var syncsWithICloud: Binding<Bool> {
+        Binding(
+            get: { settings.syncsWithICloud },
+            set: { core.notesCoordinator.setSyncsWithICloud($0) })
+    }
+
+    private var caption: String {
+        guard settings.syncsWithICloud, core.cloudNotes.state == .unavailable else {
+            return "Turning sync off here turns it off on your other devices too."
+        }
+        return "iCloud Drive is off on this Mac, so notes stay on this Mac."
+    }
+}
+
 // MARK: - Parts
 
 /// One line of a pane: a right-aligned label with a colon, then its controls stacked beside it.
 private struct SettingsRow<Content: View>: View {
     let label: String
+    /// A row of text controls aligns on the baseline; a row of a slider or a colour well on the centre.
+    let alignment: VerticalAlignment
     @ViewBuilder let content: Content
 
-    init(_ label: String, @ViewBuilder content: () -> Content) {
+    init(_ label: String, alignment: VerticalAlignment = .firstTextBaseline, @ViewBuilder content: () -> Content) {
         self.label = label
+        self.alignment = alignment
         self.content = content()
     }
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: Theme.Spacing.md) {
+        HStack(alignment: alignment, spacing: Theme.Spacing.md) {
             Text(label.isEmpty ? "" : "\(label):")
                 .frame(width: Theme.Size.settingsLabelColumn, alignment: .trailing)
             VStack(alignment: .leading, spacing: Theme.Spacing.sm) { content }
@@ -211,27 +263,88 @@ private struct SettingsCaption: View {
     }
 }
 
-/// One family menu. The first row is the system's own choice, stored as nil.
-private struct FontFamilyPicker: View {
+/// An Aa button that opens a searchable list of families, then the chosen family's name drawn in it.
+/// The list's first row is the system's own choice, stored as nil.
+private struct FontFamilyButton: View {
     let standard: String
     let families: [String]
     @Binding var selection: String?
+    @State private var isPresented = false
 
     var body: some View {
-        Picker(standard, selection: $selection) {
-            Text(standard).tag(String?.none)
-            Divider()
-            // A stored family that is not in the list stays selectable, so the menu shows it.
-            if let selection, !families.contains(selection) {
-                Text(families.isEmpty ? selection : "\(selection) (Not Installed)")
-                    .tag(String?.some(selection))
-            }
-            ForEach(families, id: \.self) { family in
-                Text(family).tag(String?.some(family))
+        HStack(spacing: Theme.Spacing.lg) {
+            Button("Aa") { isPresented.toggle() }
+                .accessibilityLabel("Choose a font")
+                .popover(isPresented: $isPresented, arrowEdge: .bottom) {
+                    FontFamilyList(standard: standard, families: families, selection: $selection) {
+                        isPresented = false
+                    }
+                }
+            Text(name)
+                .font(FontFamilyList.sample(selection))
+                .lineLimit(1)
+        }
+    }
+
+    /// A stored family that is not installed says so, rather than drawing in a fallback silently.
+    private var name: String {
+        guard let selection else { return standard }
+        guard families.isEmpty || families.contains(selection) else { return "\(selection) (Not Installed)" }
+        return selection
+    }
+}
+
+private struct FontFamilyList: View {
+    let standard: String
+    let families: [String]
+    @Binding var selection: String?
+    let dismiss: () -> Void
+    @State private var query = ""
+
+    var body: some View {
+        VStack(spacing: Theme.Spacing.md) {
+            TextField("Search", text: $query)
+                .textFieldStyle(.roundedBorder)
+            ScrollViewReader { proxy in
+                List {
+                    if query.isEmpty { row(nil) }
+                    ForEach(matches, id: \.self) { row($0) }
+                }
+                .listStyle(.plain)
+                .onAppear { proxy.scrollTo(selection, anchor: .center) }
             }
         }
-        .labelsHidden()
-        // A menu of short names is narrower than the frame, and would sit centred in it.
-        .frame(width: Theme.Size.settingsPicker, alignment: .leading)
+        .padding(Theme.Spacing.lg)
+        .frame(width: Theme.Size.settingsFontList.width, height: Theme.Size.settingsFontList.height)
+    }
+
+    static func sample(_ family: String?) -> Font {
+        guard let family else { return .system(size: Theme.Size.settingsFontSample) }
+        return .custom(family, size: Theme.Size.settingsFontSample)
+    }
+
+    private var matches: [String] {
+        let trimmed = query.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return families }
+        return families.filter { $0.localizedStandardContains(trimmed) }
+    }
+
+    private func row(_ family: String?) -> some View {
+        Button {
+            selection = family
+            dismiss()
+        } label: {
+            HStack {
+                Text(family ?? standard)
+                    .font(Self.sample(family))
+                    .lineLimit(1)
+                Spacer(minLength: 0)
+                if family == selection { Image(systemName: "checkmark") }
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .listRowSeparator(.hidden)
+        .id(family)
     }
 }

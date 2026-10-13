@@ -94,7 +94,8 @@ without a written radius.
 - The recorder: `shortcutRecorder 120`, `recorderKeyCap 16`, `shortcutPopover 132×82` (summed from its
   bands), `shortcutPopoverLine 14`, `calloutCaretWidth 15`, `calloutCaretHeight 7`,
   `calloutCaretTip 2.5`.
-- Settings: `settingsWidth 600`, `settingsLabelColumn 180`, `settingsSlider 180`, `settingsPicker 220`.
+- Settings: `settingsWidth 600`, `settingsLabelColumn 180`, `settingsSlider 180`,
+  `settingsFontList 280 × 360`, `settingsFontSample 15`.
 
 ### Duration and motion
 
@@ -309,8 +310,8 @@ The window:
 
 - A titled `NSWindow` that you can close and minimize, not resize.
 - Its width is `settingsWidth`. Each pane sets the height.
-- A toolbar in the `.preference` style shows one item per `SettingsPane`: General, Editor and
-  Shortcuts, each with a symbol and a label. The window title is the selected pane's name.
+- A toolbar in the `.preference` style shows one item per `SettingsPane`: General, Editor, Shortcuts
+  and Sync, each with a symbol and a label. The window title is the selected pane's name.
 - `SettingsView` reports the pane's height after each layout. `SettingsWindowController.fit` sets the
   window height with an animation. The top edge does not move. Do not read the height from the hosting
   view after a pane change: it returns the previous pane's height.
@@ -320,28 +321,39 @@ The window:
 A pane:
 
 - `SettingsRow` is one row. Its label is right-aligned in a `settingsLabelColumn` column and ends with
-  a colon. The controls are to its right.
+  a colon. The controls are to its right. A row of text controls aligns the label on the first
+  baseline. A row with a slider or a colour well aligns it on the centre.
 - A switch is a checkbox with its title to the right. Do not use the switch style.
 - `SettingsCaption` is a secondary line below a control.
 - A `Divider` separates groups of rows.
-- A dependent control is disabled, not hidden. Reset Fonts is disabled while no font is set.
+- A dependent control is disabled, not hidden. Restore Editor Defaults is disabled while each Editor
+  setting is at its default. The Notes folder buttons are disabled while iCloud Sync is on.
 
 The panes:
 
 | Pane | Rows |
 | --- | --- |
 | General | Window (Keep on top), Dock (Show in Dock), Updates (Check for updates automatically, Check Now, the version), Notes folder (Choose…, Use Default, the path) |
-| Editor | Text size, Text font, Heading font, CJK font, Code font, Defaults (Reset Fonts), Highlight (a colour well, Use Default), Accent (a colour well, Use Default), Formatting bar (Show formatting bar) |
+| Editor | Text font, Heading font, CJK font, Code font, Text size, Highlight (a colour well, Use Default), Accent (a colour well, Use Default), Formatting bar (Show formatting bar), Restore Editor Defaults |
 | Shortcuts | One row per `HotKeyCommand`, with a `ShortcutRecorder` and the command's subtitle |
+| Sync | iCloud Sync, a caption |
 
-- Text size is a slider with a step of 1 point. The value shows to the right of the slider.
-- A font row is a `Picker` of family names from `FontCatalog`, `settingsPicker` wide. Its first item is
-  the system choice. `FontCatalog` reads the families off the main thread, and the menus fill when it
-  completes. The CJK menu shows only families with Han characters. The code menu shows only
-  fixed-pitch families. A stored family that is not installed shows with "(Not Installed)".
+- Text size is a slider without tick marks. The binding rounds the value to whole points. The value
+  shows to the right of the slider.
+- A font row is an Aa button and the name of the chosen family, drawn in that family at
+  `settingsFontSample` points. The button opens a popover, `settingsFontList` in size, with a search
+  field and a list of family names from `FontCatalog`. Each name is drawn in its family. The first
+  item is the system choice, and the list scrolls to the chosen family when it opens. `FontCatalog`
+  reads the families off the main thread, and the lists fill when it completes. The CJK list shows
+  only families with Han characters. The code list shows only fixed-pitch families. A stored family
+  that is not installed shows with "(Not Installed)".
 - The Highlight row is a `ColorPicker` with opacity. The Accent row is one without. Each shows the
   default colour until the user picks one, and Use Default appears only while a colour is set.
 - A `ShortcutRecorder` is not in a `LabeledContent`, because that container stops the click.
+- The Sync caption says that turning sync off turns it off on the other devices too. While sync is
+  on and iCloud Drive is off on this Mac, it says that the notes stay on this Mac. The Notes folder caption shows "iCloud Drive › Noto" while
+  the notes are in iCloud, else the path with `~`. The behaviour is in
+  [sync.md](features/sync.md#the-notes-location).
 
 ## Rules for UI work
 

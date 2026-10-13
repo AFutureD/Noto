@@ -5,6 +5,17 @@ and the versions follow the version rule in [release.md](docs/release.md#the-ver
 
 ## [Unreleased]
 
+### Added
+
+- Settings > Sync > iCloud Sync keeps your notes and the Editor and Shortcuts settings the
+  same on each Mac with your iCloud account. The notes go to iCloud Drive › Noto. When you turn sync
+  on, Noto asks if it copies the notes on this Mac to iCloud.
+
+### Changed
+
+- A save no longer replaces a change that another app or device made to the note. Noto keeps that
+  text as a new note named `<title> (Conflict <date> <time>)`.
+
 ## [0.3.2] - 2026-10-13
 
 ### Changed

@@ -42,6 +42,9 @@ final class NotesStore {
     @ObservationIgnored private var pendingRelocation: NotesRepository?
     private var searchGeneration = 0
     @ObservationIgnored private var sourceRevision = 0
+    /// The file's content as this store last read or wrote it; a save that finds anything else
+    /// on disk keeps that as a conflict copy.
+    @ObservationIgnored private var baseSource = ""
 
     init(
         repository: NotesRepository,
@@ -161,6 +164,39 @@ final class NotesStore {
             publish(.operation(failure))
             return 0
         }
+    }
+
+    /// Copies the notes of another folder in, leaving the open draft where it was.
+    func copyNotes(from other: NotesRepository) async -> Int {
+        let repository = repository
+        let result = await detached {
+            (try repository.copyNotes(from: other), try repository.list())
+        } recover: {
+            other.notesDirectory
+        }
+        switch result {
+        case .success(let payload):
+            summaries = payload.1
+            return payload.0
+        case .failure(let failure):
+            publish(.operation(failure))
+            return 0
+        }
+    }
+
+    /// Keeps the versions iCloud could not merge as conflict copies, then lists and reloads.
+    func resolveConflicts(_ ids: [NoteID]) async {
+        guard !ids.isEmpty else { return }
+        let repository = repository
+        let result = await detached {
+            for id in ids { _ = try repository.resolveConflicts(id: id) }
+        } recover: {
+            repository.notesDirectory
+        }
+        if case .failure(let failure) = result { publish(.operation(failure)) }
+        // A store that has not loaded yet lists when the window first shows.
+        guard isLoaded else { return }
+        _ = await reload()
     }
 
     @discardableResult
@@ -347,9 +383,10 @@ final class NotesStore {
     private func write() async {
         guard isDirty, let activeID else { return }
         let savedSource = source
+        let base = baseSource
         let repository = repository
         let result = await detached {
-            try repository.save(id: activeID, source: savedSource)
+            try repository.save(id: activeID, source: savedSource, base: base)
             return try repository.list()
         } recover: {
             repository.fileURL(for: activeID)
@@ -357,6 +394,7 @@ final class NotesStore {
         switch result {
         case .success(let summaries):
             self.summaries = summaries
+            if activeID == self.activeID { baseSource = savedSource }
             isDirty = savedSource != source
             if !isDirty, let pending = pendingRelocation {
                 Task { [weak self] in await self?.relocate(to: pending) }
@@ -371,6 +409,7 @@ final class NotesStore {
         self.summaries = summaries
         activeID = document?.id
         source = document?.source ?? ""
+        baseSource = source
         editorEpoch &+= 1
         isDirty = false
         saveFailed = false

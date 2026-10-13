@@ -28,6 +28,11 @@ final class HotKeyManager {
 
     func start(onCommand: @escaping (HotKeyCommand) -> Void) {
         self.onCommand = onCommand
+        registerAll()
+    }
+
+    /// Re-reads every binding, as after iCloud replaced the shortcuts.
+    func registerAll() {
         for command in HotKeyCommand.allCases { register(command) }
     }
 

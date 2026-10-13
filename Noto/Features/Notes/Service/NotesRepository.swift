@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 struct NotesRepository: Sendable {
     typealias TrashOperation = @Sendable (URL) throws -> Void
@@ -28,15 +29,18 @@ struct NotesRepository: Sendable {
 
     let notesDirectory: URL
     private let trashOperation: TrashOperation
+    private let now: @Sendable () -> Date
 
     init(
         notesDirectory: URL,
         trashOperation: @escaping TrashOperation = { url in
             try FileManager.default.trashItem(at: url, resultingItemURL: nil)
-        }
+        },
+        now: @escaping @Sendable () -> Date = Date.init
     ) {
         self.notesDirectory = notesDirectory
         self.trashOperation = trashOperation
+        self.now = now
     }
 
     func list() throws(Failure) -> [NoteSummary] {
@@ -44,7 +48,8 @@ struct NotesRepository: Sendable {
             try ensureDirectory()
             let folderKeys: Set<URLResourceKey> = [.isDirectoryKey, .isHiddenKey, .isSymbolicLinkKey]
             let fileKeys: Set<URLResourceKey> = [
-                .contentModificationDateKey, .isRegularFileKey, .isSymbolicLinkKey
+                .contentModificationDateKey, .isRegularFileKey, .isSymbolicLinkKey,
+                .ubiquitousItemDownloadingStatusKey,
             ]
             return try FileManager.default.contentsOfDirectory(
                 at: notesDirectory,
@@ -64,7 +69,8 @@ struct NotesRepository: Sendable {
                 return NoteSummary(
                     id: NoteID(rawValue: title),
                     title: title,
-                    firstLine: NoteTitle.isUnnamed(title) ? firstLine(of: url) : nil,
+                    // A file iCloud has not downloaded yet would block the read until it arrives.
+                    firstLine: NoteTitle.isUnnamed(title) && Self.isLocal(values) ? firstLine(of: url) : nil,
                     modifiedAt: values.contentModificationDate ?? .distantPast)
             }
             .sorted(by: summaryPrecedes)
@@ -85,10 +91,7 @@ struct NotesRepository: Sendable {
         let candidate = fileURL(for: id)
         return try mappedError(at: candidate) {
             let url = try validatedFileURL(candidate)
-            let data = try Data(contentsOf: url)
-            guard let source = String(data: data, encoding: .utf8) else {
-                throw Failure.unreadable(url)
-            }
+            let source = try coordinatedRead(at: url) { try Self.source(at: try validatedFileURL($0)) }
             return NoteDocument(id: NoteID(rawValue: url.deletingLastPathComponent().lastPathComponent), source: source)
         }
     }
@@ -123,14 +126,71 @@ struct NotesRepository: Sendable {
         }
     }
 
-    func save(id: NoteID, source: String) throws(Failure) {
+    /// Writes `source` over the file `base` was read from. A file that no longer holds `base` was
+    /// changed elsewhere, so its content is kept as a conflict copy before the write; the returned id
+    /// names it. A note folder that was renamed or deleted elsewhere is created again, so the draft lands.
+    @discardableResult
+    func save(id: NoteID, source: String, base: String) throws(Failure) -> NoteID? {
         let candidate = fileURL(for: id)
-        try mappedError(at: candidate) {
+        return try mappedError(at: candidate) {
             let url = try validatedFileURL(candidate)
             let data = Data(source.utf8)
-            try coordinatedWrite(at: url, options: .forReplacing) { coordinatedURL in
-                try data.write(to: try validatedFileURL(coordinatedURL), options: .atomic)
+            return try coordinatedReplace(at: url) { coordinatedURL in
+                let fileURL = try validatedFileURL(coordinatedURL)
+                let disk = FileManager.default.fileExists(atPath: fileURL.path)
+                    ? try Self.source(at: fileURL) : nil
+                // The copy lands first: if it fails, the write does not happen and nothing is lost.
+                var copy: NoteID?
+                if let disk, disk != base, disk != source {
+                    copy = try keepConflictCopy(of: id, source: disk)
+                }
+                try FileManager.default.createDirectory(
+                    at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+                try data.write(to: fileURL, options: .atomic)
+                return copy
             }
+        }
+    }
+
+    /// Keeps every version iCloud could not merge as a conflict copy, then marks them resolved.
+    func resolveConflicts(id: NoteID) throws(Failure) -> [NoteID] {
+        let candidate = fileURL(for: id)
+        return try mappedError(at: candidate) {
+            let url = try validatedFileURL(candidate)
+            let versions = try coordinatedReplace(at: url) { coordinatedURL in
+                let fileURL = try validatedFileURL(coordinatedURL)
+                let versions = NSFileVersion.unresolvedConflictVersionsOfItem(at: fileURL) ?? []
+                let sources = try versions.map { try Self.source(at: $0.url) }
+                for version in versions { version.isResolved = true }
+                try NSFileVersion.removeOtherVersionsOfItem(at: fileURL)
+                return sources
+            }
+            return try versions.map { try keepConflictCopy(of: id, source: $0) }
+        }
+    }
+
+    /// Copies every note of `other` in beside the existing ones. A note with the same title and the
+    /// same text is already here and is skipped; any other collision takes the next free name.
+    func copyNotes(from other: NotesRepository) throws(Failure) -> Int {
+        try mappedError(at: other.notesDirectory) {
+            let existing = Dictionary(
+                try list().map { (folded($0.id.rawValue), $0.id) }, uniquingKeysWith: { first, _ in first })
+            var copied = 0
+            for summary in try other.list() {
+                let source = try other.load(summary.id).source
+                if let twin = existing[folded(summary.id.rawValue)], (try? load(twin).source) == source {
+                    continue
+                }
+                let folder = try claimUniqueFolder(base: summary.id.rawValue) {
+                    try createNoteFolder(at: $0, source: Data(source.utf8))
+                }
+                // The copy keeps its place in the modification-date order.
+                try? FileManager.default.setAttributes(
+                    [.modificationDate: summary.modifiedAt],
+                    ofItemAtPath: folder.appendingPathComponent(Self.contentFileName).path)
+                copied += 1
+            }
+            return copied
         }
     }
 
@@ -170,7 +230,9 @@ struct NotesRepository: Sendable {
         var results: [NoteSearchResult] = []
         for summary in summaries {
             if Task.isCancelled { break }
-            let source = try? load(summary.id).source
+            let values = try? fileURL(for: summary.id).resourceValues(forKeys: [.ubiquitousItemDownloadingStatusKey])
+            // A note iCloud has not downloaded yet matches by title until it arrives.
+            let source = values.map(Self.isLocal) == false ? nil : try? load(summary.id).source
             if let result = NoteSearch.match(query: query, summary: summary, source: source) {
                 results.append(result)
             }
@@ -284,6 +346,32 @@ struct NotesRepository: Sendable {
             locale: Locale(identifier: "en_US_POSIX"))
     }
 
+    /// The copy is named for the note and the time it was set aside, so the two sort together.
+    private func keepConflictCopy(of id: NoteID, source: String) throws -> NoteID {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd HH.mm"
+        let base = "\(id.rawValue) (Conflict \(formatter.string(from: now())))"
+        let folder = try claimUniqueFolder(base: base) {
+            try createNoteFolder(at: $0, source: Data(source.utf8))
+        }
+        let copy = NoteID(rawValue: folder.lastPathComponent)
+        Logger.sync.notice("kept a conflict copy of \(id.rawValue, privacy: .private) as \(copy.rawValue, privacy: .private)")
+        return copy
+    }
+
+    /// True unless iCloud holds the file without its content: a local file has no download status.
+    private static func isLocal(_ values: URLResourceValues) -> Bool {
+        guard let status = values.ubiquitousItemDownloadingStatus else { return true }
+        return status == .current
+    }
+
+    private static func source(at url: URL) throws -> String {
+        let data = try Data(contentsOf: url)
+        guard let source = String(data: data, encoding: .utf8) else { throw Failure.unreadable(url) }
+        return source
+    }
+
     /// The folder claim fails if it exists, which is what makes a lost race visible to the caller.
     private func createNoteFolder(at folder: URL, source: Data) throws {
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: false)
@@ -309,6 +397,41 @@ struct NotesRepository: Sendable {
             error: &coordinationError
         ) { coordinatedURL in
             result = Result { try mutation(coordinatedURL) }
+        }
+        if let result { return try result.get() }
+        if let coordinationError { throw coordinationError }
+        throw CocoaError(.fileWriteUnknown)
+    }
+
+    private func coordinatedRead<Value>(
+        at fileURL: URL,
+        _ read: (URL) throws -> Value
+    ) throws -> Value {
+        let coordinator = NSFileCoordinator(filePresenter: nil)
+        var coordinationError: NSError?
+        var result: Result<Value, Swift.Error>?
+        coordinator.coordinate(readingItemAt: fileURL, options: [], error: &coordinationError) { coordinatedURL in
+            result = Result { try read(coordinatedURL) }
+        }
+        if let result { return try result.get() }
+        if let coordinationError { throw coordinationError }
+        throw CocoaError(.fileReadUnknown)
+    }
+
+    /// One read and one write under a single coordination, so no other writer lands between them.
+    private func coordinatedReplace<Value>(
+        at fileURL: URL,
+        _ mutation: (URL) throws -> Value
+    ) throws -> Value {
+        let coordinator = NSFileCoordinator(filePresenter: nil)
+        var coordinationError: NSError?
+        var result: Result<Value, Swift.Error>?
+        coordinator.coordinate(
+            readingItemAt: fileURL, options: [],
+            writingItemAt: fileURL, options: .forReplacing,
+            error: &coordinationError
+        ) { _, writingURL in
+            result = Result { try mutation(writingURL) }
         }
         if let result { return try result.get() }
         if let coordinationError { throw coordinationError }

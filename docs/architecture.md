@@ -20,13 +20,14 @@ The code sits in four layers. The `Tests/` harnesses hold the first two apart.
                                    │ consumed by
 ┌─ EFFECT ─────────────────────────▼─────────────────────────────────────────┐
 │ All platform I/O.                                                          │
-│ NotesRepository · HotKeyCenter · KeyShortcut · Platform/*                  │
+│ NotesRepository · NotesWatcher · CloudSettingsMirror · HotKeyCenter ·      │
+│ KeyShortcut · Platform/*                                                   │
 └──────────────────────────────────┬─────────────────────────────────────────┘
                                    │ published through
 ┌─ OBSERVABLE STATE ───────────────▼─────────────────────────────────────────┐
 │ @MainActor @Observable: AppCore · NotoSettings · NotesStore ·              │
-│ NotesCoordinator · HotKeyManager · ShortcutCaptureSession ·                │
-│ UpdateCoordinator · SettingsWindowController                               │
+│ NotesCoordinator · CloudNotesLocation · HotKeyManager ·                    │
+│ ShortcutCaptureSession · UpdateCoordinator · SettingsWindowController      │
 └──────────────────────────────────┬─────────────────────────────────────────┘
                                    │ rendered by
 ┌─ VIEW ───────────────────────────▼─────────────────────────────────────────┐
@@ -40,9 +41,10 @@ its owner.
 - `Model/` decides. It is pure: Foundation only, plus CoreGraphics where the data needs it
   (`NoteWindowPlacement`). Every environment fact is a parameter: the clock, the filesystem, the
   directory.
-- `Service/` does. `NotesRepository` owns every `FileManager` call and takes its directory and its
-  Trash operation as parameters. `NotesStore` drives it off the main actor. `HotKeyCenter` owns every
-  Carbon call.
+- `Service/` does. `NotesRepository` owns every `FileManager` call on the notes and takes its
+  directory, its Trash operation and its clock as parameters. `NotesStore` drives it off the main
+  actor. `NotesWatcher` and `CloudNotesLocation` own the iCloud calls for the notes. `HotKeyCenter`
+  owns every Carbon call.
 - `UI/` shows. Views, window controllers and the feature's coordinator. It holds no policy.
 
 The rule is mechanical. A file under `Model/` may not import AppKit or SwiftUI, because the harnesses
@@ -60,17 +62,35 @@ system shims. Neither may depend on a feature.
 ## One owner
 
 `AppCore.shared` (`Noto/App/AppCore.swift`) is a `@MainActor` singleton. It owns every long-lived
-object: `NotoSettings`, `NotesStore`, `HotKeyManager`, `UpdateCoordinator`, `ActivationPolicy`, the
-lazily built `NotesCoordinator` and the `SettingsWindowController`.
+object:
+
+| Property | Type | Does |
+| --- | --- | --- |
+| `settings` | `NotoSettings` | every preference |
+| `notesStore` | `NotesStore` | the notes and the draft |
+| `hotKeys` | `HotKeyManager` | the global shortcuts |
+| `settingsMirror` | `CloudSettingsMirror` | copies the synced preferences to and from iCloud |
+| `cloudNotes` | `CloudNotesLocation` | the iCloud folder for the notes, or why there is none |
+| `notesWatcher` | `NotesWatcher` | changes to the iCloud notes from other devices |
+| `updates` | `UpdateCoordinator` | Sparkle |
+| `activationPolicy` | `ActivationPolicy` | the Dock icon |
+| `notesCoordinator` | `NotesCoordinator`, built lazily | the Notes actions and windows |
+| `settingsWindow` | `SettingsWindowController`, built lazily | the Settings window |
 
 `AppDelegate.applicationDidFinishLaunching` calls `AppCore.shared.start()` and nothing else. `start()`
 is the boot sequence:
 
 1. Apply the Dock preference.
 2. Start the hotkeys.
-3. Start the updater.
-4. Observe the notes folder and the Dock preference.
-5. With Show in Dock on, show the note window.
+3. Start the settings mirror. A remote change to the shortcuts registers the hotkeys again.
+4. Start the updater.
+5. Start the iCloud location, and connect the watcher's report to `NotesStore`.
+6. Observe the notes location (the Notes Folder setting, the iCloud switch and the iCloud state), and
+   apply it once.
+7. Observe the Dock preference.
+8. With Show in Dock on, show the note window.
+
+[sync.md](features/sync.md) describes steps 3, 5 and 6.
 
 A feature's actions live on its coordinator. A view never reaches past a coordinator into a store to
 mutate it. `AppCore` holds only the wiring: `run(_:)` maps a `HotKeyCommand` to a `NotesCoordinator`
@@ -80,8 +100,8 @@ call, `showSettings()` builds the Settings window, `handleReopen()` answers a Do
 - `NotesView`, `NoteSwitcherView`, `NoteBarMenuView` and `NoteFormattingBar` receive only
   `NotesCoordinator`, through `@Environment`.
 - `SettingsView` receives `AppCore`, `NotoSettings` and `HotKeyManager`. It uses `AppCore` to reach
-  `notesCoordinator` (Choose… and Use Default) and `updates` (the Updates row), and it reads
-  `notesStore.notesDirectory` to show the path. A view may read a store to render it. It may not
+  `notesCoordinator` (iCloud Sync, Choose… and Use Default) and `updates` (the Updates row). It
+  reads `notesStore.notesDirectory` and `cloudNotes.state` for the captions. A view may read a store to render it. It may not
   decide with one.
 - The scene-level menus in `NotoApp` and `MenuBarItem.swift` call `AppCore.shared` directly. A scene
   has no injected environment.
@@ -91,7 +111,8 @@ New long-lived state goes on `AppCore`, wired in `start()`. Never add a second s
 ### Settings
 
 `NotoSettings` (`Noto/Features/Settings/NotoSettings.swift`) holds every preference. Each property
-writes `UserDefaults` in its `didSet`. The keys are the file's private `Key` enum.
+writes `UserDefaults` in its `didSet`. The keys are the file's private `Key` enum. `UserDefaults` is
+the source of truth.
 
 | Property | Key | Default |
 | --- | --- | --- |
@@ -103,6 +124,13 @@ writes `UserDefaults` in its `didSet`. The keys are the file's private `Key` enu
 | `highlightColor` | `notesHighlightColor` | nil: see [notes.md](features/notes.md#highlight-colour) |
 | `accentColor` | `notesAccentColor` | nil: see [notes.md](features/notes.md#accent-colour) |
 | `shortcuts` | `hotKeys` | empty: see [hotkeys.md](features/hotkeys.md#persistence) |
+| `syncsWithICloud` | `iCloudSync` | off: see [sync.md](features/sync.md#the-switch) |
+
+`NotoSettings.Synced` lists the preferences that sync to iCloud: `syncsWithICloud`,
+`showsFormattingBar`, `fonts`, `highlightColor`, `accentColor` and `shortcuts`. Each of these calls
+`onSyncedChange` after it writes, and `CloudSettingsMirror` sends it. `notesFolder`, `showsInDock` and
+`keepsOnTop` never sync. A new preference is not synced until you add it to `Synced`. See
+[sync.md](features/sync.md#the-settings-mirror).
 
 Two values are not preferences:
 
@@ -163,11 +191,12 @@ quit.
 
 ## Observation
 
-Eight types are `@MainActor @Observable`: `AppCore`, `NotoSettings`, `NotesStore`, `NotesCoordinator`,
-`HotKeyManager`, `ShortcutCaptureSession`, `UpdateCoordinator` and `SettingsWindowController`. Nothing
+Nine types are `@MainActor @Observable`: `AppCore`, `NotoSettings`, `NotesStore`, `NotesCoordinator`,
+`CloudNotesLocation`, `HotKeyManager`, `ShortcutCaptureSession`, `UpdateCoordinator` and
+`SettingsWindowController`. Nothing
 uses `ObservableObject` or `@Published`. Views read state through `@Environment`.
 
-`AppCore.observeNotesFolder` is the pattern for a reaction to a settings change outside a view.
+`AppCore.observeNotesLocation` is the pattern for a reaction to a settings change outside a view.
 `withObservationTracking`'s `onChange` fires before the write lands, and it fires once. So the closure
 defers the re-read into a `Task` and re-arms the tracking there. Both halves are required.
 
@@ -177,12 +206,14 @@ The rules for new observable code are in [standards.md](standards.md#observation
 
 The target builds in Swift 6 language mode with complete strict concurrency. Almost everything is
 `@MainActor`. Cross-actor model types are `Sendable`. `NotesStore` pushes every `NotesRepository` call
-and the full-text search off the main actor with `Task.detached`. There is no custom actor.
+and the full-text search off the main actor with `Task.detached`. `CloudNotesLocation.refresh` does
+the same for the iCloud container lookup, which can block. There is no custom actor.
 
 The idioms in use:
 
 - `NotificationToken` (`Noto/Platform/NotificationToken.swift`) is an RAII handle for a block
-  observer. `NoteEditorView.Coordinator` and `NotesWindowController` hold their observers this way.
+  observer. `NoteEditorView.Coordinator`, `NotesWindowController`, `CloudSettingsMirror`,
+  `CloudNotesLocation` and `NotesWatcher` hold their observers this way.
 - `NotesStore` uses `isolated deinit` to cancel its debounce and search tasks on its actor.
 - `HotKeyCenter` decodes the raw Carbon event to a plain `EventHotKeyID` before it enters actor code.
 - `NotesCoordinator.runOperation` cancels an in-flight select, rename or Trash when a newer one
@@ -198,23 +229,25 @@ Noto/
   DesignSystem/     Theme (the token source), InterfaceMetrics, BarButton, KeyCapChip, Tooltip,
                     SymbolImage, GlassEffectView, Scrolling/OverflowFade
   Platform/         system shims: AppPaths, AppDisplayName, AppVersion, ActivationPolicy, Appearance,
-                    ASCIIKeyboardLayout, FileViewer, FolderPicker, FontCatalog, NotificationToken,
-                    Signposts
+                    ASCIIKeyboardLayout, CloudKeyValueStore, FileViewer, FolderPicker, FontCatalog,
+                    NotificationToken, Signposts, SyncLog (Logger.sync)
   AppIcon.icon      the app icon, an Icon Composer document
   Assets.xcassets/  empty; actool compiles the icon into it
-  Info.plist        LSUIElement, the Sparkle keys and the bundle keys; a build input
-  Noto.entitlements sandbox off; read by code signing
+  Info.plist        LSUIElement, the Sparkle keys, the iCloud container and the bundle keys; a build
+                    input
+  Noto.entitlements sandbox off, iCloud Documents and key-value storage; read by code signing
   Features/
     Notes/
       Model/        pure: the harness inputs
-      Service/      NotesRepository, NotesStore
+      Service/      NotesRepository, NotesStore, CloudNotesLocation, NotesWatcher
       UI/           NotesCoordinator, NotesDialogs, NotesPanel, the window controllers, the editor
                     host and its theme, the switcher, the formatting bar, the bar menus
     HotKeys/
       Model/        HotKeyCommand
       Service/      KeyShortcut, HotKeyCenter, HotKeyManager, ShortcutCaptureSession
       UI/           ShortcutRecorder, ShortcutRecorderPopover, CalloutShape, CalloutPlacement
-    Settings/       NotoSettings, SettingsPane, SettingsView, SettingsWindowController
+    Settings/       NotoSettings, CloudSettingsMirror, SettingsPane, SettingsView,
+                    SettingsWindowController
     Updates/        UpdateCoordinator, the Sparkle updater's owner
 Noto.xcodeproj/     edited directly; Noto/ is a file-system synchronized group
 Tests/              the standalone harnesses, one Swift file each

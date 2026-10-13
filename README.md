@@ -29,6 +29,7 @@ Markdown in `text.md`. Noto lives in the menu bar, needs no account and has no d
 - Four global shortcuts: Show Notes, Create Note, Search Notes and Keep on Top.
 - Keep on Top holds the window above other apps and on every Space.
 - Your fonts, your folder. Noto updates itself.
+- Optional iCloud sync for your notes and your Editor and Shortcuts settings.
 
 ## Install
 
@@ -37,7 +38,7 @@ Download `Noto-<version>.dmg` from the
 Applications. Noto needs macOS 26 on Apple Silicon.
 
 Notes live in `~/Library/Application Support/app.huanan.noto/Notes/`, one folder per note. Settings
-can point Noto at any other folder.
+can point Noto at any other folder, or at iCloud Drive › Noto with iCloud Sync.
 
 ## Build from source
 

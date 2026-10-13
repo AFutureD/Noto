@@ -28,6 +28,18 @@
 	<true/>
 	<key>NSHumanReadableCopyright</key>
 	<string>Copyright © 2026 Huanan. Contains code from Tinycast, © 2026 Abue Ammar. Licensed under AGPL-3.0.</string>
+	<key>NSUbiquitousContainers</key>
+	<dict>
+		<key>iCloud.app.huanan.noto</key>
+		<dict>
+			<key>NSUbiquitousContainerIsDocumentScopePublic</key>
+			<true/>
+			<key>NSUbiquitousContainerName</key>
+			<string>Noto</string>
+			<key>NSUbiquitousContainerSupportedFolderLevels</key>
+			<string>Any</string>
+		</dict>
+	</dict>
 	<key>SUEnableAutomaticChecks</key>
 	<true/>
 	<key>SUFeedURL</key>

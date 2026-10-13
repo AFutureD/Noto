@@ -27,13 +27,14 @@ Noto 在一个窗口里编辑一个文件夹里的笔记。每篇笔记是一个
 - 四个全局快捷键：显示笔记、新建笔记、搜索笔记、置顶。
 - 置顶后，窗口浮在其他应用之上，并出现在每个 Space。
 - 字体和文件夹由你决定。应用自动更新。
+- 可选的 iCloud 同步：同步笔记，以及“编辑器”和“快捷键”设置。
 
 ## 安装
 
 从[最新发布](https://github.com/AFutureD/noto-releases/releases/latest)下载 `Noto-<version>.dmg`，
 把 Noto 拖进“应用程序”。需要 Apple Silicon 上的 macOS 26。
 
-笔记存放在 `~/Library/Application Support/app.huanan.noto/Notes/`，一篇笔记一个文件夹，可在设置里改为任意文件夹。
+笔记存放在 `~/Library/Application Support/app.huanan.noto/Notes/`，一篇笔记一个文件夹，可在设置里改为任意文件夹；打开“与 iCloud 同步”后，笔记存放在 iCloud 云盘 › Noto。
 
 ## 从源码构建
 

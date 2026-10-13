@@ -6,10 +6,12 @@ struct NotesDialogs {
     let confirm: @MainActor (String, String, String) async -> Bool
     /// Title, message, optional recovery button; true when the recovery was chosen.
     let reportFailure: @MainActor (String, String, String?) async -> Bool
+    /// Title, message, first and second answer, neither of them a cancel; true for the first.
+    let choose: @MainActor (String, String, String, String) async -> Bool
 }
 
 extension NotesDialogs {
-    /// Noto has no dialog system of its own, so both questions are system alerts.
+    /// Noto has no dialog system of its own, so every question is a system alert.
     @MainActor static let alerts = NotesDialogs(
         confirm: { title, message, confirmTitle in
             let alert = NSAlert()
@@ -31,6 +33,14 @@ extension NotesDialogs {
             }
             alert.addButton(withTitle: recovery)
             alert.addButton(withTitle: "Cancel")
+            return present(alert) == .alertFirstButtonReturn
+        },
+        choose: { title, message, first, second in
+            let alert = NSAlert()
+            alert.messageText = title
+            alert.informativeText = message
+            alert.addButton(withTitle: first)
+            alert.addButton(withTitle: second)
             return present(alert) == .alertFirstButtonReturn
         })
 

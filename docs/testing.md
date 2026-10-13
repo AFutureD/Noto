@@ -1,7 +1,7 @@
 # Testing and verification
 
 How to check that a change holds up. Noto has no XCTest target and no UI tests. The automated half is
-two standalone harnesses. The manual half is the sweep at the end of this file.
+three standalone harnesses. The manual half is the sweep at the end of this file.
 
 ## Definition of done
 
@@ -23,7 +23,7 @@ Then run the part of the [manual sweep](#manual-regression-sweep) that covers wh
 ## The harnesses
 
 ```sh
-./Scripts/run-tests.sh                      # both
+./Scripts/run-tests.sh                      # all
 ./Scripts/run-tests.sh notes-editor-test    # one, while you iterate
 ```
 
@@ -40,21 +40,25 @@ app sees, and a package change breaks a harness before it breaks the app.
 
 | Harness | Compiles | Covers |
 | --- | --- | --- |
-| `notes-test` | all of `Notes/Model/` and `Notes/Service/`, with the real `FuzzyMatch` and PolarMark | the repository, autosave, external reloads, draft preservation, selection, relocation, derived titles, search, the highlight and accent colours, switcher interaction, window placement |
+| `notes-test` | all of `Notes/Model/` and `Notes/Service/`, `Signposts`, `SyncLog` and `NotificationToken`, with the real `FuzzyMatch` and PolarMark | the repository, autosave, external reloads, draft preservation, conflict copies, the copy into iCloud, selection, relocation, derived titles, search, the highlight and accent colours, switcher interaction, window placement |
 | `notes-editor-test` | the editor host, its theme, `Theme.swift` and `InterfaceMetrics.swift`, with the real MDTextKit modules and AppKit | the Markdown round trip, styling, keys, chords, headings, links, checkboxes, tables, undo, the character count, the fonts, the colours, the text height |
+| `settings-sync-test` | `NotoSettings`, `CloudSettingsMirror`, `CloudKeyValueStore` and the value types of the synced preferences | the settings mirror: what is sent, what is taken, when iCloud wins, no echo, values from another build |
 
-Nothing automated covers `HotKeys/`, `Settings/`, `Updates/`, `App/` or the Notes window chrome. The
-manual sweep verifies a change there.
+Nothing automated covers `HotKeys/`, `Updates/`, `App/`, `SettingsView`, the Notes window chrome,
+`CloudNotesLocation` or `NotesWatcher`. The manual sweep verifies a change there.
 
 Rules for the harnesses:
 
 - A harness compiles the shipped sources, never a copy. That is what makes the `Model/` boundary
   real. When you add a source file to the editor, add it to the `notes-editor-test` and
-  `notes-editor-performance` lists. `notes-test` globs `Model/` and `Service/`.
+  `notes-editor-performance` lists. When `NotoSettings` or the mirror needs a new file, add it to the
+  `settings-sync-test` list. `notes-test` globs `Model/` and `Service/`.
 - A harness runs in your login session against the real system. It must never change state the
   machine shares with your apps. `notes-test` roots its scratch folders under a UUID-suffixed
   `temporaryDirectory`. `notes-editor-test` uses `NSPasteboard.withUniqueName()` instead of the general
-  pasteboard, and records a clicked link instead of opening a browser.
+  pasteboard, and records a clicked link instead of opening a browser. `settings-sync-test` uses a
+  `UserDefaults` suite with a UUID name, a fake key-value store and a private `NotificationCenter`, so
+  it never touches iCloud.
 - Never join a compile to its run with `&&` in a `set -e` script. `set -e` ignores a failure inside an
   AND-OR list, so the script would continue past a compile error. The runner keeps the two steps
   apart.
@@ -75,7 +79,9 @@ grep -rln 'import AppKit\|import SwiftUI\|import Cocoa' Noto/Features/*/Model/
 The injected-environment half is not mechanical. When you touch a pure file, check that:
 
 - `Notes/Model/` reads no file, clock or `UserDefaults`.
-- `NotesRepository` is handed its directory and its Trash operation.
+- `NotesRepository` is handed its directory, its Trash operation and its clock.
+- `CloudSettingsMirror` is handed its key-value store and its `NotificationCenter`, and `NotoSettings`
+  its `UserDefaults`.
 - `NotesStore` takes the saved selection as two closures.
 - `NoteWindowPlacement` takes the visible frame as a parameter and touches no `NSScreen`.
 
@@ -83,7 +89,7 @@ The injected-environment half is not mechanical. When you touch a pure file, che
 
 ```sh
 xcodebuild -project Noto.xcodeproj -scheme Noto -configuration Debug \
-    -derivedDataPath build/DerivedData build
+    -derivedDataPath build/DerivedData -allowProvisioningUpdates build
 ./Scripts/lint.sh
 ```
 
@@ -139,6 +145,8 @@ window controller.
 
 Run it against a Debug build. It shares `app.huanan.noto` with a Release build, so the sweep works on
 the real preferences and the real notes. Use throwaway notes, or choose a scratch Notes Folder first.
+With iCloud Sync on, the sweep also works on the notes and settings of each device of the iCloud
+account. Use an iCloud account with no real notes for the iCloud sync section.
 
 ### Notes: commands and the collection
 
@@ -269,7 +277,7 @@ the real preferences and the real notes. Use throwaway notes, or choose a scratc
 
 - Settings… opens from the menu bar item and with ⌘,. A second request raises the same window. Escape
   and the red light close it. It reopens centred.
-- The toolbar shows General, Editor and Shortcuts. For each pane the title changes, the height
+- The toolbar shows General, Editor, Shortcuts and Sync. For each pane the title changes, the height
   changes, and the top edge does not move.
 - Keep on Top is off on a clean install. With it off, another app's window can cover the note window.
   With it on, the note window stays above other windows and shows on each Space.
@@ -281,7 +289,10 @@ the real preferences and the real notes. Use throwaway notes, or choose a scratc
 - With Text Font `Menlo` and CJK Font `Songti SC`, Latin text is Menlo and Han text is Songti.
 - With Text Font `Monaco`, bold text is heavier and italic text stays upright: Monaco has no italic
   face.
-- Reset Fonts restores the system fonts. It is disabled when no font setting is set.
+- Each Aa button opens a list with a search field. Each name shows in its own font, the list scrolls to
+  the chosen family, and a click applies it and closes the list.
+- Restore Editor Defaults restores the fonts, the text size, both colours and the formatting bar. It
+  is disabled when each of them is at its default.
 - A colour picked in the Highlight well applies at once, in both appearances. Use Default appears,
   restores the yellow and disappears.
 - A colour picked in the Accent well colours an underline, a link and the selection at once. Use
@@ -294,6 +305,37 @@ the real preferences and the real notes. Use throwaway notes, or choose a scratc
 - A folder change with an unsaved edit saves that edit into the old folder first.
 - Use Default returns to the Application Support folder, and the button disappears.
 - Every setting survives a quit and relaunch.
+
+### iCloud sync
+
+Use two Macs with the same iCloud account, A and B. Watch `Logger.sync` on each:
+`log stream --level info --predicate 'subsystem == "app.huanan.noto" AND category == "sync"'`.
+
+- With iCloud Drive off, iCloud Sync on A shows "iCloud Drive Is Off", and the switch stays off.
+- With notes in the local folder, iCloud Sync on A asks "Copy N Notes to iCloud?". Copy puts them
+  in iCloud Drive › Noto with their modification order. The local folder does not change. Don't Copy
+  turns sync on with no copy.
+- With no notes in the local folder, sync turns on with no question.
+- Turn sync off and on again with Copy: a note with the same title and text is not copied again. A
+  note with the same title and other text takes the next name, as `Plan 2`.
+- While sync is on, the Notes folder buttons are disabled and the caption reads "iCloud Drive › Noto".
+  Sync off shows the local folder and its notes again, and the iCloud notes stay in iCloud Drive.
+- The switch turned on in A turns on in B, and B shows the iCloud notes with no question. Off in A
+  turns it off in B.
+- A note created, edited, renamed or moved to Trash on A shows on B, also while B's window is open.
+  A clean active note on B reloads; a note that B is typing in keeps the draft.
+- Type in the same note on A and B with the network off on one Mac, then turn it on. Both texts stay:
+  one in the note, the other in `<title> (Conflict <date> <time>)`.
+- Edit the active note in another app through Open Notes Folder while Noto holds a draft, in a local
+  folder too. After the autosave, the draft is in the note and the other edit is a conflict copy.
+- Delete the active note's folder in Finder while Noto holds a draft. The autosave creates it again.
+- Text size, fonts, the highlight and accent colours, Show formatting bar and each shortcut set on A
+  apply on B at once. A shortcut from A fires on B. Keep on Top, Show in Dock and the Notes folder do
+  not sync.
+- Sync on in Settings while iCloud Drive is off on B: B keeps its local notes, and the iCloud caption
+  says that iCloud Drive is off.
+- A note that iCloud has not downloaded yet shows its folder name in the switcher, then its first
+  line when it arrives.
 
 ### Menu bar and Dock
 
@@ -325,5 +367,8 @@ Restore with the reverse `mv` and `defaults import app.huanan.noto "$TMPDIR/noto
 - The `Notes` folder is created at the first Show, Create or Search, and accepts its first edit. With
   no notes the window shows "No Notes" and Create Note works.
 - Every setting shows its default: Show Formatting Bar on, the default folder, Show in Dock off, no
-  shortcuts.
+  shortcuts, iCloud Sync off.
+- The moved state is local only. If iCloud Sync is on for the iCloud account, the switch comes
+  back on from iCloud with the synced settings. For a true first run, turn sync off first, or sign
+  out of iCloud.
 - After a quit and relaunch, everything created above persists.

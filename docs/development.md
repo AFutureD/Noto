@@ -7,13 +7,16 @@ The local loop: set up, build, run. [testing.md](testing.md) tells you how to ve
 - macOS 26 or later.
 - Xcode 27 or later. It provides the SwiftUI macros, the SDK and the `actool` that compiles the
   Icon Composer icon.
+- An Apple Developer account in the team of the target (`8GSN8K4KD9`), signed in to Xcode
+  (Xcode > Settings > Accounts).
 - The MDTextKit checkout as a sibling folder, `../MDTextKit`, for the harnesses.
 - For lint: `brew install swiftlint`.
 
 Xcode resolves two packages from GitHub on the first build, MDTextKit and Sparkle, so that build
-needs the network. Code signing is automatic with the Apple Development identity of the
-team in the target. Noto asks for no permission: its hotkeys are Carbon registrations, so it does not
-need Accessibility.
+needs the network. Code signing is automatic with the Apple Development identity of the team in the
+target. The iCloud entitlements need a development provisioning profile that includes the container
+`iCloud.app.huanan.noto`. Xcode makes it with the account above. Noto asks for no permission: its
+hotkeys are Carbon registrations, so it does not need Accessibility.
 
 ## Build and run
 
@@ -25,9 +28,13 @@ From the command line:
 
 ```sh
 xcodebuild -project Noto.xcodeproj -scheme Noto -configuration Debug \
-    -derivedDataPath build/DerivedData build
+    -derivedDataPath build/DerivedData -allowProvisioningUpdates build
 open "build/DerivedData/Build/Products/Debug/Noto Dev.app"
 ```
+
+`-allowProvisioningUpdates` lets `xcodebuild` make or update the development profile with the account
+that is signed in to Xcode. Without it, or without the account, the build cannot sign the iCloud
+entitlements and fails.
 
 `xcodebuild` uses the toolchain that `xcode-select` points at. If that is the Command Line Tools, set
 `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer` first. The SwiftUI macros need Xcode's
@@ -47,8 +54,12 @@ A Debug build is `Noto Dev.app`. A Release build is `Noto.app`. Both carry the b
 - `~/Library/Preferences/app.huanan.noto.plist` holds every `NotoSettings` key, the hotkey bindings,
   the active note, the formatting bar's state and the window frame.
 - `~/Library/Application Support/app.huanan.noto/Notes/` holds the notes, unless a folder is chosen.
+- The iCloud container `iCloud.app.huanan.noto` holds the notes while iCloud Sync is on. The
+  iCloud key-value store of the bundle id holds the synced settings.
 
-So the two builds share one state. A Debug run edits the real notes and the real settings. Do not run
+So the two builds share one state. A Debug run edits the real notes and the real settings. With Sync
+with iCloud on, it also edits them on each device of the iCloud account. See
+[sync.md](features/sync.md#testing-notes). Do not run
 both builds at the same time: they would write the same files, and the second one cannot register the
 hotkeys the first one holds. `Bundle.main.appDisplayName` puts "Noto Dev" in the menu bar item, the
 Quit item and the Settings title.
@@ -66,8 +77,12 @@ generates it. There is no `Package.swift`, and never `Bundle.module`.
   move or delete a source file, change the file system; the project needs no edit.
 - `Noto/AppIcon.icon` is the app icon, an Icon Composer document. `actool` compiles it into
   `Assets.car` and `AppIcon.icns`.
-- `Noto/Info.plist` is a build input (`INFOPLIST_FILE`), not a bundle resource. `Noto/Noto.entitlements`
-  turns the App Sandbox off, because Noto reads and writes a folder the user names.
+- `Noto/Info.plist` is a build input (`INFOPLIST_FILE`), not a bundle resource.
+- `Noto/Noto.entitlements` turns the App Sandbox off, because Noto reads and writes a folder the user
+  names. It also gives iCloud Documents (`CloudDocuments`) in the container `iCloud.app.huanan.noto`,
+  and iCloud key-value storage under `$(TeamIdentifierPrefix)$(CFBundleIdentifier)`. These
+  entitlements need a provisioning profile: a development profile for Debug, and the Developer ID
+  profile for a release (see [release.md](release.md#secrets)).
 - MDTextKit and Sparkle are remote package references, pinned in
   `Noto.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved`, which is committed.
   MDTextKit is pinned to an exact version. Change a version in Xcode's package editor and commit both
@@ -92,7 +107,9 @@ The build settings that define the app:
 | `ENABLE_HARDENED_RUNTIME` | off | on |
 
 `Info.plist` takes its name, identifier, versions and minimum system from these settings. It adds
-`LSUIElement` and the three Sparkle keys `SUFeedURL`, `SUPublicEDKey` and `SUEnableAutomaticChecks`.
+`LSUIElement`, the three Sparkle keys `SUFeedURL`, `SUPublicEDKey` and `SUEnableAutomaticChecks`, and
+`NSUbiquitousContainers`. That key makes the `Documents` folder of `iCloud.app.huanan.noto` public in
+iCloud Drive with the name `Noto`.
 
 ## Lint
 

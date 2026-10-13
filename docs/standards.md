@@ -70,6 +70,9 @@ when none fits. Do not rename a well-named type to fit the table.
 | `Session` | Transient state of one in-progress interaction | `ShortcutCaptureSession` |
 | `Policy` | A pure decision: no state, no effects | none at present |
 | `Settings` | Every preference, mirrored to `UserDefaults` | `NotoSettings` |
+| `Mirror` | Keeps a copy of local state in a remote store, and applies the remote changes back | `CloudSettingsMirror` |
+| `Location` | Finds where a resource lives, and publishes when that changes | `CloudNotesLocation` |
+| `Watcher` | Observes a resource for changes made elsewhere, and reports them | `NotesWatcher` |
 
 `Manager` means lifecycle plus policy, which is a lot for one type, so there is one. Before you add
 another, check whether `Store` or `Coordinator` describes it better.
@@ -107,8 +110,9 @@ Swift 6 language mode: a data-race violation is a hard error, by design.
   a written reason. There are none today.
 - `MainActor.assumeIsolated` is allowed only inside an AppKit callback that AppKit documents as
   main-thread: a local event monitor, a notification observer with no queue, a KVO closure. It traps
-  if the assumption is wrong. The uses are in `ShortcutCaptureSession`, `NoteEditorView.Coordinator`
-  and `NotesWindowController`.
+  if the assumption is wrong. The uses are in `ShortcutCaptureSession`, `NoteEditorView.Coordinator`,
+  `NotesWindowController`, `CloudSettingsMirror`, `CloudNotesLocation` and `NotesWatcher`. The last
+  three observe on the main queue.
 - Store every long-lived `Task` and cancel it when superseded, in `stop()` or in `deinit`.
 - A block observer goes through `NotificationToken`, not a bare `addObserver` plus a removal in
   `deinit`.
@@ -121,7 +125,7 @@ Swift 6 language mode: a data-race violation is a hard error, by design.
 Two gotchas:
 
 - `withObservationTracking`'s `onChange` fires before the write lands, and it fires once. Defer the
-  re-read into a `Task` and re-arm the tracking there. `AppCore.observeNotesFolder` is the shape.
+  re-read into a `Task` and re-arm the tracking there. `AppCore.observeNotesLocation` is the shape.
 - A signpost interval leaks when the wrapped work throws. `Signposts.interval` ends it in a `defer`.
 
 ### Observation

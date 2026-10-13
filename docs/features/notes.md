@@ -23,12 +23,14 @@ menu, the global shortcuts and the Dock icon show, search or extend the collecti
   A button is lit exactly when its toggle would remove that formatting.
 - Only the active note can be dirty. A switch, create, rename or delete flushes it first, so
   navigation cannot abandon a draft.
-- Noto is the only writer. There is no watcher and no revision check. A save replaces the file with
-  the editor's content. Every show re-lists the folder and reloads a clean active note. An unsaved
-  draft stays in the editor, also after a failed save.
+- Noto is not the only writer. Another app, or iCloud from another device, can change a note. When a
+  save replaces text that the store did not read, it keeps that text as a conflict copy. See
+  [sync.md](sync.md#conflicts).
+- Every show re-lists the folder and reloads a clean active note. An unsaved draft stays in the
+  editor, also after a failed save and after a remote change.
 - Search is on demand and unindexed. An empty switcher query reads metadata plus the head of each
   unnamed note. A nonempty query reads bodies one by one off the main actor and keeps no cache of the
-  collection's sources.
+  collection's sources. Neither reads a file that iCloud has not downloaded.
 - The collection may be empty. The last note can be deleted. The window shows its empty state, and
   Create Note still works.
 - The window's height fits the note. Each edit, note switch and bar toggle grows or shrinks it
@@ -43,13 +45,19 @@ menu, the global shortcuts and the Dock icon show, search or extend the collecti
 
 ## Storage
 
-The default directory is `~/Library/Application Support/<bundle-id>/Notes/`.
+The notes directory is one of three folders:
 
-Notes Folder in Settings (`NotoSettings.notesFolder`) uses another folder, absolute or under `~/`, as
-it is. Nothing moves out of the old one. `AppCore` observes the setting and calls `NotesStore.relocate`,
-which saves the open draft into the old folder before it lists the new one. A draft the old folder
-cannot take yet holds the move until its save lands. `AppPaths.contentFolder` resolves the stored path.
-`AppPaths.contentFolderSetting` stores a chosen folder `~`-relative where it can, or nil for the default.
+| Folder | When |
+| --- | --- |
+| `~/Library/Application Support/<bundle-id>/Notes/` | the default |
+| The Notes Folder setting (`NotoSettings.notesFolder`), absolute or under `~/` | a folder is chosen |
+| The `Documents` folder of the iCloud container, iCloud Drive › Noto in Finder | iCloud Sync is on and iCloud is available; see [sync.md](sync.md#the-notes-location) |
+
+A change of folder moves nothing. `AppCore` observes the settings and the iCloud state and calls
+`NotesStore.relocate`, which saves the open draft into the old folder before it lists the new one. A
+draft the old folder cannot take yet holds the move until its save lands. `AppPaths.contentFolder`
+resolves the stored path. `AppPaths.contentFolderSetting` stores a chosen folder `~`-relative where it
+can, or nil for the default.
 
 A note is `<title>/text.md` under the notes directory. `NotesRepository.contentFileName` names the
 file. `NoteID` is the folder name, so a rename gives a new identity. The immediate, non-hidden,
@@ -63,10 +71,12 @@ collision with another note is case- and diacritic-insensitive, so `plán` besid
 change only the case or the accents. The active folder name is window state under the `UserDefaults`
 key `notesActiveFileName`, read and written through closures `AppCore` hands the store.
 
-`NotesRepository` owns list, create, load, save, rename, Trash and the search reads. It validates
-every folder as an immediate child of the injected directory and every file as `text.md` inside one.
-Rename moves the folder; Trash moves the folder. `NotesStore` drives its blocking work from
-detached tasks.
+`NotesRepository` owns list, create, load, save, rename, Trash, the search reads, the copy into
+iCloud and the conflict copies. It takes its directory, its Trash operation and its clock as
+parameters. It validates every folder as an immediate child of the directory and every file as
+`text.md` inside one. Rename moves the folder; Trash moves the folder. A load is a coordinated read
+(`NSFileCoordinator`). A save reads and writes in one coordination. `NotesStore` drives its blocking
+work from detached tasks.
 
 ## Derived titles
 
@@ -77,7 +87,8 @@ block and inline markers, and caps the line at 120 characters. `NoteSummary.titl
 confirmation, the window title, and the title band of `NoteSearch`, so a fuzzy query reaches a note
 nobody has named.
 
-`list()` reads at most 4 KB of each unnamed note's `text.md`. A named note costs nothing beyond the enumeration.
+`list()` reads at most 4 KB of each unnamed note's `text.md`. A named note costs nothing beyond the
+enumeration. An unnamed note that iCloud has not downloaded shows its folder name until it arrives.
 The active note derives its title from the live draft, so the window title follows the first line as
 you type, and its switcher row catches up on the next autosave. Rename edits the folder name, so the
 rename field starts from `title`.
@@ -85,8 +96,8 @@ rename field starts from `title`.
 ## Ownership
 
 `AppCore` owns `NotesStore` and lazily builds `NotesCoordinator`, with the store, `NotoSettings`,
-`NotesDialogs.alerts` and the formatting bar's saved state. `NotesView` receives only the coordinator,
-through `@Environment`. It never sees `AppCore` and never mutates the store.
+`CloudNotesLocation`, `NotesDialogs.alerts` and the formatting bar's saved state. `NotesView` receives
+only the coordinator, through `@Environment`. It never sees `AppCore` and never mutates the store.
 
 The coordinator lazily owns three window controllers: `NotesWindowController` (the note window),
 `NoteSwitcherWindowController` and `NoteBarMenuWindowController` (two child windows). Nothing lists or
@@ -145,11 +156,17 @@ exposes VoiceOver actions to activate, rename and move the note to Trash.
 
 ### Dialogs
 
-`NotesDialogs` is two injected closures: `confirm` (title, message, confirm button) and `reportFailure`
-(title, message, optional recovery button). `NotesDialogs.alerts` backs both with `NSAlert.runModal`
-and activates the app first, because the note panel never does. The coordinator uses them for the
-Trash confirmation and for the three `NotesStore.Issue` cases: a load failure and a save failure
-offer Retry; an operation failure only reports. One issue shows at a time.
+`NotesDialogs` is three injected closures:
+
+| Closure | Arguments | Used for |
+| --- | --- | --- |
+| `confirm` | title, message, confirm button | the Trash confirmation |
+| `reportFailure` | title, message, optional recovery button | the three `NotesStore.Issue` cases; "iCloud Drive Is Off" |
+| `choose` | title, message, two answers, neither a cancel | "Copy N Notes to iCloud?" |
+
+`NotesDialogs.alerts` backs all three with `NSAlert.runModal` and activates the app first, because the
+note panel never does. Of the issues, a load failure and a save failure offer Retry; an operation
+failure only reports. One issue shows at a time.
 
 ## Editor
 
@@ -269,6 +286,9 @@ no round button, and the count returns to its own footer.
 
 ## Settings
 
+The Editor settings below sync to iCloud while iCloud Sync is on. Keep on Top does not. See
+[sync.md](sync.md#the-settings-mirror).
+
 ### Show formatting bar
 
 Settings > Editor > Show formatting bar is `NotoSettings.showsFormattingBar` (key
@@ -347,15 +367,24 @@ An edit updates the main-actor draft at once and debounces the save for 300 ms. 
 source is kept. A successful save refreshes the metadata order. A switch waits for the same flush
 before it loads another source. Termination awaits the flush and never vetoes the quit.
 
-A save overwrites `text.md`. There is no watcher and no conflict state: an edit to the active note in
-another app while Noto holds a draft is lost at the next debounce. Open Notes Folder (⌘O) invites
-exactly that, and this is the accepted trade. Each show re-lists the folder. When the active note is
-clean, the show also reloads it from disk; a save in flight completes first. An edit or a selection
-change during the read discards the read's result. Unchanged content keeps the editor history; a
-changed source or identity resets it. When the active note's folder or `text.md` is gone, the load selects another note, or
-the empty state.
+`NotesStore` keeps the base: the text of the active note as the store last read or wrote it. A save
+gives the repository the draft and the base:
+
+- The file holds the base. The save replaces it with the draft.
+- The file holds other text, from another app or another device. The save first keeps that other
+  text as the note `<title> (Conflict yyyy-MM-dd HH.mm)`, then writes the draft. The editor stays on
+  the active note.
+- The note folder is gone. The save creates it again with the draft.
+
+The rules are in [sync.md](sync.md#conflicts). Each show re-lists the folder. With iCloud Sync on,
+a change from another device also re-lists it; see [sync.md](sync.md#the-watcher). When the active note
+is clean, the re-list also reloads it from disk. A show waits for a save in flight first. An edit or a
+selection change during the read discards the read's result. Unchanged content keeps the editor
+history; a changed source or identity resets it. When the active note's folder or `text.md` is gone,
+the load selects another note, or the empty state.
 
 ## Verification
 
-`notes-test` and `notes-editor-test` cover this feature; the window chrome is manual. See
+`notes-test` and `notes-editor-test` cover this feature; the window chrome and the iCloud parts are
+manual. See
 [testing.md](../testing.md).

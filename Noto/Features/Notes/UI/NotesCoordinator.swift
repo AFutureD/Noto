@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import os
 
 @MainActor
 @Observable
@@ -12,6 +13,7 @@ final class NotesCoordinator {
 
     private let store: NotesStore
     private let settings: NotoSettings
+    private let cloudNotes: CloudNotesLocation
     private let dialogs: NotesDialogs
     @ObservationIgnored private lazy var windowController = NotesWindowController(coordinator: self)
     @ObservationIgnored private lazy var switcherController = NoteSwitcherWindowController(
@@ -20,6 +22,7 @@ final class NotesCoordinator {
     @ObservationIgnored private var loadTask: Task<Void, Never>?
     @ObservationIgnored private var issueTask: Task<Void, Never>?
     @ObservationIgnored private var operationTask: Task<Void, Never>?
+    @ObservationIgnored private var syncTask: Task<Void, Never>?
     @ObservationIgnored private var operationID = 0
     @ObservationIgnored private var pendingIssue: NotesStore.Issue?
     private var pendingPresentation: Presentation?
@@ -42,12 +45,14 @@ final class NotesCoordinator {
     init(
         store: NotesStore,
         settings: NotoSettings,
+        cloudNotes: CloudNotesLocation,
         dialogs: NotesDialogs,
         isFormattingBarExpanded: Bool = false,
         saveFormattingBarExpanded: @escaping @Sendable (Bool) -> Void = { _ in }
     ) {
         self.store = store
         self.settings = settings
+        self.cloudNotes = cloudNotes
         self.dialogs = dialogs
         self.isFormattingBarExpanded = isFormattingBarExpanded
         self.saveFormattingBarExpanded = saveFormattingBarExpanded
@@ -290,6 +295,22 @@ final class NotesCoordinator {
         settings.notesFolder = nil
     }
 
+    /// The Settings switch. Off only moves back to this Mac's folder; nothing is copied or deleted.
+    /// On asks whether this Mac's notes join iCloud. A switch flipped on another Mac does neither.
+    func setSyncsWithICloud(_ on: Bool) {
+        syncTask?.cancel()
+        syncTask = nil
+        guard on else {
+            settings.syncsWithICloud = false
+            return
+        }
+        guard !settings.syncsWithICloud else { return }
+        syncTask = Task { [weak self] in
+            await self?.turnOnICloudSync()
+            self?.syncTask = nil
+        }
+    }
+
     func openNotesFolder() {
         guard let folderURL = store.activeFolderURL else {
             NSWorkspace.shared.open(store.notesDirectory)
@@ -407,6 +428,34 @@ final class NotesCoordinator {
             windowController.show(focusEditor: false)
             openSwitcher()
         }
+    }
+
+    private func turnOnICloudSync() async {
+        guard let documents = await cloudNotes.refresh() else {
+            _ = await dialogs.reportFailure(
+                "iCloud Drive Is Off",
+                "Sign in to iCloud and turn on iCloud Drive in System Settings, then turn on sync again.",
+                nil)
+            return
+        }
+        guard !Task.isCancelled else { return }
+        let local = NotesRepository(notesDirectory: store.notesDirectory)
+        let count = await Task.detached(priority: .userInitiated) { (try? local.list().count) ?? 0 }.value
+        var copies = false
+        if count > 0 {
+            copies = await dialogs.choose(
+                count == 1 ? "Copy 1 Note to iCloud?" : "Copy \(count) Notes to iCloud?",
+                "The notes also stay in the folder on this Mac. "
+                    + "A note iCloud already has with the same text is not copied again.",
+                "Copy", "Don't Copy")
+        }
+        guard !Task.isCancelled else { return }
+        settings.syncsWithICloud = true
+        // Moved first, so nothing writes into the folder the copy reads from.
+        await store.relocate(to: NotesRepository(notesDirectory: documents))
+        guard copies else { return }
+        let copied = await store.copyNotes(from: local)
+        Logger.sync.info("copied \(copied, privacy: .public) of \(count, privacy: .public) notes to iCloud")
     }
 
     /// A newer show or hide retires an older operation's right to put what it loaded on screen.

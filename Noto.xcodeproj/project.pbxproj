@@ -351,20 +351,20 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		4E4F544F0000000000000043 /* XCRemoteSwiftPackageReference "MDTextKit" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/AFutureD/MDTextKit";
-			requirement = {
-				kind = exactVersion;
-				version = 0.1.2;
-			};
-		};
 		4E4F544F0000000000000040 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/sparkle-project/Sparkle";
 			requirement = {
 				kind = upToNextMajorVersion;
 				minimumVersion = 2.10.0;
+			};
+		};
+		4E4F544F0000000000000043 /* XCRemoteSwiftPackageReference "MDTextKit" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/AFutureD/MDTextKit";
+			requirement = {
+				kind = exactVersion;
+				version = 0.1.2;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */

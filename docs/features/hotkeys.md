@@ -58,9 +58,13 @@ it. `HotKeyCenter.register` drops a previous registration under the same id firs
 { "showNotes": { "carbonKeyCode": 45, "carbonModifiers": 2304 } }
 ```
 
-The object holds only the bound commands. It is written when the dictionary changes. On load, an entry
-whose key names no current command is dropped. Like every preference, the value is keyed by bundle id,
-which Debug and Release share.
+The object holds only the bound commands. It is written with sorted keys when the dictionary changes,
+so equal shortcuts are equal bytes. On load, an entry whose key names no current command is dropped.
+Like every preference, the value is keyed by bundle id, which Debug and Release share.
+
+The shortcuts sync to iCloud while iCloud Sync is on. When a remote value replaces them,
+`AppCore` calls `HotKeyManager.registerAll()`, which registers each binding again. See
+[sync.md](sync.md#the-settings-mirror).
 
 ## Recorder
 

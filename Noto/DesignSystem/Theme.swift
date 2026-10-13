@@ -90,7 +90,9 @@ enum Theme {
         static let settingsWidth: CGFloat = 600
         static let settingsLabelColumn: CGFloat = 180
         static let settingsSlider: CGFloat = 180
-        static let settingsPicker: CGFloat = 220
+        static let settingsFontList = CGSize(width: 280, height: 360)
+        /// The size a font name is drawn at beside its Aa button, in that font.
+        static let settingsFontSample: CGFloat = 15
     }
 
     enum Duration {

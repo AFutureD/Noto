@@ -25,9 +25,11 @@ Each feature document opens with an `## Invariants` section. Read it before you 
   editor settings
 - [hotkeys.md](features/hotkeys.md): the four global shortcuts and the recorder
 - [updates.md](features/updates.md): the Sparkle updater
+- [sync.md](features/sync.md): iCloud sync of the notes and the settings, and conflict copies
 
 Settings has no document of its own. [architecture.md](architecture.md#settings) describes
-`NotoSettings`, and [ui.md](ui.md#the-settings-window) describes the window.
+`NotoSettings`, [ui.md](ui.md#the-settings-window) describes the window, and
+[sync.md](features/sync.md#the-settings-mirror) describes which settings sync.
 
 ## Documentation language
 
