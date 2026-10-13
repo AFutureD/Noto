@@ -5,6 +5,8 @@ and the versions follow the version rule in [release.md](docs/release.md#the-ver
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-13
+
 ### Added
 
 - Settings > Sync > iCloud Sync keeps your notes and the Editor and Shortcuts settings the
@@ -136,7 +138,8 @@ as an app of its own; see [NOTICE.md](NOTICE.md).
 - Show in Dock, off by default.
 - Updates through Sparkle.
 
-[Unreleased]: https://github.com/AFutureD/Noto/compare/v0.3.2...HEAD
+[Unreleased]: https://github.com/AFutureD/Noto/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/AFutureD/Noto/compare/v0.3.2...v0.4.0
 [0.3.2]: https://github.com/AFutureD/Noto/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/AFutureD/Noto/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/AFutureD/Noto/compare/v0.2.1...v0.3.0
