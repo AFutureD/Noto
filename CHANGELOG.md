@@ -5,6 +5,16 @@ and the versions follow the version rule in [release.md](docs/release.md#the-ver
 
 ## [Unreleased]
 
+### Changed
+
+- The editor margins are narrower: 28 points on each side at the standard text size. The margin
+  does not grow with the text size until the heading marker needs more space.
+
+### Fixed
+
+- The heading marker is at the centre of the left margin.
+- The caret cannot go before a heading marker.
+
 ## [0.3.1] - 2026-10-13
 
 ### Changed

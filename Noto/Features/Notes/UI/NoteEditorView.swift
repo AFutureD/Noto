@@ -167,13 +167,12 @@ struct NoteEditorView: NSViewRepresentable {
             parent.onFormattingChange(input, textView.formatting)
         }
 
-        /// The theme's colours and fonts, then Noto's own frame: no column, no background, its insets.
+        /// The theme's colours and fonts, then Noto's own frame: no column, no background, a top inset.
+        /// No horizontal inset: the theme's side margin is the whole margin, so the markers centre in it.
         static func configure(_ textView: NoteTextView, with themeManager: SFThemeManager) {
             textView.applyTheme(themeManager)
             textView.drawsBackground = false
-            textView.textContainerInset = NSSize(
-                width: Theme.Size.noteEditorInset,
-                height: Theme.Size.noteEditorTopInset)
+            textView.textContainerInset = NSSize(width: 0, height: Theme.Size.noteEditorTopInset)
             textView.mdTextContainer.lineFragmentPadding = 0
             textView.insertionPointColor = NSColor(Theme.Colors.noteText)
             let accent = themeManager.color(forKey: "editor.accent color")

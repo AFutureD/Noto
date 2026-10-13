@@ -85,8 +85,8 @@ without a written radius.
 
 - The note window: `noteWindow 440×180` (the opening size and the height floor),
   `noteWindowMaxHeight 860`, `noteTitlebar 52`, `noteTitleInset 120`, `noteTrafficLightInset 20`,
-  `noteEditorInset 16`, `noteEditorTopInset 6`, `noteFooterHeight 28`, `bottomBarHeight 52`,
-  `noteGlyph 16`, `noteEmptyGlyph 28`.
+  `noteSideMargin 28`, `noteEditorTopInset 6`, `noteBandInset 16`, `noteFooterHeight 28`,
+  `bottomBarHeight 52`, `noteGlyph 16`, `noteEmptyGlyph 28`.
 - The switcher and the bar menus: `noteSwitcher 300×240`, `noteSearchHeight 34`,
   `noteSwitcherEmptyHeight 96`, `noteSwitcherDrop 56`, `rowIcon 24`, `noteBarMenu(rows:)` (220 wide,
   exactly its rows tall), `menuRowHeight` (`menuIcon 20` + `md` × 2), `menuRowSpacing 1`.
@@ -190,7 +190,9 @@ the line height is 1.3 times the font size.
 - A table is a grid with `border` lines. Its header and every second row are `cardFill`; the rows
   between are the page, as in Bear.
 - A heading's `#` marks are an attachment that shows three bars and the level while the caret is on
-  the line.
+  the line. The attachment hangs in the side margin, at its centre. The caret cannot go before it.
+- The side margin is `noteSideMargin` on the left and on the right. The text view adds no horizontal
+  inset. At a large text size, MDTextKit makes the margin wider so that the heading marker fits.
 
 ### The formatting bar
 

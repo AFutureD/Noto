@@ -32,9 +32,13 @@ enum Theme {
         static let noteWindow = CGSize(width: 440, height: 180)
         /// The tallest a note window grows to fit its text; past it the editor scrolls.
         static let noteWindowMaxHeight: CGFloat = 860
-        static let noteEditorInset: CGFloat = 16
-        /// Shorter than the horizontal inset, so the first line sits close under the title bar.
+        /// The editor's left and right margin, MDTextKit's "editor.side margin". The heading markers hang
+        /// in it, so MDTextKit widens it for a large text size.
+        static let noteSideMargin: CGFloat = 28
+        /// Keeps the first line close under the title bar.
         static let noteEditorTopInset: CGFloat = 6
+        /// The leading inset of the formatting band's character count.
+        static let noteBandInset: CGFloat = 16
         static let noteSearchHeight: CGFloat = 34
         /// The switcher popover, sized independently of a note window that can be 180pt tall.
         static let noteSwitcher = CGSize(width: 300, height: 240)

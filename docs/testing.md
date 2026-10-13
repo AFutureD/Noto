@@ -165,7 +165,9 @@ the real preferences and the real notes. Use throwaway notes, or choose a scratc
   underline, a highlight behind `==text==`, inline code, links with their icon, bullets, numbers,
   checkboxes, nested lists, quote bars, a callout box, a code band, a rule, an image and a table grid.
 - The caret's construct shows its markers in the tertiary colour and hides them when the caret leaves.
-  A heading's `#` attachment shows while the caret is on its line.
+  A heading's `#` attachment shows while the caret is on its line, at the centre of the left margin.
+- A click before a heading marker puts the caret after the marker. ← from the start of the heading
+  text moves the caret to the end of the line above.
 - A click on another app hides every marker. A click back reveals the caret's construct.
 - Inside a code block both fences show, and Markdown inside it stays literal.
 - A table shows as a grid. A click on a cell edits it in place, Tab moves to the next cell, and the

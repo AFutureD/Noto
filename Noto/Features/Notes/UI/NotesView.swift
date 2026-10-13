@@ -80,7 +80,7 @@ struct NotesView: View {
             NoteFormattingBar()
                 .fixedSize()
         }
-        .padding(.leading, Theme.Size.noteEditorInset)
+        .padding(.leading, Theme.Size.noteBandInset)
         .padding(.trailing, Theme.Spacing.md)
         .frame(minWidth: 0, maxWidth: .infinity, alignment: .trailing)
         .frame(height: Theme.Size.bottomBarHeight)

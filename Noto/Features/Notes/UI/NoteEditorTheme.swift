@@ -50,6 +50,7 @@ enum NoteEditorTheme {
                     "selection inactive color": selection,
                     "text font": "system",
                     "text size": standardBodySize,
+                    "side margin": Theme.Size.noteSideMargin,
                     "line height multiplier": 1.3,
                     "line width multiplier": 0,
                     "headers": [
