@@ -6,8 +6,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/AFutureD/MDTextKit",
       "state" : {
-        "revision" : "f0e5343b2e2b7f0b94f09fbc657fefaa919bad33",
-        "version" : "0.1.0"
+        "revision" : "c2c7b670382097b6d5c8ae59ca30624d504fa934",
+        "version" : "0.1.1"
       }
     },
     {

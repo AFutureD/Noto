@@ -25,6 +25,7 @@ struct NotesEditorTests {
         testFormattingReports()
         testCheckboxesAndLinkClicks()
         testTablesRenderAsGrids()
+        testDeleteBeforeATableKeepsItsRows()
         testCustomFonts()
         testTextHeight()
         testHeightBeforeDraw()
@@ -415,14 +416,28 @@ struct NotesEditorTests {
         let source = "| a | b |\n| --- | --- |\n| 1 | 2 |\n"
         let input = NoteEditorInput(id: NoteID(rawValue: "Table.md"), source: source, epoch: 1)
         let editor = makeEditor(input: input)
-        var tables = 0
-        editor.textView.mdTextStorage.enumerateAttribute(
-            .attachment, in: NSRange(location: 0, length: editor.textView.mdTextStorage.length), options: []
-        ) { value, _, _ in
-            if value is MDTableTextAttachment { tables += 1 }
-        }
-        check("a pipe table becomes one grid attachment", tables == 1)
+        check("a pipe table becomes one grid attachment", grids(in: editor.textView) == 1)
         check("the grid stands for the table's Markdown", editor.textView.markdown == source)
+    }
+
+    private static func testDeleteBeforeATableKeepsItsRows() {
+        let table = "| a | b |\n| --- | --- |\n| 1 | 2 |\n| 3 | 4 |\n"
+        let source = "## Heading\n\n\(table)\nAfter\n"
+        let joined = "## Heading\n\(table)\nAfter\n"
+        let input = NoteEditorInput(id: NoteID(rawValue: "Table.md"), source: source, epoch: 1)
+        let editor = makeEditor(input: input)
+        let blankLine = (editor.textView.string as NSString).range(of: "\n\n").location + 1
+
+        editor.textView.setSelectedRange(NSRange(location: blankLine, length: 0))
+        editor.textView.deleteBackward(nil)
+        check("Delete on the blank line before a table keeps its rows", editor.textView.markdown == joined)
+        check("the table stays one grid after the Delete", grids(in: editor.textView) == 1)
+        editor.coordinator.editorUndoManager.undo()
+        check("undo restores the blank line before the table", editor.textView.markdown == source)
+
+        editor.textView.setSelectedRange(NSRange(location: blankLine, length: 0))
+        editor.textView.deleteForward(nil)
+        check("forward Delete on the blank line keeps the rows too", editor.textView.markdown == joined)
     }
 
     private static func testCustomFonts() {
@@ -597,6 +612,16 @@ struct NotesEditorTests {
 
     private static func font(in textView: NSTextView, at location: Int) -> NSFont? {
         textView.textStorage?.attribute(.font, at: location, effectiveRange: nil) as? NSFont
+    }
+
+    private static func grids(in textView: NoteTextView) -> Int {
+        var grids = 0
+        textView.mdTextStorage.enumerateAttribute(
+            .attachment, in: NSRange(location: 0, length: textView.mdTextStorage.length), options: []
+        ) { value, _, _ in
+            if value is MDTableTextAttachment { grids += 1 }
+        }
+        return grids
     }
 
     /// The layout manager draws a highlight from its own attribute, not `.backgroundColor`.

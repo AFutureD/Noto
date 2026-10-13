@@ -9,6 +9,10 @@ and the versions follow the version rule in [release.md](docs/release.md#the-ver
 
 - The copyright line in Get Info names the Noto author and the Tinycast author.
 
+### Fixed
+
+- Delete on the blank line before a table dropped every row but the header from the note.
+
 ## [0.3.0] - 2026-10-13
 
 ### Added
