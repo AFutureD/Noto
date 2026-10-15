@@ -63,6 +63,7 @@ The copy rules:
   match ignores case and accents.
 - Each other collision takes the next free name, as `Plan 2`.
 - A copy keeps the modification date of its `text.md`, so it keeps its position in the list.
+- A copy brings the note's `assets` folder, so its images show in iCloud.
 - The folder on this Mac does not change.
 
 To turn sync off, the setting turns off and the store moves back to the folder on this Mac. That is
@@ -174,8 +175,9 @@ download, so the repository does not read it:
 ## Conflicts
 
 A conflict copy is an ordinary note named `<title> (Conflict yyyy-MM-dd HH.mm)`, in the local time of
-this Mac. If that name is in use, the copy takes the next free name. Noto does not merge text and
-shows no alert. The user compares the two notes and deletes one.
+this Mac. If that name is in use, the copy takes the next free name. It gets a copy of the note's
+`assets` folder, so its images show. If that copy fails, the text copy stays and the failure is
+logged, so a save never fails because of an image. Noto does not merge text and shows no alert. The user compares the two notes and deletes one.
 
 There are two sources of conflict copies.
 

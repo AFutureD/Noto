@@ -181,8 +181,16 @@ struct NotesRepository: Sendable {
                 if let twin = existing[folded(summary.id.rawValue)], (try? load(twin).source) == source {
                     continue
                 }
-                let folder = try claimUniqueFolder(base: summary.id.rawValue) {
-                    try createNoteFolder(at: $0, source: Data(source.utf8))
+                // The images copy inside the claim: if they fail, the folder goes, so a retry copies
+                // this note again instead of skipping it as already there.
+                let folder = try claimUniqueFolder(base: summary.id.rawValue) { folder in
+                    try createNoteFolder(at: folder, source: Data(source.utf8))
+                    do {
+                        try copyAssets(from: other.folderURL(for: summary.id), to: folder)
+                    } catch {
+                        try? FileManager.default.removeItem(at: folder)
+                        throw error
+                    }
                 }
                 // The copy keeps its place in the modification-date order.
                 try? FileManager.default.setAttributes(
@@ -238,6 +246,33 @@ struct NotesRepository: Sendable {
             }
         }
         return Array(results.sorted(by: NoteSearch.precedes).prefix(limit))
+    }
+
+    /// Copies each file into the note's `assets` folder under a free name and returns the paths
+    /// relative to the note folder, in order. The originals stay where they are.
+    func importAssets(_ files: [URL], into id: NoteID) throws(Failure) -> [String] {
+        let candidate = folderURL(for: id)
+        return try mappedError(at: candidate) {
+            let folder = try validatedFolderURL(candidate)
+            let assets = folder.appendingPathComponent(NoteAssets.folderName, isDirectory: true)
+            // A link would write the copies somewhere outside the note.
+            if (try? assets.resourceValues(forKeys: [.isSymbolicLinkKey]))?.isSymbolicLink == true {
+                throw Failure.invalidLocation(assets)
+            }
+            return try coordinatedWrite(at: assets, options: []) { coordinatedURL in
+                try FileManager.default.createDirectory(at: coordinatedURL, withIntermediateDirectories: true)
+                var taken = Set(try FileManager.default.contentsOfDirectory(atPath: coordinatedURL.path))
+                return try files.map { file in
+                    let base = NoteAssets.isPasted(file)
+                        ? NoteAssets.pastedName(for: file.lastPathComponent, at: now()) : file.lastPathComponent
+                    let name = NoteAssets.uniqueName(for: base, taken: taken)
+                    try FileManager.default.copyItem(at: file, to: coordinatedURL.appendingPathComponent(name))
+                    taken.insert(name)
+                    Logger.notes.info("imported an asset into \(id.rawValue, privacy: .private)")
+                    return "\(NoteAssets.folderName)/\(name)"
+                }
+            }
+        }
     }
 
     func folderURL(for id: NoteID) -> URL {
@@ -356,8 +391,25 @@ struct NotesRepository: Sendable {
             try createNoteFolder(at: $0, source: Data(source.utf8))
         }
         let copy = NoteID(rawValue: folder.lastPathComponent)
+        // The text is what the copy saves; a missing image must not fail the save that needs it.
+        do {
+            try copyAssets(from: folderURL(for: id), to: folder)
+        } catch {
+            let reason = error.localizedDescription
+            Logger.sync.error(
+                "the conflict copy \(copy.rawValue, privacy: .private) has no images: \(reason, privacy: .public)")
+        }
         Logger.sync.notice("kept a conflict copy of \(id.rawValue, privacy: .private) as \(copy.rawValue, privacy: .private)")
         return copy
+    }
+
+    /// The images travel with the text, or the copy shows placeholders. A note without images has no
+    /// `assets` folder, and that is not an error.
+    private func copyAssets(from noteFolder: URL, to copyFolder: URL) throws {
+        let assets = noteFolder.appendingPathComponent(NoteAssets.folderName, isDirectory: true)
+        guard FileManager.default.fileExists(atPath: assets.path) else { return }
+        try FileManager.default.copyItem(
+            at: assets, to: copyFolder.appendingPathComponent(NoteAssets.folderName, isDirectory: true))
     }
 
     /// True unless iCloud holds the file without its content: a local file has no download status.

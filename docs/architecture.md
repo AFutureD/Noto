@@ -155,9 +155,10 @@ else.
 - The note window: a persistent, titled, non-activating `NotesPanel`, managed by
   `NotesWindowController`. Its height fits the note up to 860pt, and AppKit autosaves the frame. Its
   hosting view sets `sizingOptions = []`, so SwiftUI never drives the window size.
-- The switcher and the bar menu: two more `NotesPanel`s, borderless child windows of the note window,
-  managed by `NoteSwitcherWindowController` and `NoteBarMenuWindowController`. The switcher takes key
-  and dismisses when it resigns key. The bar menu never becomes key, so the editor keeps its caret.
+- The switcher, the bar menu and the emoji list: three more `NotesPanel`s, borderless child windows of
+  the note window, managed by `NoteSwitcherWindowController`, `NoteBarMenuWindowController` and
+  `NoteEmojiPickerWindowController`. The switcher takes key and dismisses when it resigns key. The bar
+  menu and the emoji list never become key, so the editor keeps its caret.
   See [notes.md](features/notes.md).
 - The Settings window: a titled `NSWindow` with a preference toolbar, built by
   `SettingsWindowController` and hosting `SettingsView`. SwiftUI's `Settings` scene is unreliable for
@@ -230,7 +231,7 @@ Noto/
                     SymbolImage, GlassEffectView, Scrolling/OverflowFade
   Platform/         system shims: AppPaths, AppDisplayName, AppVersion, ActivationPolicy, Appearance,
                     ASCIIKeyboardLayout, CloudKeyValueStore, FileViewer, FolderPicker, FontCatalog,
-                    NotificationToken, Signposts, SyncLog (Logger.sync)
+                    NotificationToken, Signposts, SyncLog (Logger.sync), NotesLog (Logger.notes)
   AppIcon.icon      the app icon, an Icon Composer document
   Assets.xcassets/  empty; actool compiles the icon into it
   Info.plist        LSUIElement, the Sparkle keys, the iCloud container and the bundle keys; a build

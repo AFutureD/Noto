@@ -29,6 +29,8 @@ Markdown in `text.md`. Noto lives in the menu bar, needs no account and has no d
 - Four global shortcuts: Show Notes, Create Note, Search Notes and Keep on Top.
 - Keep on Top holds the window above other apps and on every Space.
 - Your fonts, your folder. Noto updates itself.
+- Paste or drop an image, and it shows in the note. The file goes in the note's own folder.
+- Type `:` and a word, such as `:smile`, to pick an emoji.
 - Optional iCloud sync for your notes and your Editor and Shortcuts settings.
 
 ## Install

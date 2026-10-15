@@ -1,6 +1,7 @@
 import AppKit
 import MDTextKit
 import MDTextKitUI
+import os
 
 /// The note editor: `MDTextView` plus Noto's chords, the window fit's height, the placeholder and focus.
 @MainActor
@@ -165,6 +166,120 @@ final class NoteTextView: MDTextView {
         }
     }
 
+    // MARK: - Files
+
+    /// Dropped or pasted files: the images import, everything else is ignored. MDTextKit's reader
+    /// looks only at the first file and inserts a folder's path as text, so Noto decides here.
+    override func readSelection(from pboard: NSPasteboard, type: NSPasteboard.PasteboardType) -> Bool {
+        guard let files = pboard.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true])
+            as? [URL], !files.isEmpty
+        else { return super.readSelection(from: pboard, type: type) }
+        let images = files.filter(NoteAssets.isImage)
+        if images.count < files.count {
+            Logger.notes.notice("ignored \(files.count - images.count) dropped files that are not images")
+        }
+        if !images.isEmpty { addFilesBlock?(images, rangeForUserTextChange) }
+        return true
+    }
+
+    // MARK: - Emoji
+
+    /// Reports the open emoji list with the screen rect of its `:`, or nil when the list closes.
+    var onEmojiPickerChange: ((NoteEmojiPicker?, NSRect) -> Void)?
+    /// The `:query` under the caret and its list, while the list is open.
+    private var emojiQuery: EmojiQuery?
+    /// The query Escape closed; the list stays shut until the query changes.
+    private var dismissedEmojiRange: NSRange?
+
+    private struct EmojiQuery: Equatable {
+        let range: NSRange
+        var picker: NoteEmojiPicker
+    }
+
+    /// Return and Tab take the selected emoji, the arrows move through the list. Escape never gets
+    /// here: the panel claims it and asks `dismissEmojiPicker` first.
+    override func doCommand(by selector: Selector) {
+        guard var query = emojiQuery else { return super.doCommand(by: selector) }
+        switch selector {
+        case #selector(moveUp(_:)):
+            query.picker.moveSelection(by: -1)
+            setEmojiQuery(query)
+        case #selector(moveDown(_:)):
+            query.picker.moveSelection(by: 1)
+            setEmojiQuery(query)
+        case #selector(insertNewline(_:)), #selector(insertTab(_:)):
+            chooseEmoji(at: query.picker.selection)
+        default:
+            super.doCommand(by: selector)
+        }
+    }
+
+    /// Replaces `:query` with the emoji as one undo step.
+    func chooseEmoji(at index: Int) {
+        guard let query = emojiQuery, query.picker.candidates.indices.contains(index) else { return }
+        let emoji = query.picker.candidates[index].character
+        setEmojiQuery(nil)
+        editorController.replaceCharacters(in: query.range, with: NSAttributedString(string: emoji), in: self)
+        setSelectedRange(NSRange(location: query.range.location + (emoji as NSString).length, length: 0))
+        // A replacement writes the storage directly; this reports it, so autosave sees it.
+        didChangeText()
+    }
+
+    /// True when a list was open: Escape closes it before it may hide the window.
+    @discardableResult
+    func dismissEmojiPicker() -> Bool {
+        guard let query = emojiQuery else { return false }
+        dismissedEmojiRange = query.range
+        setEmojiQuery(nil)
+        return true
+    }
+
+    /// The host calls this after each text and selection change, once MDTextKit has styled the edit.
+    /// An undo or redo closes the list: Return after ⌘Z must not insert the emoji again.
+    func updateEmojiPicker() {
+        guard isFocused, !hasMarkedText(), !editorUndoManager.isUndoing, !editorUndoManager.isRedoing,
+            let match = Self.emojiQueryRange(in: mdTextStorage.string as NSString, caret: selectedRange()),
+            !mdTextStorage.isRangeInsideCode(match.range)
+        else {
+            dismissedEmojiRange = nil
+            return setEmojiQuery(nil)
+        }
+        if let dismissed = dismissedEmojiRange {
+            guard dismissed != match.range else { return setEmojiQuery(nil) }
+            dismissedEmojiRange = nil
+        }
+        // The same query keeps its list and selection; only the range can move.
+        if let current = emojiQuery, current.picker.query == match.text {
+            return setEmojiQuery(EmojiQuery(range: match.range, picker: current.picker))
+        }
+        guard var picker = NoteEmojiPicker(query: match.text) else { return setEmojiQuery(nil) }
+        picker.keepSelection(of: emojiQuery?.picker)
+        setEmojiQuery(EmojiQuery(range: match.range, picker: picker))
+    }
+
+    private func setEmojiQuery(_ next: EmojiQuery?) {
+        guard next != emojiQuery else { return }
+        emojiQuery = next
+        let anchor = next.map { firstRect(forCharacterRange: NSRange(location: $0.range.location, length: 0), actualRange: nil) }
+        onEmojiPickerChange?(next?.picker, anchor ?? .zero)
+    }
+
+    /// The `:query` that ends at an empty selection, after a line start, a space, an opening bracket
+    /// or a block marker. A block marker (`- `, `# `, a checkbox) is one attachment character.
+    static func emojiQueryRange(in text: NSString, caret: NSRange) -> (range: NSRange, text: String)? {
+        guard caret.length == 0, caret.location <= text.length else { return nil }
+        let line = text.lineRange(for: NSRange(location: caret.location, length: 0))
+        // `:` plus at most 32 characters, plus the boundary before it: a long line costs no more.
+        let start = max(line.location, caret.location - 34)
+        let head = text.substring(with: NSRange(location: start, length: caret.location - start))
+        let anchored = start == line.location
+        guard let match = head.firstMatch(of: /(?:^|[\s(\[\x{FFFC}])(:([A-Za-z0-9_+\-]{2,32}))$/),
+            anchored || match.range.lowerBound != head.startIndex || head.first != ":"
+        else { return nil }
+        let length = (String(match.1) as NSString).length
+        return (NSRange(location: caret.location - length, length: length), String(match.2))
+    }
+
     // MARK: - Focus and appearance
 
     override func becomeFirstResponder() -> Bool {
@@ -183,6 +298,9 @@ final class NoteTextView: MDTextView {
 
     /// Every line under the selection shows its Markdown; an unfocused editor reveals nothing.
     private func focusChanged() {
+        // The list closes with focus and opens only on an edit or a caret move, not when the window
+        // comes back.
+        if !isFocused { setEmojiQuery(nil) }
         let selection = selectedRange()
         if isFocused {
             editorController.autoHideMarkdown(in: self, forOldSelectionRange: selection, newSelectionRange: selection)

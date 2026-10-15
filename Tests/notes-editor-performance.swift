@@ -119,7 +119,7 @@ struct NotesEditorPerformance {
     ) -> (coordinator: NoteEditorView.Coordinator, textView: NoteTextView, window: NSWindow) {
         let view = NoteEditorView(
             input: input, onSourceChange: { _ in }, onCharacterCountChange: { _, _ in },
-            onFormattingChange: { _, _ in }, onReady: { _ in })
+            onFormattingChange: { _, _ in }, onImportFiles: { _, _ in nil }, onReady: { _ in })
         let coordinator = NoteEditorView.Coordinator(parent: view)
         let textView = coordinator.textView
         textView.setFrameSize(NSSize(width: 480, height: 1))

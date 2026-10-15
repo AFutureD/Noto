@@ -8,7 +8,7 @@ menu, the global shortcuts and the Dock icon show, search or extend the collecti
 
 - One folder with a regular `text.md` file inside is one note. The folder's name is the title, and
   `text.md` is the Markdown. The source holds no frontmatter, no embedded id and no title field.
-  There is no database and no sidecar. A loose `.md` file in the notes directory is not a note.
+  There is no database and no sidecar. The `assets` folder holds images, not data about the note. A loose `.md` file in the notes directory is not a note.
 - A note the user has not named shows its first line instead. Only the names `create` claims get a
   derived title. It is presentation only, and a name replaces it.
 - The Markdown is the source. `NoteTextView.markdown`, `NotesStore`, search and the file are
@@ -31,6 +31,9 @@ menu, the global shortcuts and the Dock icon show, search or extend the collecti
 - Search is on demand and unindexed. An empty switcher query reads metadata plus the head of each
   unnamed note. A nonempty query reads bodies one by one off the main actor and keeps no cache of the
   collection's sources. Neither reads a file that iCloud has not downloaded.
+- A note's images are files in its own `assets` folder, and the Markdown names them by a path
+  relative to the note folder. A rename or a move keeps them. The editor shows no file outside the
+  note folder and loads no remote image.
 - The collection may be empty. The last note can be deleted. The window shows its empty state, and
   Create Note still works.
 - The window's height fits the note. Each edit, note switch and bar toggle grows or shrinks it
@@ -63,7 +66,8 @@ A note is `<title>/text.md` under the notes directory. `NotesRepository.contentF
 file. `NoteID` is the folder name, so a rename gives a new identity. The immediate, non-hidden,
 unlinked subfolders that hold a regular `text.md` are the notes, sorted by the modification date of
 `text.md`, then localized title. Other folders, loose files, hidden entries and symbolic links are
-ignored. Anything else inside a note folder is left alone.
+ignored. Anything else inside a note folder is left alone. The `assets` folder holds the note's
+images; see [Images](#images).
 
 Create uses `Untitled`, then `Untitled 2`, and so on. Rename claims a free name by the same rule. A
 collision with another note is case- and diacritic-insensitive, so `plán` beside `Plan` becomes
@@ -99,8 +103,9 @@ rename field starts from `title`.
 `CloudNotesLocation`, `NotesDialogs.alerts` and the formatting bar's saved state. `NotesView` receives
 only the coordinator, through `@Environment`. It never sees `AppCore` and never mutates the store.
 
-The coordinator lazily owns three window controllers: `NotesWindowController` (the note window),
-`NoteSwitcherWindowController` and `NoteBarMenuWindowController` (two child windows). Nothing lists or
+The coordinator lazily owns four window controllers: `NotesWindowController` (the note window),
+`NoteSwitcherWindowController`, `NoteBarMenuWindowController` and `NoteEmojiPickerWindowController`
+(three child windows). Nothing lists or
 creates the Notes directory until the first show, create or search. With Show in Dock on, that is
 launch.
 
@@ -121,8 +126,8 @@ launch.
 | Launch with Show in Dock on | `AppCore.start`, then `show()` |
 
 In the window: ⌘N creates, ⌘P opens or refocuses the switcher, ⌘O reveals the active note's folder in
-Finder (or opens the notes directory when there is none), and ⌘F opens AppKit's find bar. Escape closes the find bar, a
-bar menu or the switcher before it hides the window. ⌘W and the red traffic light hide at once. A hide
+Finder (or opens the notes directory when there is none), and ⌘F opens AppKit's find bar. Escape closes the emoji list, the
+find bar, a bar menu or the switcher before it hides the window. ⌘W and the red traffic light hide at once. A hide
 restores the previous external app or Noto window and flushes the draft, but only while that app is
 still frontmost. ⌘Q quits: `applicationShouldTerminate` awaits the flush first.
 
@@ -249,6 +254,47 @@ An empty note shows a `Start writing…` placeholder, drawn in the text view, so
 with the content. The character count is the Markdown's UTF-16 length. It sits in a footer under the
 editor, or at the leading end of the formatting bar's band. Both belong to the editor surface, so
 neither shows without a note.
+
+### Images
+
+A pasted image, or an image file dropped on the editor, becomes a file in the note's `assets`
+folder and an `![](assets/<name>)` line at the paste. `NoteTextView.readSelection` reads dropped and
+pasted files itself, because MDTextKit's reader looks only at the first file and inserts a folder's
+path as text. Only image files import: a folder, a video or another file is skipped and logged.
+Pasted image data, which has no file, goes through MDTextKit's reader as a temporary PNG. Both end
+in `NoteTextView.addFilesBlock`. `NotesStore.importAssets` copies them off the main actor through
+`NotesRepository.importAssets`, in one coordinated write. A dropped file keeps its name. A pasted
+image is `Pasted yyyy-MM-dd HH.mm.ss.png`, so two Macs that paste into one note offline write two
+files. A taken name becomes `<name> 2`, then `<name> 3`, case-insensitively. The original stays where
+it was. An `assets` that is a symbolic link fails the import.
+
+The Markdown goes where the paste was while no edit moved the text, else at the caret. Each image is
+its own paragraph: a line break goes before it after other text on the line, and after it before
+more text, so every image starts at the margin. A switch to
+another note or a reload before the copy lands drops the Markdown and logs it; the copied file
+stays. A failed copy reports an operation failure.
+
+`imageFileResolver` resolves each image path with `NoteAssets.resolve` against `noteFolder`, the
+active note's folder. An absolute path, a remote URL and a path out of the note folder resolve to
+nil, which shows a placeholder. When the notes folder moves under the same note, the editor restyles,
+so the images resolve again. An image that iCloud has not downloaded shows the placeholder.
+
+### Emoji
+
+`:` and two or more letters, digits, `_`, `+` or `-` open the emoji list under the `:`. The `:`
+comes at a line start, after a space, an opening bracket or a block marker such as `- `. `EmojiCatalog` finds the emoji by the Unicode names of the
+OS, so there is no bundled table. It ranks a shortcode alias (`+1`, `tada`), a whole name, a whole
+word, then an alias or a word that starts with the query. The list shows up to `NoteEmojiPicker.rowLimit` rows.
+A flag, a skin tone or a family is a sequence of scalars and is not in the catalog.
+
+`NoteTextView` owns the query and the selection. It reports each change through
+`onEmojiPickerChange`, and `NoteEmojiPickerWindowController` shows the list in a child window that
+never becomes key. The up and down arrows move the selection and wrap. Return, Tab or a click
+replaces `:query` with the emoji in one undo step. Escape closes the list until the query changes. A
+caret move off the query, marked text, a code block or code span, an undo or redo, and the loss of
+focus close it. Focus coming back does not open it again; the next edit or caret move does. The
+editor host updates the list after MDTextKit posts each text or selection change,
+so the check never runs in the middle of an edit.
 
 ## The formatting bar
 

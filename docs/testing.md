@@ -40,8 +40,8 @@ app sees, and a package change breaks a harness before it breaks the app.
 
 | Harness | Compiles | Covers |
 | --- | --- | --- |
-| `notes-test` | all of `Notes/Model/` and `Notes/Service/`, `Signposts`, `SyncLog` and `NotificationToken`, with the real `FuzzyMatch` and PolarMark | the repository, autosave, external reloads, draft preservation, conflict copies, the copy into iCloud, selection, relocation, derived titles, search, the highlight and accent colours, switcher interaction, window placement |
-| `notes-editor-test` | the editor host, its theme, `Theme.swift` and `InterfaceMetrics.swift`, with the real MDTextKit modules and AppKit | the Markdown round trip, styling, keys, chords, headings, links, checkboxes, tables, undo, the character count, the fonts, the colours, the text height |
+| `notes-test` | all of `Notes/Model/` and `Notes/Service/`, `Signposts`, `SyncLog`, `NotesLog` and `NotificationToken`, with the real `FuzzyMatch` and PolarMark | the repository, autosave, external reloads, draft preservation, conflict copies, the copy into iCloud, selection, relocation, derived titles, search, image paths and imports, the emoji catalog, the highlight and accent colours, switcher interaction, window placement |
+| `notes-editor-test` | the editor host, its theme, `Theme.swift` and `InterfaceMetrics.swift`, with the real MDTextKit modules and AppKit | the Markdown round trip, styling, keys, chords, headings, links, checkboxes, tables, undo, the character count, the fonts, the colours, the text height, the emoji query |
 | `settings-sync-test` | `NotoSettings`, `CloudSettingsMirror`, `CloudKeyValueStore` and the value types of the synced preferences | the settings mirror: what is sent, what is taken, when iCloud wins, no echo, values from another build |
 
 Nothing automated covers `HotKeys/`, `Updates/`, `App/`, `SettingsView`, the Notes window chrome,
@@ -212,6 +212,12 @@ account. Use an iCloud account with no real notes for the iCloud sync section.
   exact source. ⌘F finds in the active note, and Escape closes the find bar before it hides the window.
 - An empty note shows `Start writing…`. ⌘F moves it below the find bar. The count is right after
   typing, a paste and an undo.
+- Paste an image, and drop an image file from Finder. Each one shows in the note, and the file lands
+  in the note's `assets` folder with a free name. `text.md` holds `![](assets/<name>)`. Rename the
+  note: the images still show.
+- Type `:smi` after a space. The emoji list opens under the `:`. The arrows move the selection,
+  Return inserts the emoji, and ⌘Z restores `:smi`. Escape closes the list and keeps the window. In a
+  code block, `:smi` opens no list.
 
 ### Notes: the formatting bar
 

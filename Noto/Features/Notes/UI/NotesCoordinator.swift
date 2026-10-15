@@ -19,6 +19,7 @@ final class NotesCoordinator {
     @ObservationIgnored private lazy var switcherController = NoteSwitcherWindowController(
         coordinator: self)
     @ObservationIgnored private lazy var barMenuController = NoteBarMenuWindowController(coordinator: self)
+    @ObservationIgnored private lazy var emojiPickerController = NoteEmojiPickerWindowController(coordinator: self)
     @ObservationIgnored private var loadTask: Task<Void, Never>?
     @ObservationIgnored private var issueTask: Task<Void, Never>?
     @ObservationIgnored private var operationTask: Task<Void, Never>?
@@ -33,6 +34,8 @@ final class NotesCoordinator {
     private(set) var formatting = NoteFormatting.plain
     private(set) var isFormattingBarExpanded: Bool
     private(set) var presentedBarMenu: NoteBarMenu?
+    /// The editor's open `:` emoji list; the editor owns it and reports each change.
+    private(set) var emojiPicker: NoteEmojiPicker?
     /// A press closes the menu before its button fires, so that button must not reopen it.
     @ObservationIgnored private var barMenuOpenAtPress: NoteBarMenu?
     /// Each menu button in the panel's flipped content space, reported by the bar as it lays out.
@@ -67,6 +70,8 @@ final class NotesCoordinator {
     }
 
     var hasActiveNote: Bool { store.activeID != nil }
+    /// The active note's folder: the base of its relative image paths.
+    var activeFolderURL: URL? { store.activeFolderURL }
     /// UTF-16 units of the Markdown source.
     var characterCountLabel: String {
         characterCount == 1 ? "1 character" : "\(characterCount) characters"
@@ -328,6 +333,10 @@ final class NotesCoordinator {
         store.updateSource(source)
     }
 
+    func importAssets(_ files: [URL], into id: NoteID) async -> [String]? {
+        await store.importAssets(files, into: id)
+    }
+
     func updateCharacterCount(_ input: NoteEditorInput, _ count: Int) {
         guard input == editorInput else { return }
         characterCount = count
@@ -388,7 +397,21 @@ final class NotesCoordinator {
     }
 
     func editorReady(_ textView: NoteTextView) {
+        textView.onEmojiPickerChange = { [weak self] picker, anchor in
+            self?.presentEmojiPicker(picker, anchor: anchor)
+        }
         windowController.editorReady(textView)
+    }
+
+    private func presentEmojiPicker(_ picker: NoteEmojiPicker?, anchor: NSRect) {
+        emojiPicker = picker
+        guard let picker else { return emojiPickerController.hide() }
+        windowController.presentEmojiPicker(rows: picker.candidates.count, anchor: anchor, with: emojiPickerController)
+    }
+
+    /// A click on a row; the keys go to the editor directly.
+    func chooseEmoji(at index: Int) {
+        windowController.chooseEmoji(at: index)
     }
 
     private func request(_ presentation: Presentation) {

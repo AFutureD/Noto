@@ -148,6 +148,7 @@ run() {
 
 run notes-test             Noto/Platform/Signposts.swift \
                            Noto/Platform/SyncLog.swift \
+                           Noto/Platform/NotesLog.swift \
                            Noto/Platform/NotificationToken.swift \
                            Noto/Features/Notes/Model/*.swift \
                            Noto/Features/Notes/Service/*.swift
@@ -162,6 +163,10 @@ run notes-editor-test  Noto/Platform/Signposts.swift \
                            Noto/Features/Notes/Model/NoteAccentColor.swift \
                            Noto/Features/Notes/Model/NoteEditAction.swift \
                            Noto/Features/Notes/Model/NoteFormatting.swift \
+                           Noto/Features/Notes/Model/NoteAssets.swift \
+                           Noto/Features/Notes/Model/EmojiCatalog.swift \
+                           Noto/Features/Notes/Model/NoteEmojiPicker.swift \
+                           Noto/Platform/NotesLog.swift \
                            Noto/Features/Notes/UI/NoteEditorTheme.swift \
                            Noto/Features/Notes/UI/NoteTextView.swift \
                            Noto/Features/Notes/UI/NoteEditorView.swift
@@ -188,6 +193,10 @@ run -O index notes-editor-performance \
                            Noto/Features/Notes/Model/NoteAccentColor.swift \
                            Noto/Features/Notes/Model/NoteEditAction.swift \
                            Noto/Features/Notes/Model/NoteFormatting.swift \
+                           Noto/Features/Notes/Model/NoteAssets.swift \
+                           Noto/Features/Notes/Model/EmojiCatalog.swift \
+                           Noto/Features/Notes/Model/NoteEmojiPicker.swift \
+                           Noto/Platform/NotesLog.swift \
                            Noto/Features/Notes/UI/NoteEditorTheme.swift \
                            Noto/Features/Notes/UI/NoteTextView.swift \
                            Noto/Features/Notes/UI/NoteEditorView.swift

@@ -53,12 +53,14 @@ struct NotesView: View {
         VStack(spacing: 0) {
             NoteEditorView(
                 input: notes.editorInput,
+                noteFolder: notes.activeFolderURL,
                 fonts: notes.fonts,
                 highlight: notes.highlightColor,
                 accent: notes.accentColor,
                 onSourceChange: notes.updateSource,
                 onCharacterCountChange: notes.updateCharacterCount,
                 onFormattingChange: notes.updateFormatting,
+                onImportFiles: notes.importAssets,
                 onReady: notes.editorReady
             )
             if notes.showsFormattingBar {

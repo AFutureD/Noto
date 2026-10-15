@@ -29,8 +29,28 @@ struct NotesEditorTests {
         testCustomFonts()
         testTextHeight()
         testHeightBeforeDraw()
+        testEmojiQuery()
         print(failures == 0 ? "Notes editor tests passed" : "\(failures) tests failed")
         exit(failures == 0 ? 0 : 1)
+    }
+
+    private static func testEmojiQuery() {
+        func query(_ text: String) -> String? {
+            let ns = text as NSString
+            return NoteTextView.emojiQueryRange(in: ns, caret: NSRange(location: ns.length, length: 0))
+                .map { ns.substring(with: $0.range) }
+        }
+        check("a query at a line start opens the list", query(":smi") == ":smi")
+        check("a query after a space opens the list", query("好耶 :fire") == ":fire")
+        check("a query inside a word does not", query("note:smi") == nil)
+        check("one letter does not", query("a :s") == nil)
+        check("a clock time does not", query("at 10:30") == nil)
+        check("only the line under the caret counts", query(":smi\nplain") == nil)
+        check("a query after a block marker opens the list", query("\u{FFFC}:tada") == ":tada")
+        check(
+            "a long line scans only its end",
+            query(String(repeating: "word ", count: 400) + ":fire") == ":fire"
+                && query(String(repeating: "x", count: 400) + ":fire") == nil)
     }
 
     private static func testSourceRoundTripAndNativeCommands() {
@@ -676,7 +696,7 @@ struct NotesEditorTests {
     ) -> NoteEditorView {
         NoteEditorView(
             input: input, onSourceChange: onSourceChange, onCharacterCountChange: onCountChange,
-            onFormattingChange: onFormattingChange, onReady: { _ in })
+            onFormattingChange: onFormattingChange, onImportFiles: { _, _ in nil }, onReady: { _ in })
     }
 
     private static func check(_ message: String, _ condition: @autoclosure () -> Bool) {

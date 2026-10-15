@@ -24,6 +24,9 @@ struct NotesTests {
         try await testStoreKeepsRemoteEditsBesideTheDraft()
         try await testStoreSavesOverAMergedNote()
         try await testStoreCopiesNotesIn()
+        testNoteAssetPaths()
+        try await testStoreImportsAssets()
+        testEmojiCatalog()
 
         print(failures == 0 ? "Notes tests passed" : "\(failures) tests failed")
         exit(failures == 0 ? 0 : 1)
@@ -531,6 +534,82 @@ struct NotesTests {
         check(
             "neither Mac's text is lost when both notes share one folder",
             Set(sources) == ["Written on this Mac", "Written on the other Mac"])
+    }
+
+    private static func testNoteAssetPaths() {
+        let folder = URL(fileURLWithPath: "/notes/Plan", isDirectory: true)
+        check(
+            "a relative image path resolves inside the note folder",
+            NoteAssets.resolve("assets/a b.png", in: folder)?.path == "/notes/Plan/assets/a b.png")
+        check("a path out of the note folder is refused", NoteAssets.resolve("../Other/assets/a.png", in: folder) == nil)
+        check("an absolute path is refused", NoteAssets.resolve("/etc/hosts", in: folder) == nil)
+        check("a remote image is refused", NoteAssets.resolve("https://example.com/a.png", in: folder) == nil)
+        check("the note folder itself is not an image", NoteAssets.resolve(".", in: folder) == nil)
+        check(
+            "a taken name takes the next free one, case-insensitively",
+            NoteAssets.uniqueName(for: "image.png", taken: ["Image.png", "image 2.png"]) == "image 3.png")
+        check("an image mid-line becomes its own paragraph", NoteAssets.paragraph("I", after: "a", before: "b") == "\nI\n")
+        check("an image at a line start adds nothing", NoteAssets.paragraph("I", after: "\n", before: nil) == "I")
+        check("an image at the very start adds nothing", NoteAssets.paragraph("I", after: nil, before: "\n") == "I")
+        check(
+            "the Markdown encodes the space and the parentheses",
+            NoteAssets.markdown(for: "assets/a (1).png") == "![](assets/a%20%281%29.png)")
+    }
+
+    private static func testStoreImportsAssets() async throws {
+        let root = temporaryRoot("assets")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let local = try repository(in: root, support: root.appendingPathComponent("local"))
+        let id = NoteID(rawValue: "Pictures")
+        try seed(local, id, "text")
+        let image = root.appendingPathComponent("shot.png")
+        try Data([0x89, 0x50, 0x4E, 0x47]).write(to: image)
+
+        let store = NotesStore(repository: local)
+        defer { store.stop() }
+        _ = await store.start()
+        _ = await store.select(id)
+        let first = await store.importAssets([image, image], into: id)
+        check("each file gets its own free name", first == ["assets/shot.png", "assets/shot 2.png"])
+        let copied = local.folderURL(for: id).appendingPathComponent("assets/shot 2.png")
+        check("the copy lands in the note's assets folder", FileManager.default.fileExists(atPath: copied.path))
+        check("the original stays where it was", FileManager.default.fileExists(atPath: image.path))
+        let pastedFolder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: pastedFolder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: pastedFolder) }
+        let pasted = pastedFolder.appendingPathComponent("image.png")
+        try Data([0x89, 0x50, 0x4E, 0x47]).write(to: pasted)
+        let pastedPath = await store.importAssets([pasted], into: id)
+        check(
+            "a pasted image gets a dated name",
+            pastedPath?.first?.hasPrefix("assets/Pasted ") == true && pastedPath?.first?.hasSuffix(".png") == true)
+        check("a dropped image is an image", NoteAssets.isImage(image))
+        check("a folder is not an image", !NoteAssets.isImage(root))
+        let other = await store.importAssets([image], into: NoteID(rawValue: "Not Active"))
+        check("an import for a note that is not active inserts nothing", other == nil)
+
+        let cloud = try repository(in: root, support: root.appendingPathComponent("cloud"))
+        _ = try cloud.copyNotes(from: local)
+        check(
+            "a note copied to another folder brings its images",
+            FileManager.default.fileExists(
+                atPath: cloud.folderURL(for: id).appendingPathComponent("assets/shot.png").path))
+    }
+
+    private static func testEmojiCatalog() {
+        check("the catalog holds the OS emoji", EmojiCatalog.all.count > 1000)
+        check("a whole name comes first", EmojiCatalog.search("fire").first?.character == "🔥")
+        check("an alias finds a shortcode", EmojiCatalog.search("+1").first?.character == "👍")
+        check("a partly typed alias finds its emoji", EmojiCatalog.search("tad").first?.character == "🎉")
+        check("smile finds smiling faces", EmojiCatalog.search("smile").count > 3)
+        check("one letter lists nothing", EmojiCatalog.search("s").isEmpty)
+        check(
+            "a text-default emoji carries the emoji variation selector",
+            EmojiCatalog.search("snowman").contains { $0.character.unicodeScalars.last == "\u{FE0F}" })
+        var picker = NoteEmojiPicker(query: "cat")
+        picker?.moveSelection(by: -1)
+        check("the selection wraps upward to the last row", picker?.selection == (picker?.candidates.count ?? 0) - 1)
+        check("a query with no match has no list", NoteEmojiPicker(query: "zzzzqq") == nil)
     }
 
     private static func testStoreCopiesNotesIn() async throws {

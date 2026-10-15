@@ -50,6 +50,10 @@ enum Theme {
                 width: 220,
                 height: menuRowHeight * CGFloat(rows) + menuRowSpacing * CGFloat(rows - 1) + Spacing.sm * 2)
         }
+        /// The `:` emoji list: wide enough for most emoji names, and exactly as tall as its rows.
+        static func noteEmojiPicker(rows: Int) -> CGSize {
+            CGSize(width: 280, height: noteBarMenu(rows: rows).height)
+        }
         static let noteFooterHeight: CGFloat = 28
         /// Holds the 36-point action capsule with an even margin above and below.
         static let noteTitlebar: CGFloat = 52

@@ -5,6 +5,14 @@ and the versions follow the version rule in [release.md](docs/release.md#the-ver
 
 ## [Unreleased]
 
+### Added
+
+- Paste an image, or drop an image file on the editor, and the image shows in the note. Noto copies
+  the file into the `assets` folder of the note's folder and writes `![](assets/<name>)`. Images that
+  a note already names in its folder show too.
+- Type `:` and two or more letters, such as `:smi`, to open a list of emoji. The arrows move the
+  selection, and Return inserts the emoji.
+
 ## [0.4.0] - 2026-10-13
 
 ### Added

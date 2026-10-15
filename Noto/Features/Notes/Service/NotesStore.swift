@@ -199,6 +199,25 @@ final class NotesStore {
         _ = await reload()
     }
 
+    /// Copies files into the active note's assets. Nil means nothing to insert: no active note, a
+    /// different note by the time the copy lands, or a failure, which is reported.
+    func importAssets(_ files: [URL], into id: NoteID) async -> [String]? {
+        guard !files.isEmpty, id == activeID else { return nil }
+        let repository = repository
+        let result = await detached {
+            try repository.importAssets(files, into: id)
+        } recover: {
+            repository.folderURL(for: id)
+        }
+        switch result {
+        case .success(let paths):
+            return id == activeID ? paths : nil
+        case .failure(let failure):
+            publish(.operation(failure))
+            return nil
+        }
+    }
+
     @discardableResult
     func select(
         _ id: NoteID,

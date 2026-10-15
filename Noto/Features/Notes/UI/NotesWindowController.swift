@@ -80,6 +80,17 @@ final class NotesWindowController: NSObject, NSWindowDelegate {
         controller.show(menu, above: panel)
     }
 
+    func presentEmojiPicker(rows: Int, anchor: NSRect, with controller: NoteEmojiPickerWindowController) {
+        guard let panel, panel.isVisible else { return }
+        controller.show(rows: rows, anchor: anchor, above: panel)
+    }
+
+    func chooseEmoji(at index: Int) {
+        guard let panel, panel.isVisible, let editor else { return }
+        if panel.firstResponder !== editor { panel.makeFirstResponder(editor) }
+        editor.chooseEmoji(at: index)
+    }
+
     /// Only this controller knows the host window, so handing it over stays its job.
     func presentSwitcher(_ switcher: NoteSwitcherWindowController) {
         guard let panel, panel.isVisible else { return }
@@ -185,7 +196,9 @@ final class NotesWindowController: NSObject, NSWindowDelegate {
         panel.contentMinSize = Theme.Size.noteWindow
         panel.delegate = self
         panel.onEscape = { [weak self, weak coordinator] in
-            if self?.editor?.enclosingScrollView?.isFindBarVisible == true {
+            if self?.editor?.dismissEmojiPicker() == true {
+                return
+            } else if self?.editor?.enclosingScrollView?.isFindBarVisible == true {
                 self?.editor?.find(.hideFindInterface)
             } else {
                 coordinator?.handleEscape()
