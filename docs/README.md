@@ -26,6 +26,16 @@ Each feature document opens with an `## Invariants` section. Read it before you 
 - [hotkeys.md](features/hotkeys.md): the four global shortcuts and the recorder
 - [updates.md](features/updates.md): the Sparkle updater
 - [sync.md](features/sync.md): iCloud sync of the notes and the settings, and conflict copies
+- [history.md](features/history.md): the versions of a note, the system version browser, restore and the
+  image cleanup
+
+## Research
+
+A research record keeps what was measured before a design decision, with the tests. It does not
+change with the code; a feature document does.
+
+- [research/version-history.md](research/version-history.md): why a note is a `.noto` package, and
+  what iA Writer, `NSFileVersion` and iCloud do with versions
 
 Settings has no document of its own. [architecture.md](architecture.md#settings) describes
 `NotoSettings`, [ui.md](ui.md#the-settings-window) describes the window, and

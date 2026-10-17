@@ -2,8 +2,8 @@ import Foundation
 import os
 
 /// Watches the notes in iCloud for changes made on other devices. It downloads every note iCloud
-/// holds without content, and reports notes with versions iCloud could not merge. See
-/// docs/features/sync.md.
+/// holds without content, and reports notes with versions iCloud could not merge. A query sees a
+/// `.noto` package as one item, never the files in it. See docs/features/sync.md.
 @MainActor
 final class NotesWatcher {
     /// Called once a burst of changes settles, with the notes that have unresolved conflicts.
@@ -21,7 +21,12 @@ final class NotesWatcher {
         self.directory = directory
         let query = NSMetadataQuery()
         query.searchScopes = [NSMetadataQueryUbiquitousDocumentsScope]
-        query.predicate = NSPredicate(format: "%K == %@", NSMetadataItemFSNameKey, NotesRepository.contentFileName)
+        // A plain note folder still comes from a Mac with Noto 0.4 or earlier. Its `text.md` must
+        // download, so that the next listing can migrate it into a package.
+        query.predicate = NSCompoundPredicate(orPredicateWithSubpredicates: [
+            NSPredicate(format: "%K ENDSWITH[c] %@", NSMetadataItemFSNameKey, ".\(NotesRepository.packageExtension)"),
+            NSPredicate(format: "%K == %@", NSMetadataItemFSNameKey, NotesRepository.contentFileName),
+        ])
         let center = NotificationCenter.default
         for name in [Notification.Name.NSMetadataQueryDidFinishGathering, .NSMetadataQueryDidUpdate] {
             let token = center.addObserver(forName: name, object: query, queue: .main) { [weak self] _ in
@@ -51,9 +56,10 @@ final class NotesWatcher {
         let root = directory.standardizedFileURL.resolvingSymlinksInPath().path
         for case let item as NSMetadataItem in query.results {
             guard let url = item.value(forAttribute: NSMetadataItemURLKey) as? URL else { continue }
-            let folder = url.deletingLastPathComponent()
-            // Only `text.md` directly inside a note folder directly inside the notes folder.
-            guard folder.deletingLastPathComponent().standardizedFileURL.resolvingSymlinksInPath().path == root
+            let package = NotesRepository.noteID(forPackage: url)
+            // A package, or the `text.md` of a plain folder, directly inside the notes folder.
+            let note = package == nil ? url.deletingLastPathComponent() : url
+            guard note.deletingLastPathComponent().standardizedFileURL.resolvingSymlinksInPath().path == root
             else { continue }
             let status = item.value(forAttribute: NSMetadataUbiquitousItemDownloadingStatusKey) as? String
             if status != NSMetadataUbiquitousItemDownloadingStatusCurrent {
@@ -63,8 +69,9 @@ final class NotesWatcher {
                     Logger.sync.error("could not download a note: \(error.localizedDescription, privacy: .public)")
                 }
             }
-            if item.value(forAttribute: NSMetadataUbiquitousItemHasUnresolvedConflictsKey) as? Bool == true {
-                conflicts.append(NoteID(rawValue: folder.lastPathComponent))
+            // Only a package resolves conflicts; a plain folder becomes a package first.
+            if let package, item.value(forAttribute: NSMetadataUbiquitousItemHasUnresolvedConflictsKey) as? Bool == true {
+                conflicts.append(package)
             }
         }
         settle?.cancel()

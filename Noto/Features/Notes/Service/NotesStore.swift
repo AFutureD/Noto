@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 @MainActor
 @Observable
@@ -26,7 +27,7 @@ final class NotesStore {
         guard NoteTitle.isUnnamed(title) else { return title }
         return NoteTitle.firstLine(of: source) ?? title
     }
-    var activeFolderURL: URL? { activeID.map(repository.folderURL(for:)) }
+    var activeFolderURL: URL? { activeID.map(repository.packageURL(for:)) }
     private(set) var notesDirectory: URL
     var onIssue: ((Issue) -> Void)?
 
@@ -45,15 +46,34 @@ final class NotesStore {
     /// The file's content as this store last read or wrote it; a save that finds anything else
     /// on disk keeps that as a conflict copy.
     @ObservationIgnored private var baseSource = ""
+    /// The texts the active note's editing session started from: the load, and each reload of the
+    /// same note, also after a restore in the version browser. An image one of them names, and the session's text drops, goes.
+    @ObservationIgnored private var sessionSources: [String] = []
+    /// The image files the session imported, by name.
+    @ObservationIgnored private var sessionImports: Set<String> = []
+    /// When the session last added a version; nil before its first save.
+    @ObservationIgnored private var lastSnapshot: Date?
+    @ObservationIgnored private var migrationTask: Task<Void, Never>?
+    @ObservationIgnored private var reportedMigrationFailures: [String] = []
+    private let now: @Sendable () -> Date
+
+    /// A note outside iCloud gets a version at most this often while the user types.
+    static let snapshotInterval: TimeInterval = 10 * 60
+    /// The version browser opens with the iCloud server versions of this period downloaded…
+    static let serverVersionPeriod: TimeInterval = 3 * 24 * 60 * 60
+    /// …as far as this wait allows; the rest show Load Version.
+    static let serverVersionWait: TimeInterval = 10
 
     init(
         repository: NotesRepository,
         loadSelection: @escaping @Sendable () -> NoteID? = { nil },
-        saveSelection: @escaping @Sendable (NoteID?) -> Void = { _ in }
+        saveSelection: @escaping @Sendable (NoteID?) -> Void = { _ in },
+        now: @escaping @Sendable () -> Date = Date.init
     ) {
         self.repository = repository
         self.loadSelection = loadSelection
         self.saveSelection = saveSelection
+        self.now = now
         notesDirectory = repository.notesDirectory
     }
 
@@ -76,6 +96,7 @@ final class NotesStore {
             pendingRelocation = repository
             return
         }
+        await endSession()
         cancelSearch()
         self.repository = repository
         notesDirectory = repository.notesDirectory
@@ -126,9 +147,17 @@ final class NotesStore {
         return !isDirty
     }
 
+    /// Quit: the draft reaches disk, and the session's dropped images go.
+    func finish() async {
+        guard await flush() else { return }
+        await endSession()
+    }
+
     @discardableResult
     func create() async -> Bool {
         guard await flush() else { return false }
+        await endSession()
+        await migrateLegacyNotes()
         cancelSearch()
         let repository = repository
         let result = await detached {
@@ -170,7 +199,9 @@ final class NotesStore {
     func copyNotes(from other: NotesRepository) async -> Int {
         let repository = repository
         let result = await detached {
-            (try repository.copyNotes(from: other), try repository.list())
+            // The other folder can still hold plain folders; only packages copy.
+            _ = other.migrateLegacyNotes()
+            return (try repository.copyNotes(from: other), try repository.list())
         } recover: {
             other.notesDirectory
         }
@@ -207,11 +238,13 @@ final class NotesStore {
         let result = await detached {
             try repository.importAssets(files, into: id)
         } recover: {
-            repository.folderURL(for: id)
+            repository.packageURL(for: id)
         }
         switch result {
         case .success(let paths):
-            return id == activeID ? paths : nil
+            guard id == activeID else { return nil }
+            sessionImports.formUnion(paths.map { URL(fileURLWithPath: $0).lastPathComponent })
+            return paths
         case .failure(let failure):
             publish(.operation(failure))
             return nil
@@ -226,6 +259,7 @@ final class NotesStore {
         guard id != activeID else { return true }
         guard await flush() else { return false }
         guard permitsApply() else { return false }
+        await endSession()
         cancelSearch()
         let repository = repository
         let result = await detached {
@@ -358,6 +392,7 @@ final class NotesStore {
     }
 
     private func reload(preferredID: NoteID?) async -> Bool {
+        await migrateLegacyNotes()
         let repository = repository
         let selectedID = activeID
         let epoch = editorEpoch
@@ -403,8 +438,30 @@ final class NotesStore {
         guard isDirty, let activeID else { return }
         let savedSource = source
         let base = baseSource
+        // An edit that came back to the text on disk writes nothing; in iCloud a write would upload
+        // the same note again, and the server would keep it as one more version.
+        guard savedSource != base else {
+            isDirty = false
+            if let pending = pendingRelocation {
+                Task { [weak self] in await self?.relocate(to: pending) }
+            }
+            return
+        }
         let repository = repository
+        // The first save of a session keeps the note as it was opened; later ones, one version each
+        // interval. In iCloud the server keeps a version of each upload, so Noto adds none there.
+        let snapshots = !base.isEmpty
+            && (lastSnapshot.map { now().timeIntervalSince($0) >= Self.snapshotInterval } ?? true)
+        if snapshots { lastSnapshot = now() }
         let result = await detached {
+            if snapshots {
+                do {
+                    try repository.snapshot(id: activeID, onlyOutsideICloud: true)
+                } catch {
+                    Logger.notes.error(
+                        "could not add a version before a save: \(error.localizedDescription, privacy: .public)")
+                }
+            }
             try repository.save(id: activeID, source: savedSource, base: base)
             return try repository.list()
         } recover: {
@@ -426,6 +483,12 @@ final class NotesStore {
 
     private func apply(_ document: NoteDocument?, summaries: [NoteSummary]) {
         self.summaries = summaries
+        if document?.id != activeID {
+            sessionSources = []
+            sessionImports = []
+            lastSnapshot = nil
+        }
+        if let document { sessionSources.append(document.source) }
         activeID = document?.id
         source = document?.source ?? ""
         baseSource = source
@@ -438,6 +501,77 @@ final class NotesStore {
 
     private func publish(_ issue: Issue) {
         onIssue?(issue)
+    }
+
+    /// Downloads the recent iCloud server versions of the active note before the version browser
+    /// opens, so they show without Load Version. Nothing happens outside iCloud.
+    func downloadRecentServerVersions() async {
+        guard let id = activeID else { return }
+        let repository = repository
+        let since = now().addingTimeInterval(-Self.serverVersionPeriod)
+        let deadline = now().addingTimeInterval(Self.serverVersionWait)
+        _ = await Task.detached(priority: .userInitiated) {
+            await repository.downloadServerVersions(of: id, since: since, until: deadline)
+        }.value
+    }
+
+    // MARK: - Sessions and migration
+
+    /// Deletes the images the ending session dropped. It runs as the one write in flight, after the
+    /// draft is saved, so it reads the text that the session leaves on disk.
+    private func endSession() async {
+        guard let id = activeID,
+            !sessionImports.isEmpty || sessionSources.contains(where: { $0.contains("\(NoteAssets.folderName)/") })
+        else { return }
+        let earlier = sessionSources
+        let imported = sessionImports
+        let repository = repository
+        let result = await serialized { [weak self] in
+            await self?.detached {
+                try repository.removeDroppedAssets(of: id, earlier: earlier, imported: imported)
+            } recover: {
+                repository.packageURL(for: id)
+            } ?? .success([])
+        }
+        if case .failure(let failure) = result {
+            // The images stay; a later session can drop them again.
+            Logger.notes.error(
+                "could not delete the dropped images: \(failure.localizedDescription, privacy: .public)")
+        }
+    }
+
+    /// One migration at a time; a caller that comes during one waits for it. Each listing runs one,
+    /// because a Mac with an older Noto can still add a plain note folder to iCloud.
+    private func migrateLegacyNotes() async {
+        if let migrationTask {
+            await migrationTask.value
+            return
+        }
+        let repository = repository
+        let task = Task { [weak self] in
+            let report = await Task.detached(priority: .utility) { repository.migrateLegacyNotes() }.value
+            guard let self else { return }
+            // A failure shows once, not at each listing.
+            if !report.failed.isEmpty, report.failed != reportedMigrationFailures {
+                publish(.operation(.notMigrated(report.failed)))
+            }
+            reportedMigrationFailures = report.failed
+        }
+        migrationTask = task
+        await task.value
+        migrationTask = nil
+    }
+
+    /// Runs `work` as the one write in flight, after the write before it. Each write task clears
+    /// `saveTask` as its last step, so `flush` and this never overlap on one note.
+    private func serialized<Value: Sendable>(_ work: @escaping @MainActor () async -> Value) async -> Value {
+        while let pending = saveTask { await pending.value }
+        let task = Task { await work() }
+        saveTask = Task { [weak self] in
+            _ = await task.value
+            self?.saveTask = nil
+        }
+        return await task.value
     }
 
     /// Every repository call is blocking IO, so it runs off-main and reports one typed failure.

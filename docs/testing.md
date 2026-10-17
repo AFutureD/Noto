@@ -40,12 +40,12 @@ app sees, and a package change breaks a harness before it breaks the app.
 
 | Harness | Compiles | Covers |
 | --- | --- | --- |
-| `notes-test` | all of `Notes/Model/` and `Notes/Service/`, `Signposts`, `SyncLog`, `NotesLog` and `NotificationToken`, with the real `FuzzyMatch` and PolarMark | the repository, autosave, external reloads, draft preservation, conflict copies, the copy into iCloud, selection, relocation, derived titles, search, image paths and imports, the emoji catalog, the highlight and accent colours, switcher interaction, window placement |
+| `notes-test` | all of `Notes/Model/` and `Notes/Service/`, `Signposts`, `SyncLog`, `NotesLog` and `NotificationToken`, with the real `FuzzyMatch` and PolarMark | the repository, autosave, external reloads, draft preservation, conflict copies, the copy into iCloud, selection, relocation, derived titles, search, image paths and imports, the migration to packages, the versions of a package, the image cleanup, the emoji catalog, the highlight and accent colours, switcher interaction, window placement |
 | `notes-editor-test` | the editor host, its theme, `Theme.swift` and `InterfaceMetrics.swift`, with the real MDTextKit modules and AppKit | the Markdown round trip, styling, keys, chords, headings, links, checkboxes, tables, undo, the character count, the fonts, the colours, the text height, the emoji query |
 | `settings-sync-test` | `NotoSettings`, `CloudSettingsMirror`, `CloudKeyValueStore` and the value types of the synced preferences | the settings mirror: what is sent, what is taken, when iCloud wins, no echo, values from another build |
 
 Nothing automated covers `HotKeys/`, `Updates/`, `App/`, `SettingsView`, the Notes window chrome,
-`CloudNotesLocation` or `NotesWatcher`. The manual sweep verifies a change there.
+the version browser, `CloudNotesLocation` or `NotesWatcher`. The manual sweep verifies a change there.
 
 Rules for the harnesses:
 
@@ -158,15 +158,37 @@ account. Use an iCloud account with no real notes for the iCloud sync section.
   superseded query never publishes.
 - An Untitled note titles itself from its first line as you type, in the title bar, and after the
   autosave in the browse list. A name replaces that. The derived title shows no Markdown markers.
-- Inline rename changes the folder name and not the source. It starts from the folder name, also where the
+- Inline rename changes the package name and not the source. It starts from the title, also where the
   row shows a derived title. A collision receives a suffix.
-- Delete confirms through an alert that opens in front and moves the note's folder to Trash. Selecting another
+- Delete confirms through an alert that opens in front and moves the note's package to Trash. Selecting another
   note never loses an unsaved edit.
 - Deleting every note closes the browse list and shows the empty state with no character count. ⌘N
   from there creates and selects one note.
-- A folder with a `text.md` inside, put in the notes directory from Finder, appears the next time the
-  window shows. A loose `.md` file does not.
+- A `.noto` package with a `text.md` inside, put in the notes directory from Finder, appears the next
+  time the window shows. A loose `.md` file does not. A plain folder with a `text.md` becomes
+  `<title>.noto` and appears.
+- Finder shows a note as one item. ⌘O reveals it.
 
+### Version history
+
+Run it against a Notes folder with a few throwaway notes.
+
+- The clock button, ⌥⌘Y and Version History… in the menu bar item open the system version browser.
+  The note window steps aside for a window of the note at the same place. With the window hidden,
+  the menu bar item shows it first.
+- A note opened and edited lists a version from the time it was opened. Each window shows the
+  note's title without `.noto`, rendered with the editor's fonts, and the images of that version.
+- Restore: the browser closes, the note window shows the version, and the files in `assets` match it.
+  The browser now also lists the note as it was before the restore.
+- Done closes the browser, and the note is as it was.
+- While the browser is open, the global shortcuts do not show or hide the note window.
+- Quit and launch: no version window comes back, and no untitled document opens.
+- Delete the Markdown of an image and press ⌘Z: the image comes back. Delete it again and go to
+  another note: the file leaves `assets`, and the browser has a version with it.
+- An image put in `assets` from Finder stays after a switch.
+- In iCloud: edit a note on A for a few minutes, then open the browser on B. The versions of the last
+  3 days show at once; an older one shows Load Version, and a click on it shows the version. With
+  many versions, the browser opens after at most about 10 s.
 ### Notes: rendering
 
 - A note with every construct renders in Dark and Light: sized headings, emphasis, strikethrough,
@@ -253,7 +275,7 @@ account. Use an iCloud account with no real notes for the iCloud sync section.
 - A click on another app leaves the panel visible. Escape, ⌘W and the red light hide it.
 - A hide restores the previous external app, or the Settings window when that was in front. If another
   app came forward meanwhile, focus stays there.
-- Open Notes Folder opens Finder with the active note's folder selected, or the notes directory when
+- ⌘O opens Finder with the active note's package selected, or the notes directory when
   there is no note.
   Finder comes to the front also with the Settings window open or Show in Dock on.
 - The browse list fades only at its bottom edge and rests opaque at the end.
@@ -324,7 +346,8 @@ Use two Macs with the same iCloud account, A and B. Watch `Logger.sync` on each:
 - With no notes in the local folder, sync turns on with no question.
 - Turn sync off and on again with Copy: a note with the same title and text is not copied again. A
   note with the same title and other text takes the next name, as `Plan 2`.
-- While sync is on, the Notes folder buttons are disabled and the caption reads "iCloud Drive › Noto".
+- While sync is on, Choose… and Use Default are disabled and the caption reads "iCloud Drive › Noto".
+  Show in Finder opens iCloud Drive › Noto in Finder.
   Sync off shows the local folder and its notes again, and the iCloud notes stay in iCloud Drive.
 - The switch turned on in A turns on in B, and B shows the iCloud notes with no question. Off in A
   turns it off in B.
@@ -340,8 +363,13 @@ Use two Macs with the same iCloud account, A and B. Watch `Logger.sync` on each:
   not sync.
 - Sync on in Settings while iCloud Drive is off on B: B keeps its local notes, and the iCloud caption
   says that iCloud Drive is off.
-- A note that iCloud has not downloaded yet shows its folder name in the switcher, then its first
-  line when it arrives.
+- A note that iCloud has not downloaded yet shows its title in the switcher, then its first line when
+  it arrives.
+- On A, with Noto 0.4 notes in iCloud: the new Noto changes each folder to `<title>.noto`, the old
+  folders go to the Trash, and B lists the packages. Two Macs that change the same folder at once
+  keep one package when the texts match.
+- Type in the same note on A and B with the network off on one Mac, then turn it on. The conflict
+  copy has the images of its version, and both versions show in the history.
 
 ### Menu bar and Dock
 

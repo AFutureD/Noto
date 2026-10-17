@@ -1,14 +1,16 @@
 # Notes
 
-Notes is the app: a folder of notes, each one a folder with a `text.md` file, edited one at a time in
-one window that renders the Markdown in place. A title-bar button opens the searchable switcher. The menu bar item, the main
+Notes is the app: a folder of notes, each one a `.noto` package with a `text.md` file, edited one at
+a time in one window that renders the Markdown in place. A title-bar button opens the searchable switcher. The menu bar item, the main
 menu, the global shortcuts and the Dock icon show, search or extend the collection.
 
 ## Invariants
 
-- One folder with a regular `text.md` file inside is one note. The folder's name is the title, and
-  `text.md` is the Markdown. The source holds no frontmatter, no embedded id and no title field.
-  There is no database and no sidecar. The `assets` folder holds images, not data about the note. A loose `.md` file in the notes directory is not a note.
+- One `<title>.noto` package with a regular `text.md` file inside is one note. The package name
+  without `.noto` is the title, and `text.md` is the Markdown. The source holds no frontmatter, no
+  embedded id and no title field. There is no database and no sidecar. The `assets` folder holds
+  images, not data about the note. A loose `.md` file or a plain folder in the notes directory is
+  not a note; a plain folder with a `text.md` is an old note and migrates.
 - A note the user has not named shows its first line instead. Only the names `create` claims get a
   derived title. It is presentation only, and a name replaces it.
 - The Markdown is the source. `NoteTextView.markdown`, `NotesStore`, search and the file are
@@ -32,8 +34,9 @@ menu, the global shortcuts and the Dock icon show, search or extend the collecti
   unnamed note. A nonempty query reads bodies one by one off the main actor and keeps no cache of the
   collection's sources. Neither reads a file that iCloud has not downloaded.
 - A note's images are files in its own `assets` folder, and the Markdown names them by a path
-  relative to the note folder. A rename or a move keeps them. The editor shows no file outside the
-  note folder and loads no remote image.
+  relative to the package. A rename or a move keeps them. The editor shows no file outside the
+  package and loads no remote image. An image the user's edits drop is deleted when the editing
+  session ends, after a version keeps it. See [history.md](history.md#image-cleanup).
 - The collection may be empty. The last note can be deleted. The window shows its empty state, and
   Create Note still works.
 - The window's height fits the note. Each edit, note switch and bar toggle grows or shrinks it
@@ -62,12 +65,37 @@ draft the old folder cannot take yet holds the move until its save lands. `AppPa
 resolves the stored path. `AppPaths.contentFolderSetting` stores a chosen folder `~`-relative where it
 can, or nil for the default.
 
-A note is `<title>/text.md` under the notes directory. `NotesRepository.contentFileName` names the
-file. `NoteID` is the folder name, so a rename gives a new identity. The immediate, non-hidden,
-unlinked subfolders that hold a regular `text.md` are the notes, sorted by the modification date of
-`text.md`, then localized title. Other folders, loose files, hidden entries and symbolic links are
-ignored. Anything else inside a note folder is left alone. The `assets` folder holds the note's
-images; see [Images](#images).
+A note is `<title>.noto/text.md` under the notes directory. `NotesRepository.contentFileName` names
+the file and `packageExtension` the extension. `Info.plist` declares `noto` as the exported type
+`app.huanan.noto.note`, which conforms to `com.apple.package`. So Finder shows a note as one item
+(Show Package Contents opens it), and iCloud keeps versions of the whole note; see
+[history.md](history.md). `NoteID` is the title, the package name without `.noto`, so a rename gives
+a new identity. `packageURL(for:)` and `noteID(forPackage:)` are the only conversions between the
+two. The immediate, non-hidden, unlinked `.noto` directories that hold a regular `text.md` are the
+notes, sorted by the modification date of `text.md`, then localized title. A package that iCloud has
+not downloaded lists by its own name and date, and nothing inside it is read. Other folders, loose
+files, hidden entries and symbolic links are ignored. Anything else inside a package is left alone.
+The `assets` folder holds the note's images; see [Images](#images).
+
+### Migration
+
+Noto 0.4 and earlier kept a note as a plain folder, `<title>/text.md`. A plain folder keeps no
+versions in iCloud, so `NotesRepository.migrateLegacyNotes` makes each one a package. `NotesStore`
+runs it before each listing, one run at a time, because a Mac with an older Noto can still add a
+plain folder to iCloud.
+
+| Case | Result |
+| --- | --- |
+| The folder is not in iCloud (`NotesRepository.isInICloud`) | A coordinated rename to `<title>.noto` |
+| The folder is in iCloud: `isUbiquitousItem`, or any path under `~/Library/Mobile Documents` | A copy is built in a temporary folder and moved in; the old folder goes to the Trash. A rename would leave the iCloud server with a plain folder |
+| `<title>.noto` exists with the same text | Another Mac migrated it. The old folder goes to the Trash |
+| `<title>.noto` exists with other text | The copy takes the next free name |
+| A file in the folder, or the package of that name, is not downloaded | The folder waits; its files start to download |
+| A failure | The folder stays. "Couldn't Update Note" names it once; each listing tries again |
+
+The copy keeps the modification date of `text.md`. The versions of the old `text.md` do not move into
+the package. A Mac that still runs Noto 0.4 lists a package as a note named `<title>.noto`, and a save
+there can make the plain folder again. Update each Mac.
 
 Create uses `Untitled`, then `Untitled 2`, and so on. Rename claims a free name by the same rule. A
 collision with another note is case- and diacritic-insensitive, so `plán` beside `Plan` becomes
@@ -76,9 +104,10 @@ change only the case or the accents. The active folder name is window state unde
 key `notesActiveFileName`, read and written through closures `AppCore` hands the store.
 
 `NotesRepository` owns list, create, load, save, rename, Trash, the search reads, the copy into
-iCloud and the conflict copies. It takes its directory, its Trash operation and its clock as
-parameters. It validates every folder as an immediate child of the directory and every file as
-`text.md` inside one. Rename moves the folder; Trash moves the folder. A load is a coordinated read
+iCloud, the conflict copies, the migration, the versions and the image cleanup. It takes its
+directory, its Trash operation and its clock as parameters. It validates every package as an
+immediate `.noto` child of the directory and every file as `text.md` inside one. Rename moves the
+package; Trash moves the package. A load is a coordinated read
 (`NSFileCoordinator`). A save reads and writes in one coordination. `NotesStore` drives its blocking
 work from detached tasks.
 
@@ -125,20 +154,21 @@ launch.
 | Dock icon click | `AppCore.handleReopen`, then `show()` |
 | Launch with Show in Dock on | `AppCore.start`, then `show()` |
 
-In the window: ⌘N creates, ⌘P opens or refocuses the switcher, ⌘O reveals the active note's folder in
-Finder (or opens the notes directory when there is none), and ⌘F opens AppKit's find bar. Escape closes the emoji list, the
+In the window: ⌘N creates, ⌘P opens or refocuses the switcher, ⌘O reveals the active note's package in
+Finder (or opens the notes directory when there is none), ⌘F opens AppKit's find bar, and ⌥⌘Y opens
+the version browser ([history.md](history.md#the-version-browser)). Escape closes the emoji list, the
 find bar, a bar menu or the switcher before it hides the window. ⌘W and the red traffic light hide at once. A hide
 restores the previous external app or Noto window and flushes the draft, but only while that app is
 still frontmost. ⌘Q quits: `applicationShouldTerminate` awaits the flush first.
 
 All three windows are one `NotesPanel`, a non-activating panel that owns the Escape rule and reads
 ⌘⌫. They differ in style mask, key acceptance and the chords their controller installs. The note window
-claims ⌘N, ⌘P, ⌘O, ⌘F and ⌘W in `commandChords`, and ⌥⌘T and ⌥⌘P in `optionCommandChords`. The
+claims ⌘N, ⌘P, ⌘O, ⌘F and ⌘W in `commandChords`, and ⌥⌘T, ⌥⌘P and ⌥⌘Y in `optionCommandChords`. The
 switcher reads ⌘N, and ⌘W and ⌘P as dismissals. A bar menu never becomes key.
 
 AppKit draws the note window's frame and traffic lights. `NotesView` draws the rest: a 52-point title
 band with the traffic lights, the centred active title, and one frosted capsule with Create, Browse
-and Open Folder. The title is drawn, not native, so it centres on the window. It is not hit-testable,
+and Version History. The title is drawn, not native, so it centres on the window. It is not hit-testable,
 so the drag region under it moves the window. The yellow and green lights are disabled. A double-click
 on the free title bar moves the window to the top-right of its screen's visible area, 40 points in.
 
@@ -272,10 +302,13 @@ The Markdown goes where the paste was while no edit moved the text, else at the 
 its own paragraph: a line break goes before it after other text on the line, and after it before
 more text, so every image starts at the margin. A switch to
 another note or a reload before the copy lands drops the Markdown and logs it; the copied file
-stays. A failed copy reports an operation failure.
+stays until the cleanup. A failed copy reports an operation failure.
+
+An image whose Markdown the user deletes stays while the editing session lasts, so ⌘Z can bring it
+back. When the session ends, `NotesStore` deletes it; see [history.md](history.md#image-cleanup).
 
 `imageFileResolver` resolves each image path with `NoteAssets.resolve` against `noteFolder`, the
-active note's folder. An absolute path, a remote URL and a path out of the note folder resolve to
+active note's package. An absolute path, a remote URL and a path out of the package resolve to
 nil, which shows a placeholder. When the notes folder moves under the same note, the editor restyles,
 so the images resolve again. An image that iCloud has not downloaded shows the placeholder.
 
@@ -409,7 +442,8 @@ same in Dark and Light. Use Default clears it.
 
 ## Autosave
 
-An edit updates the main-actor draft at once and debounces the save for 300 ms. Only the active
+An edit updates the main-actor draft at once and debounces the save for 300 ms. A draft that is the
+text on disk again, after an edit and its undo, writes nothing. Only the active
 source is kept. A successful save refreshes the metadata order. A switch waits for the same flush
 before it loads another source. Termination awaits the flush and never vetoes the quit.
 
@@ -420,13 +454,13 @@ gives the repository the draft and the base:
 - The file holds other text, from another app or another device. The save first keeps that other
   text as the note `<title> (Conflict yyyy-MM-dd HH.mm)`, then writes the draft. The editor stays on
   the active note.
-- The note folder is gone. The save creates it again with the draft.
+- The package is gone. The save creates it again with the draft.
 
 The rules are in [sync.md](sync.md#conflicts). Each show re-lists the folder. With iCloud Sync on,
 a change from another device also re-lists it; see [sync.md](sync.md#the-watcher). When the active note
 is clean, the re-list also reloads it from disk. A show waits for a save in flight first. An edit or a
 selection change during the read discards the read's result. Unchanged content keeps the editor
-history; a changed source or identity resets it. When the active note's folder or `text.md` is gone,
+history; a changed source or identity resets it. When the active note's package or `text.md` is gone,
 the load selects another note, or the empty state.
 
 ## Verification

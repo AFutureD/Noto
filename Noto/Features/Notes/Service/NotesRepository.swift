@@ -9,23 +9,48 @@ struct NotesRepository: Sendable {
         case unreadable(URL)
         case invalidLocation(URL)
         case io(fileURL: URL, message: String)
+        /// Plain note folders that could not become packages. They stay where they are.
+        case notMigrated([String])
 
         var errorDescription: String? {
             switch self {
             case .invalidTitle(let title):
                 return "“\(title)” can't be used as a note title."
             case .unreadable(let fileURL):
-                return "The note isn't valid UTF-8. (\(fileURL.deletingLastPathComponent().lastPathComponent))"
+                let title = fileURL.deletingLastPathComponent().deletingPathExtension().lastPathComponent
+                return "The note isn't valid UTF-8. (\(title))"
             case .invalidLocation(let fileURL):
                 return "The note is outside the notes folder. (\(fileURL.path))"
             case .io(let fileURL, let message):
                 return "Could not access \(fileURL.path): \(message)"
+            case .notMigrated(let names):
+                let list = names.map { "“\($0)”" }.joined(separator: ", ")
+                return "Noto could not change these notes to the new format: \(list). "
+                    + "They stay in the notes folder, and Noto tries again the next time it lists the folder."
             }
         }
     }
 
-    /// A note is a folder named for its title; this file inside it holds the Markdown.
+    /// What one migration did: the folders that became packages, the folders that wait for iCloud,
+    /// and the folders that failed.
+    struct MigrationReport: Sendable, Equatable {
+        var migrated: [NoteID] = []
+        var deferred: [String] = []
+        var failed: [String] = []
+    }
+
+    /// A note is a `<title>.noto` package; this file inside it holds the Markdown.
     static let contentFileName = "text.md"
+    /// The package extension. `Info.plist` declares it as `app.huanan.noto.note`, a `com.apple.package`,
+    /// so Finder shows one item and iCloud keeps versions of the whole note.
+    static let packageExtension = "noto"
+
+    /// The note a package URL names, or nil when the URL is not a `.noto` package.
+    static func noteID(forPackage url: URL) -> NoteID? {
+        guard url.pathExtension == packageExtension else { return nil }
+        let title = url.deletingPathExtension().lastPathComponent
+        return title.isEmpty ? nil : NoteID(rawValue: title)
+    }
 
     let notesDirectory: URL
     private let trashOperation: TrashOperation
@@ -43,35 +68,51 @@ struct NotesRepository: Sendable {
         self.now = now
     }
 
+    func packageURL(for id: NoteID) -> URL {
+        notesDirectory.appendingPathComponent("\(id.rawValue).\(Self.packageExtension)", isDirectory: true)
+    }
+
+    func fileURL(for id: NoteID) -> URL {
+        packageURL(for: id).appendingPathComponent(Self.contentFileName)
+    }
+
+    // MARK: - The collection
+
     func list() throws(Failure) -> [NoteSummary] {
         try mappedError(at: notesDirectory) {
             try ensureDirectory()
-            let folderKeys: Set<URLResourceKey> = [.isDirectoryKey, .isHiddenKey, .isSymbolicLinkKey]
-            let fileKeys: Set<URLResourceKey> = [
-                .contentModificationDateKey, .isRegularFileKey, .isSymbolicLinkKey,
+            let packageKeys: Set<URLResourceKey> = [
+                .isDirectoryKey, .isHiddenKey, .isSymbolicLinkKey, .contentModificationDateKey,
                 .ubiquitousItemDownloadingStatusKey,
             ]
+            let fileKeys: Set<URLResourceKey> = [.contentModificationDateKey, .isRegularFileKey, .isSymbolicLinkKey]
             return try FileManager.default.contentsOfDirectory(
                 at: notesDirectory,
-                includingPropertiesForKeys: Array(folderKeys),
+                includingPropertiesForKeys: Array(packageKeys),
                 options: [.skipsHiddenFiles]
             )
-            // An unreadable entry is skipped: one bad folder must not hide the rest.
-            .compactMap { folder -> NoteSummary? in
-                guard let folderValues = try? folder.resourceValues(forKeys: folderKeys),
-                    folderValues.isDirectory == true, folderValues.isSymbolicLink != true,
-                    folderValues.isHidden != true,
-                    let url = try? validatedFileURL(folder.appendingPathComponent(Self.contentFileName)),
-                    let values = try? url.resourceValues(forKeys: fileKeys),
-                    values.isRegularFile == true, values.isSymbolicLink != true
+            // An unreadable entry is skipped: one bad package must not hide the rest.
+            .compactMap { package -> NoteSummary? in
+                guard let id = Self.noteID(forPackage: package),
+                    let values = try? package.resourceValues(forKeys: packageKeys),
+                    values.isDirectory == true, values.isSymbolicLink != true, values.isHidden != true
                 else { return nil }
-                let title = folder.lastPathComponent
+                // A package iCloud has not downloaded yet: a read inside it would wait for the
+                // download, so it lists by the package alone until it arrives.
+                guard Self.isLocal(values) else {
+                    return NoteSummary(
+                        id: id, title: id.rawValue, firstLine: nil,
+                        modifiedAt: values.contentModificationDate ?? .distantPast)
+                }
+                guard let url = try? validatedFileURL(package.appendingPathComponent(Self.contentFileName)),
+                    let file = try? url.resourceValues(forKeys: fileKeys),
+                    file.isRegularFile == true, file.isSymbolicLink != true
+                else { return nil }
                 return NoteSummary(
-                    id: NoteID(rawValue: title),
-                    title: title,
-                    // A file iCloud has not downloaded yet would block the read until it arrives.
-                    firstLine: NoteTitle.isUnnamed(title) && Self.isLocal(values) ? firstLine(of: url) : nil,
-                    modifiedAt: values.contentModificationDate ?? .distantPast)
+                    id: id,
+                    title: id.rawValue,
+                    firstLine: NoteTitle.isUnnamed(id.rawValue) ? firstLine(of: url) : nil,
+                    modifiedAt: file.contentModificationDate ?? .distantPast)
             }
             .sorted(by: summaryPrecedes)
         }
@@ -92,16 +133,16 @@ struct NotesRepository: Sendable {
         return try mappedError(at: candidate) {
             let url = try validatedFileURL(candidate)
             let source = try coordinatedRead(at: url) { try Self.source(at: try validatedFileURL($0)) }
-            return NoteDocument(id: NoteID(rawValue: url.deletingLastPathComponent().lastPathComponent), source: source)
+            return NoteDocument(id: id, source: source)
         }
     }
 
     func create(title: String = "Untitled") throws(Failure) -> NoteDocument {
         try mappedError(at: notesDirectory) {
-            let folder = try claimUniqueFolder(base: try validatedTitle(title)) {
-                try createNoteFolder(at: $0, source: Data())
+            let id = try claimUniqueNote(base: try validatedTitle(title)) {
+                try createPackage(at: $0, source: Data())
             }
-            return try load(NoteID(rawValue: folder.lastPathComponent))
+            return try load(id)
         }
     }
 
@@ -117,8 +158,8 @@ struct NotesRepository: Sendable {
             var imported = 0
             for note in notes {
                 guard let base = try? validatedTitle(note.title) else { continue }
-                _ = try claimUniqueFolder(base: base) {
-                    try createNoteFolder(at: $0, source: Data(note.source.utf8))
+                _ = try claimUniqueNote(base: base) {
+                    try createPackage(at: $0, source: Data(note.source.utf8))
                 }
                 imported += 1
             }
@@ -128,7 +169,7 @@ struct NotesRepository: Sendable {
 
     /// Writes `source` over the file `base` was read from. A file that no longer holds `base` was
     /// changed elsewhere, so its content is kept as a conflict copy before the write; the returned id
-    /// names it. A note folder that was renamed or deleted elsewhere is created again, so the draft lands.
+    /// names it. A package that was renamed or deleted elsewhere is created again, so the draft lands.
     @discardableResult
     func save(id: NoteID, source: String, base: String) throws(Failure) -> NoteID? {
         let candidate = fileURL(for: id)
@@ -142,7 +183,7 @@ struct NotesRepository: Sendable {
                 // The copy lands first: if it fails, the write does not happen and nothing is lost.
                 var copy: NoteID?
                 if let disk, disk != base, disk != source {
-                    copy = try keepConflictCopy(of: id, source: disk)
+                    copy = try keepConflictCopy(of: id, source: disk, imagesFrom: packageURL(for: id))
                 }
                 try FileManager.default.createDirectory(
                     at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
@@ -152,20 +193,23 @@ struct NotesRepository: Sendable {
         }
     }
 
-    /// Keeps every version iCloud could not merge as a conflict copy, then marks them resolved.
+    /// Keeps every version iCloud could not merge as a conflict copy, with that version's own
+    /// images, then marks it resolved. The versions stay in the version store: they are the history.
     func resolveConflicts(id: NoteID) throws(Failure) -> [NoteID] {
-        let candidate = fileURL(for: id)
+        let candidate = packageURL(for: id)
         return try mappedError(at: candidate) {
-            let url = try validatedFileURL(candidate)
-            let versions = try coordinatedReplace(at: url) { coordinatedURL in
-                let fileURL = try validatedFileURL(coordinatedURL)
-                let versions = NSFileVersion.unresolvedConflictVersionsOfItem(at: fileURL) ?? []
-                let sources = try versions.map { try Self.source(at: $0.url) }
-                for version in versions { version.isResolved = true }
-                try NSFileVersion.removeOtherVersionsOfItem(at: fileURL)
-                return sources
+            let url = try validatedPackageURL(candidate)
+            return try coordinatedWrite(at: url, options: []) { coordinatedURL in
+                let package = try validatedPackageURL(coordinatedURL)
+                var copies: [NoteID] = []
+                for version in NSFileVersion.unresolvedConflictVersionsOfItem(at: package) ?? [] {
+                    let source = try Self.source(at: version.url.appendingPathComponent(Self.contentFileName))
+                    // A copy that fails leaves the version unresolved, so the next report tries again.
+                    copies.append(try keepConflictCopy(of: id, source: source, imagesFrom: version.url))
+                    version.isResolved = true
+                }
+                return copies
             }
-            return try versions.map { try keepConflictCopy(of: id, source: $0) }
         }
     }
 
@@ -181,21 +225,20 @@ struct NotesRepository: Sendable {
                 if let twin = existing[folded(summary.id.rawValue)], (try? load(twin).source) == source {
                     continue
                 }
-                // The images copy inside the claim: if they fail, the folder goes, so a retry copies
+                // The images copy inside the claim: if they fail, the package goes, so a retry copies
                 // this note again instead of skipping it as already there.
-                let folder = try claimUniqueFolder(base: summary.id.rawValue) { folder in
-                    try createNoteFolder(at: folder, source: Data(source.utf8))
+                let id = try claimUniqueNote(base: summary.id.rawValue) { package in
+                    try createPackage(at: package, source: Data(source.utf8))
                     do {
-                        try copyAssets(from: other.folderURL(for: summary.id), to: folder)
+                        try copyAssets(from: other.packageURL(for: summary.id), to: package)
                     } catch {
-                        try? FileManager.default.removeItem(at: folder)
+                        try? FileManager.default.removeItem(at: package)
                         throw error
                     }
                 }
                 // The copy keeps its place in the modification-date order.
                 try? FileManager.default.setAttributes(
-                    [.modificationDate: summary.modifiedAt],
-                    ofItemAtPath: folder.appendingPathComponent(Self.contentFileName).path)
+                    [.modificationDate: summary.modifiedAt], ofItemAtPath: fileURL(for: id).path)
                 copied += 1
             }
             return copied
@@ -203,28 +246,27 @@ struct NotesRepository: Sendable {
     }
 
     func rename(id: NoteID, title: String) throws(Failure) -> NoteID {
-        let candidate = folderURL(for: id)
+        let candidate = packageURL(for: id)
         return try mappedError(at: candidate) {
-            let sourceURL = try validatedFolderURL(candidate)
+            let sourceURL = try validatedPackageURL(candidate)
             let base = try validatedTitle(title)
             // Exact, not folded: a change of case or accents alone is a rename the user asked for.
             guard base != id.rawValue else { return id }
-            let destination = try claimUniqueFolder(base: base, renaming: id) { destination in
+            return try claimUniqueNote(base: base, renaming: id) { destination in
                 try coordinatedWrite(at: sourceURL, options: .forMoving) { coordinatedURL in
                     try FileManager.default.moveItem(
-                        at: try validatedFolderURL(coordinatedURL), to: destination)
+                        at: try validatedPackageURL(coordinatedURL), to: destination)
                 }
             }
-            return NoteID(rawValue: destination.lastPathComponent)
         }
     }
 
     func trash(id: NoteID) throws(Failure) {
-        let candidate = folderURL(for: id)
+        let candidate = packageURL(for: id)
         try mappedError(at: candidate) {
-            let url = try validatedFolderURL(candidate)
+            let url = try validatedPackageURL(candidate)
             try coordinatedWrite(at: url, options: .forDeleting) { coordinatedURL in
-                try trashOperation(try validatedFolderURL(coordinatedURL))
+                try trashOperation(try validatedPackageURL(coordinatedURL))
             }
         }
     }
@@ -238,9 +280,8 @@ struct NotesRepository: Sendable {
         var results: [NoteSearchResult] = []
         for summary in summaries {
             if Task.isCancelled { break }
-            let values = try? fileURL(for: summary.id).resourceValues(forKeys: [.ubiquitousItemDownloadingStatusKey])
             // A note iCloud has not downloaded yet matches by title until it arrives.
-            let source = values.map(Self.isLocal) == false ? nil : try? load(summary.id).source
+            let source = Self.isLocal(at: packageURL(for: summary.id)) ? try? load(summary.id).source : nil
             if let result = NoteSearch.match(query: query, summary: summary, source: source) {
                 results.append(result)
             }
@@ -248,13 +289,15 @@ struct NotesRepository: Sendable {
         return Array(results.sorted(by: NoteSearch.precedes).prefix(limit))
     }
 
+    // MARK: - Images
+
     /// Copies each file into the note's `assets` folder under a free name and returns the paths
-    /// relative to the note folder, in order. The originals stay where they are.
+    /// relative to the package, in order. The originals stay where they are.
     func importAssets(_ files: [URL], into id: NoteID) throws(Failure) -> [String] {
-        let candidate = folderURL(for: id)
+        let candidate = packageURL(for: id)
         return try mappedError(at: candidate) {
-            let folder = try validatedFolderURL(candidate)
-            let assets = folder.appendingPathComponent(NoteAssets.folderName, isDirectory: true)
+            let package = try validatedPackageURL(candidate)
+            let assets = package.appendingPathComponent(NoteAssets.folderName, isDirectory: true)
             // A link would write the copies somewhere outside the note.
             if (try? assets.resourceValues(forKeys: [.isSymbolicLinkKey]))?.isSymbolicLink == true {
                 throw Failure.invalidLocation(assets)
@@ -275,13 +318,230 @@ struct NotesRepository: Sendable {
         }
     }
 
-    func folderURL(for id: NoteID) -> URL {
-        notesDirectory.appendingPathComponent(id.rawValue, isDirectory: true)
+    /// Deletes the images that one editing session dropped: a file in `assets` that one of
+    /// `earlier` (the texts the session started from) names, or that the session imported, and that
+    /// the text on disk no longer names. Any other file stays, also one that iCloud brought before
+    /// its text, or one the user put there. A version of the whole note comes first; without it
+    /// nothing is deleted. Returns the deleted names.
+    func removeDroppedAssets(of id: NoteID, earlier: [String], imported: Set<String>) throws(Failure) -> [String] {
+        let candidate = packageURL(for: id)
+        return try mappedError(at: candidate) {
+            let url = try validatedPackageURL(candidate)
+            guard FileManager.default.fileExists(atPath: url.path), Self.isLocal(at: url) else { return [] }
+            return try coordinatedWrite(at: url, options: []) { coordinatedURL in
+                let package = try validatedPackageURL(coordinatedURL)
+                let text = package.appendingPathComponent(Self.contentFileName)
+                let assets = package.appendingPathComponent(NoteAssets.folderName, isDirectory: true)
+                let folder = try? assets.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
+                guard FileManager.default.fileExists(atPath: text.path),
+                    folder?.isDirectory == true, folder?.isSymbolicLink != true
+                else { return [] }
+                let disk = try Self.source(at: text)
+                let dropped = try FileManager.default.contentsOfDirectory(
+                    at: assets, includingPropertiesForKeys: [.isRegularFileKey], options: [.skipsHiddenFiles]
+                )
+                .filter { (try? $0.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true }
+                .map(\.lastPathComponent)
+                .filter { name in
+                    let named = imported.contains(name) || earlier.contains { NoteAssets.isReferenced(name, in: $0) }
+                    return named && !NoteAssets.isReferenced(name, in: disk)
+                }
+                .sorted()
+                guard !dropped.isEmpty else { return [] }
+                try addVersionIfChanged(of: package)
+                for name in dropped {
+                    try FileManager.default.removeItem(at: assets.appendingPathComponent(name))
+                }
+                Logger.notes.notice(
+                    "deleted \(dropped.count, privacy: .public) images that \(id.rawValue, privacy: .private) no longer shows")
+                return dropped
+            }
+        }
     }
 
-    func fileURL(for id: NoteID) -> URL {
-        folderURL(for: id).appendingPathComponent(Self.contentFileName)
+    // MARK: - Versions
+
+    /// Adds the note as it is now to the version store, which the system version browser shows, unless
+    /// the newest version already holds it. With `onlyOutsideICloud`, a note in iCloud is skipped: the
+    /// server keeps a version of each upload.
+    func snapshot(id: NoteID, onlyOutsideICloud: Bool = false) throws(Failure) {
+        let candidate = packageURL(for: id)
+        try mappedError(at: candidate) {
+            let url = try validatedPackageURL(candidate)
+            if onlyOutsideICloud, Self.isInICloud(url) { return }
+            let added = try coordinatedRead(at: url) { coordinatedURL in
+                try addVersionIfChanged(of: try validatedPackageURL(coordinatedURL))
+            }
+            if added { Logger.notes.info("added a version of \(id.rawValue, privacy: .private)") }
+        }
     }
+
+    /// Downloads the iCloud server versions of a note saved since `since`, newest first, until
+    /// `deadline`. The version browser shows a downloaded version at once; one still on the server
+    /// shows Load Version. A failure is logged and skipped: the browser opens anyway. Returns how
+    /// many versions downloaded.
+    func downloadServerVersions(of id: NoteID, since: Date, until deadline: Date) async -> Int {
+        let candidate = packageURL(for: id)
+        guard let url = try? validatedPackageURL(candidate), Self.isInICloud(url) else { return 0 }
+        let server: [NSFileVersion]
+        do {
+            server = try await NSFileVersion.nonlocalVersionsOfItem(at: url)
+        } catch {
+            Logger.sync.error("could not list the iCloud versions: \(error.localizedDescription, privacy: .public)")
+            return 0
+        }
+        let recent = server
+            .filter { ($0.modificationDate ?? .distantPast) >= since }
+            .sorted { ($0.modificationDate ?? .distantPast) > ($1.modificationDate ?? .distantPast) }
+        var downloaded = 0
+        for version in recent {
+            guard now() < deadline else { break }
+            do {
+                // A coordinated read of a server version's URL downloads it.
+                try coordinatedRead(at: version.url) { _ in }
+                downloaded += 1
+            } catch {
+                Logger.sync.error("could not download an iCloud version: \(error.localizedDescription, privacy: .public)")
+            }
+        }
+        Logger.sync.info(
+            "downloaded \(downloaded, privacy: .public) of \(recent.count, privacy: .public) recent iCloud versions")
+        return downloaded
+    }
+
+    /// Adds a version of the package, unless the newest local version holds the same note: the same
+    /// `text.md` and the same image files. Returns whether it added one.
+    @discardableResult
+    private func addVersionIfChanged(of package: URL) throws -> Bool {
+        let newest = (NSFileVersion.otherVersionsOfItem(at: package) ?? [])
+            .max { ($0.modificationDate ?? .distantPast) < ($1.modificationDate ?? .distantPast) }
+        if let newest, Self.holdSameNote(newest.url, package) { return false }
+        _ = try NSFileVersion.addOfItem(at: package, withContentsOf: package)
+        return true
+    }
+
+    /// The same text and the same files in `assets`, byte for byte. A doubt counts as a difference,
+    /// so a version is never skipped by mistake.
+    static func holdSameNote(_ lhs: URL, _ rhs: URL) -> Bool {
+        let fm = FileManager.default
+        guard fm.contentsEqual(
+            atPath: lhs.appendingPathComponent(contentFileName).path,
+            andPath: rhs.appendingPathComponent(contentFileName).path)
+        else { return false }
+        func files(_ package: URL) -> [String] {
+            let assets = package.appendingPathComponent(NoteAssets.folderName, isDirectory: true)
+            return ((try? fm.subpathsOfDirectory(atPath: assets.path)) ?? []).sorted()
+        }
+        let names = files(lhs)
+        guard names == files(rhs) else { return false }
+        return names.allSatisfy { name in
+            fm.contentsEqual(
+                atPath: lhs.appendingPathComponent(NoteAssets.folderName).appendingPathComponent(name).path,
+                andPath: rhs.appendingPathComponent(NoteAssets.folderName).appendingPathComponent(name).path)
+        }
+    }
+
+    // MARK: - Migration
+
+    /// Turns each plain note folder (`<title>/text.md`, the format of Noto 0.4 and earlier) into a
+    /// `<title>.noto` package. Outside iCloud, a rename does it. In iCloud a rename leaves the server
+    /// with a folder, which keeps no versions, so the package is built in a temporary folder and
+    /// moved in, and the old folder goes to the Trash. A folder that iCloud has not downloaded waits.
+    func migrateLegacyNotes() -> MigrationReport {
+        var report = MigrationReport()
+        let keys: Set<URLResourceKey> = [.isDirectoryKey, .isSymbolicLinkKey, .isHiddenKey]
+        guard let entries = try? FileManager.default.contentsOfDirectory(
+            at: notesDirectory, includingPropertiesForKeys: Array(keys), options: [.skipsHiddenFiles])
+        else { return report }
+        for folder in entries where Self.noteID(forPackage: folder) == nil {
+            guard let values = try? folder.resourceValues(forKeys: keys),
+                values.isDirectory == true, values.isSymbolicLink != true, values.isHidden != true,
+                let file = try? folder.appendingPathComponent(Self.contentFileName)
+                    .resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey]),
+                file.isRegularFile == true, file.isSymbolicLink != true,
+                (try? validatedTitle(folder.lastPathComponent)) != nil
+            else { continue }
+            let name = folder.lastPathComponent
+            do {
+                if Self.isDownloaded(folder), let id = try migrate(folder) {
+                    report.migrated.append(id)
+                } else {
+                    report.deferred.append(name)
+                }
+            } catch {
+                report.failed.append(name)
+                Logger.notes.error(
+                    "could not change \(name, privacy: .private) to a package: \(error.localizedDescription, privacy: .public)")
+            }
+        }
+        if !report.migrated.isEmpty || !report.failed.isEmpty {
+            let (migrated, failed, deferred) = (report.migrated.count, report.failed.count, report.deferred.count)
+            Logger.notes.notice(
+                "migrated \(migrated, privacy: .public), failed \(failed, privacy: .public), wait \(deferred, privacy: .public)")
+        }
+        return report
+    }
+
+    /// Nil when the note must wait: a package of the same name is not downloaded yet.
+    private func migrate(_ folder: URL) throws -> NoteID? {
+        let title = folder.lastPathComponent
+        let source = try coordinatedRead(at: folder) { try Self.source(at: $0.appendingPathComponent(Self.contentFileName)) }
+        // Another Mac can have done this already. Its package has the same text.
+        let existing = packageURL(for: NoteID(rawValue: title))
+        if FileManager.default.fileExists(atPath: existing.path) {
+            guard Self.isLocal(at: existing) else { return nil }
+            if (try? load(NoteID(rawValue: title)).source) == source {
+                try coordinatedWrite(at: folder, options: .forDeleting) { try trashOperation($0) }
+                return NoteID(rawValue: title)
+            }
+        }
+        guard Self.isInICloud(folder) else {
+            return try claimUniqueNote(base: title) { destination in
+                try coordinatedWrite(at: folder, options: .forMoving) { coordinatedURL in
+                    try FileManager.default.moveItem(at: coordinatedURL, to: destination)
+                }
+            }
+        }
+        let staging = try FileManager.default.url(
+            for: .itemReplacementDirectory, in: .userDomainMask, appropriateFor: notesDirectory, create: true)
+        defer { try? FileManager.default.removeItem(at: staging) }
+        let built = staging.appendingPathComponent("\(UUID().uuidString).\(Self.packageExtension)", isDirectory: true)
+        let modified = try coordinatedRead(at: folder) { coordinatedURL in
+            try FileManager.default.copyItem(at: coordinatedURL, to: built)
+            return try coordinatedURL.appendingPathComponent(Self.contentFileName)
+                .resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate
+        }
+        if let modified {
+            try? FileManager.default.setAttributes(
+                [.modificationDate: modified], ofItemAtPath: built.appendingPathComponent(Self.contentFileName).path)
+        }
+        let id = try claimUniqueNote(base: title) { destination in
+            try coordinatedWrite(at: destination, options: .forReplacing) { coordinatedURL in
+                try FileManager.default.moveItem(at: built, to: coordinatedURL)
+            }
+        }
+        try coordinatedWrite(at: folder, options: .forDeleting) { try trashOperation($0) }
+        return id
+    }
+
+    /// Every file in the folder has its content on this Mac. A copy of a file without content would
+    /// wait for the download, so such a file starts to download and the folder waits.
+    private static func isDownloaded(_ folder: URL) -> Bool {
+        guard isInICloud(folder) else { return true }
+        let keys: [URLResourceKey] = [.ubiquitousItemDownloadingStatusKey, .isRegularFileKey]
+        guard let walk = FileManager.default.enumerator(at: folder, includingPropertiesForKeys: keys) else { return false }
+        var complete = true
+        for case let item as URL in walk {
+            guard let values = try? item.resourceValues(forKeys: Set(keys)) else { return false }
+            if values.isRegularFile == true, !isLocal(values) {
+                try? FileManager.default.startDownloadingUbiquitousItem(at: item)
+                complete = false
+            }
+        }
+        return complete
+    }
+
+    // MARK: - Private
 
     /// Only an unnamed note pays for this, and only for the head of its file.
     private func firstLine(of url: URL) -> String? {
@@ -303,18 +563,20 @@ struct NotesRepository: Sendable {
             at: notesDirectory, withIntermediateDirectories: true)
     }
 
-    /// Claims the first free `<base>`, `<base> 2`, … folder; a lost race only advances the suffix.
-    private func claimUniqueFolder(
+    /// Claims the first free `<base>`, `<base> 2`, … note; a lost race only advances the suffix.
+    /// The claim gets the package URL; the note's id is the title without the extension.
+    private func claimUniqueNote(
         base: String,
         renaming id: NoteID? = nil,
         _ claim: (URL) throws -> Void
-    ) throws -> URL {
+    ) throws -> NoteID {
         let occupied = Set(try list().lazy.filter { $0.id != id }.map { folded($0.id.rawValue) })
         var suffix = 1
         while true {
-            let candidate = uniqueCandidate(base: base, suffix: suffix)
-            let name = folded(candidate.lastPathComponent)
-            // A case-only rename collides with its own folder, which the move then replaces in place.
+            let title = suffix == 1 ? base : "\(base) \(suffix)"
+            let candidate = packageURL(for: NoteID(rawValue: title))
+            let name = folded(title)
+            // A case-only rename collides with its own package, which the move then replaces in place.
             let isSelf = id.map { name == folded($0.rawValue) } ?? false
             guard !occupied.contains(name),
                 isSelf || !FileManager.default.fileExists(atPath: candidate.path)
@@ -324,7 +586,7 @@ struct NotesRepository: Sendable {
             }
             do {
                 try claim(candidate)
-                return candidate
+                return NoteID(rawValue: title)
             } catch {
                 guard !isSelf, FileManager.default.fileExists(atPath: candidate.path) else {
                     throw error
@@ -334,25 +596,26 @@ struct NotesRepository: Sendable {
         }
     }
 
-    /// The note folder itself: an immediate, unlinked child of the notes directory.
-    private func validatedFolderURL(_ candidate: URL) throws -> URL {
+    /// The package itself: a `.noto` that is an immediate, unlinked child of the notes directory.
+    private func validatedPackageURL(_ candidate: URL) throws -> URL {
         let standardized = candidate.standardizedFileURL
         let resolved = standardized.resolvingSymlinksInPath()
         let expectedParent = notesDirectory.standardizedFileURL.resolvingSymlinksInPath()
-        guard resolved.deletingLastPathComponent().path == expectedParent.path,
+        guard Self.noteID(forPackage: standardized) != nil,
+            resolved.deletingLastPathComponent().path == expectedParent.path,
             resolved.lastPathComponent == standardized.lastPathComponent,
             standardized.lastPathComponent == candidate.lastPathComponent
         else { throw Failure.invalidLocation(candidate) }
         return standardized
     }
 
-    /// The content file: `text.md` directly inside a validated note folder.
+    /// The content file: `text.md` directly inside a validated package.
     private func validatedFileURL(_ candidate: URL) throws -> URL {
         let standardized = candidate.standardizedFileURL
-        let folder = try validatedFolderURL(standardized.deletingLastPathComponent())
+        let package = try validatedPackageURL(standardized.deletingLastPathComponent())
         let resolved = standardized.resolvingSymlinksInPath()
         guard standardized.lastPathComponent == Self.contentFileName,
-            resolved.deletingLastPathComponent().path == folder.resolvingSymlinksInPath().path
+            resolved.deletingLastPathComponent().path == package.resolvingSymlinksInPath().path
         else { throw Failure.invalidLocation(candidate) }
         return standardized
     }
@@ -363,11 +626,6 @@ struct NotesRepository: Sendable {
             !title.contains("/"), !title.contains("\0")
         else { throw Failure.invalidTitle(raw) }
         return title
-    }
-
-    private func uniqueCandidate(base: String, suffix: Int) -> URL {
-        let suffixText = suffix == 1 ? "" : " \(suffix)"
-        return notesDirectory.appendingPathComponent("\(base)\(suffixText)", isDirectory: true)
     }
 
     private func summaryPrecedes(_ lhs: NoteSummary, _ rhs: NoteSummary) -> Bool {
@@ -381,19 +639,19 @@ struct NotesRepository: Sendable {
             locale: Locale(identifier: "en_US_POSIX"))
     }
 
-    /// The copy is named for the note and the time it was set aside, so the two sort together.
-    private func keepConflictCopy(of id: NoteID, source: String) throws -> NoteID {
+    /// The copy is named for the note and the time it was set aside, so the two sort together. It
+    /// gets the images of `imagesFrom`, the package the text came from.
+    private func keepConflictCopy(of id: NoteID, source: String, imagesFrom package: URL) throws -> NoteID {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "yyyy-MM-dd HH.mm"
         let base = "\(id.rawValue) (Conflict \(formatter.string(from: now())))"
-        let folder = try claimUniqueFolder(base: base) {
-            try createNoteFolder(at: $0, source: Data(source.utf8))
+        let copy = try claimUniqueNote(base: base) {
+            try createPackage(at: $0, source: Data(source.utf8))
         }
-        let copy = NoteID(rawValue: folder.lastPathComponent)
         // The text is what the copy saves; a missing image must not fail the save that needs it.
         do {
-            try copyAssets(from: folderURL(for: id), to: folder)
+            try copyAssets(from: package, to: packageURL(for: copy))
         } catch {
             let reason = error.localizedDescription
             Logger.sync.error(
@@ -405,17 +663,33 @@ struct NotesRepository: Sendable {
 
     /// The images travel with the text, or the copy shows placeholders. A note without images has no
     /// `assets` folder, and that is not an error.
-    private func copyAssets(from noteFolder: URL, to copyFolder: URL) throws {
-        let assets = noteFolder.appendingPathComponent(NoteAssets.folderName, isDirectory: true)
+    private func copyAssets(from package: URL, to copy: URL) throws {
+        let assets = package.appendingPathComponent(NoteAssets.folderName, isDirectory: true)
         guard FileManager.default.fileExists(atPath: assets.path) else { return }
         try FileManager.default.copyItem(
-            at: assets, to: copyFolder.appendingPathComponent(NoteAssets.folderName, isDirectory: true))
+            at: assets, to: copy.appendingPathComponent(NoteAssets.folderName, isDirectory: true))
     }
 
-    /// True unless iCloud holds the file without its content: a local file has no download status.
+    /// True for an item in iCloud. `isUbiquitousItem` alone is not enough: a process that the
+    /// container's entitlement does not cover sees an iCloud item as local, and a rename there would
+    /// leave the server with a plain folder. So any path under `~/Library/Mobile Documents` counts too.
+    static func isInICloud(_ url: URL) -> Bool {
+        if FileManager.default.isUbiquitousItem(at: url) { return true }
+        let mobileDocuments = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Mobile Documents", isDirectory: true)
+            .standardizedFileURL.resolvingSymlinksInPath().path
+        return url.standardizedFileURL.resolvingSymlinksInPath().path.hasPrefix(mobileDocuments + "/")
+    }
+
+    /// True unless iCloud holds the item without its content: a local item has no download status.
     private static func isLocal(_ values: URLResourceValues) -> Bool {
         guard let status = values.ubiquitousItemDownloadingStatus else { return true }
         return status == .current
+    }
+
+    private static func isLocal(at url: URL) -> Bool {
+        guard let values = try? url.resourceValues(forKeys: [.ubiquitousItemDownloadingStatusKey]) else { return true }
+        return isLocal(values)
     }
 
     private static func source(at url: URL) throws -> String {
@@ -424,13 +698,13 @@ struct NotesRepository: Sendable {
         return source
     }
 
-    /// The folder claim fails if it exists, which is what makes a lost race visible to the caller.
-    private func createNoteFolder(at folder: URL, source: Data) throws {
-        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: false)
+    /// The claim fails if the package exists, which is what makes a lost race visible to the caller.
+    private func createPackage(at package: URL, source: Data) throws {
+        try FileManager.default.createDirectory(at: package, withIntermediateDirectories: false)
         do {
-            try source.write(to: folder.appendingPathComponent(Self.contentFileName), options: .atomic)
+            try source.write(to: package.appendingPathComponent(Self.contentFileName), options: .atomic)
         } catch {
-            try? FileManager.default.removeItem(at: folder)
+            try? FileManager.default.removeItem(at: package)
             throw error
         }
     }

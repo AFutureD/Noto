@@ -17,6 +17,7 @@ struct MenuBarMenu: View {
         Button("Show Notes") { AppCore.shared.run(.showNotes) }
         Button("New Note") { AppCore.shared.run(.createNote) }
         Button("Search Notes") { AppCore.shared.run(.searchNotes) }
+        Button("Version History…") { AppCore.shared.notesCoordinator.browseHistory() }
         // Read through Observation, so the check mark follows the chord and the hotkey.
         Toggle("Keep on Top", isOn: Bindable(AppCore.shared.settings).keepsOnTop)
         Divider()

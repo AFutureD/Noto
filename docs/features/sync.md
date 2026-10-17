@@ -38,7 +38,8 @@ The parts:
 - Sync off moves back to the folder on this Mac. Nothing is copied and nothing is deleted.
 - When a save replaces text that the store did not read, it keeps that text as a conflict copy. This
   applies in each folder, also a local one.
-- A version that iCloud cannot merge becomes a conflict copy before Noto marks it resolved.
+- A version that iCloud cannot merge becomes a conflict copy before Noto marks it resolved. Noto
+  removes no version: the versions are the history ([history.md](history.md)).
 
 ## The switch
 
@@ -63,7 +64,9 @@ The copy rules:
   match ignores case and accents.
 - Each other collision takes the next free name, as `Plan 2`.
 - A copy keeps the modification date of its `text.md`, so it keeps its position in the list.
-- A copy brings the note's `assets` folder, so its images show in iCloud.
+- A copy is a new package with the note's `assets` folder, so its images show in iCloud.
+- The folder on this Mac migrates to packages before the count and the copy; see
+  [notes.md](notes.md#migration).
 - The folder on this Mac does not change.
 
 To turn sync off, the setting turns off and the store moves back to the folder on this Mac. That is
@@ -139,7 +142,8 @@ when `notesFolder`, `syncsWithICloud` or `CloudNotesLocation.state` changes.
 
 In Settings, while sync is on:
 
-- The Notes folder buttons are disabled. The setting keeps its value and applies again when sync is
+- Choose… and Use Default are disabled. Show in Finder stays on and opens iCloud Drive › Noto. The
+  setting keeps its value and applies again when sync is
   off.
 - The Notes folder caption shows "iCloud Drive › Noto" while the store uses the iCloud folder.
 - When iCloud is not available, the notes stay in the folder on this Mac, and the iCloud caption
@@ -148,13 +152,18 @@ In Settings, while sync is on:
 ## The watcher
 
 `NotesWatcher` runs only while the store uses the iCloud folder. It is an `NSMetadataQuery` on the
-ubiquitous documents scope, for files named `text.md`. It uses only a `text.md` directly in a note
-folder that is directly in the notes folder.
+ubiquitous documents scope. A query sees a `.noto` package as one item, with its download status
+and its conflict flag, and never the files in it. So the query asks for two kinds of item, each
+directly in the notes folder:
+
+- a package whose name ends in `.noto`: a note;
+- a file named `text.md` in a plain folder: an old note from a Mac with Noto 0.4 or earlier. Its
+  download lets the next listing migrate it.
 
 At each gather and each update:
 
-1. It starts the download of each `text.md` that is not current.
-2. It records each note that has unresolved conflicts.
+1. It starts the download of each item that is not current.
+2. It records each package that has unresolved conflicts.
 3. After 500 ms with no further update, it reports. With no conflicts, `AppCore` calls
    `NotesStore.reload()`. With conflicts, `AppCore` calls `NotesStore.resolveConflicts(_:)`, which
    reloads after it.
@@ -168,15 +177,15 @@ change. A report with conflicts still resolves them, and lists only when the sto
 A file that iCloud has not downloaded has no content on this Mac. A read of it waits for the
 download, so the repository does not read it:
 
-- `list()` does not read the first line of an unnamed note that is not downloaded. The note shows its
-  folder name until it arrives.
+- `list()` reads nothing inside a package that is not downloaded. The note shows its title and the
+  package date until it arrives.
 - Search matches such a note by its title only.
 
 ## Conflicts
 
 A conflict copy is an ordinary note named `<title> (Conflict yyyy-MM-dd HH.mm)`, in the local time of
-this Mac. If that name is in use, the copy takes the next free name. It gets a copy of the note's
-`assets` folder, so its images show. If that copy fails, the text copy stays and the failure is
+this Mac. If that name is in use, the copy takes the next free name. It is a package with a copy of the
+`assets` folder that came with its text, so its images show. If that copy fails, the text copy stays and the failure is
 logged, so a save never fails because of an image. Noto does not merge text and shows no alert. The user compares the two notes and deletes one.
 
 There are two sources of conflict copies.
@@ -189,15 +198,17 @@ coordination, so no other writer can write between the two. Then:
 - If the file held other text, that text becomes a conflict copy first. Then the draft goes into the
   file. If the copy fails, the save fails and the file keeps the other text. The editor stays on the
   active note.
-- If the note folder is gone, because another device deleted or renamed it, the save creates it
+- If the package is gone, because another device deleted or renamed it, the save creates it
   again with the draft.
 
 This applies in each folder. Another app that writes a note through Open Notes Folder is a writer too.
 
-The iCloud versions. When two devices change one file before they sync, iCloud keeps one version and
-marks the others as unresolved `NSFileVersion`s. `NotesRepository.resolveConflicts(id:)` keeps each
-unresolved version as a conflict copy, marks them resolved and removes the other versions. The
-current version stays in `text.md`.
+The iCloud versions. When two devices change one note before they sync, iCloud keeps one version of
+the package and marks the others as unresolved `NSFileVersion`s. `NotesRepository.resolveConflicts(id:)`
+keeps each unresolved version as a conflict copy, with the text and the images of that version, and
+then marks it resolved. A copy that fails leaves its version unresolved, so the next report tries
+again. The current version stays in the package. The resolved versions stay in the version store and
+show in the history.
 
 ## Logging
 
@@ -215,8 +226,8 @@ log stream --level info --predicate 'subsystem == "app.huanan.noto" AND category
   a private `NotificationCenter` and a `UserDefaults` suite with a UUID name. It does not use iCloud.
 - `notes-test` covers the save conflict copy, two notes that share one folder, a recreated folder,
   and the copy rules.
-- No harness covers `CloudNotesLocation`, `NotesWatcher`, `NSFileVersion` conflicts or the Settings
-  switch. The [manual sweep](../testing.md#icloud-sync) covers them.
+- No harness covers `CloudNotesLocation`, `NotesWatcher`, `NSFileVersion` conflicts, the server
+  versions, the migration of a folder in iCloud or the Settings switch. The [manual sweep](../testing.md#icloud-sync) covers them.
 - Debug and Release share the bundle id. So they share `UserDefaults`, the iCloud container and the
   key-value store. A Debug run with sync on changes the real notes and settings on each device of the
   account. Use an iCloud account that has no real notes for sync tests.

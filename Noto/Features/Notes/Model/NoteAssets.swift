@@ -74,12 +74,30 @@ enum NoteAssets {
         return lead + markdown + trail
     }
 
+    /// True when `source` can name the file `assets/<name>`: as written, percent-encoded as
+    /// `markdown(for:)` writes it, or decoded. Case and Unicode normalization do not count. A doubt
+    /// counts as a reference, so a code block that names the file keeps it.
+    static func isReferenced(_ name: String, in source: String) -> Bool {
+        func normalized(_ text: String) -> String { text.precomposedStringWithCanonicalMapping.lowercased() }
+        let path = normalized("\(folderName)/\(name)")
+        let text = normalized(source)
+        if text.contains(path) { return true }
+        if let encoded = path.addingPercentEncoding(withAllowedCharacters: pathAllowed), text.contains(normalized(encoded)) {
+            return true
+        }
+        return normalized(source.removingPercentEncoding ?? source).contains(path)
+    }
+
+    private static var pathAllowed: CharacterSet {
+        var allowed = CharacterSet.urlPathAllowed
+        allowed.remove(charactersIn: "()")
+        return allowed
+    }
+
     /// The Markdown that shows `relativePath` as an image. The path is percent-encoded so a space
     /// or a parenthesis cannot end the link early.
     static func markdown(for relativePath: String) -> String {
-        var allowed = CharacterSet.urlPathAllowed
-        allowed.remove(charactersIn: "()")
-        let encoded = relativePath.addingPercentEncoding(withAllowedCharacters: allowed) ?? relativePath
+        let encoded = relativePath.addingPercentEncoding(withAllowedCharacters: pathAllowed) ?? relativePath
         return "![](\(encoded))"
     }
 }

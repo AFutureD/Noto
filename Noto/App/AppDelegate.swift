@@ -35,6 +35,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return false
     }
 
+    /// `Info.plist` declares the `.noto` document type only for the version browser, so AppKit must
+    /// never make an untitled document.
+    func applicationShouldOpenUntitledFile(_ sender: NSApplication) -> Bool {
+        false
+    }
+
+    /// A `.noto` opened from Finder (Open With) shows the notes, not a document window.
+    func application(_ application: NSApplication, open urls: [URL]) {
+        AppCore.shared.notesCoordinator.show()
+    }
+
     /// The note panel and Settings each close on their own; the agent outlives both.
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         false

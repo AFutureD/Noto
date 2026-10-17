@@ -91,6 +91,9 @@ final class NotesWindowController: NSObject, NSWindowDelegate {
         editor.chooseEmoji(at: index)
     }
 
+    /// The frame the version browser's window takes, so the note seems to stay where it was.
+    var frame: NSRect? { panel?.frame }
+
     /// Only this controller knows the host window, so handing it over stays its job.
     func presentSwitcher(_ switcher: NoteSwitcherWindowController) {
         guard let panel, panel.isVisible else { return }
@@ -215,7 +218,8 @@ final class NotesWindowController: NSObject, NSWindowDelegate {
         ]
         panel.optionCommandChords = [
             "t": { [weak coordinator] in coordinator?.toggleFormattingBar() },
-            "p": { [weak coordinator] in coordinator?.toggleKeepOnTop() }
+            "p": { [weak coordinator] in coordinator?.toggleKeepOnTop() },
+            "y": { [weak coordinator] in coordinator?.browseHistory() }
         ]
         panel.setFrameAutosaveName(Self.frameAutosaveName)
         if !panel.setFrameUsingName(Self.frameAutosaveName) { panel.center() }

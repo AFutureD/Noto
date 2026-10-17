@@ -153,7 +153,8 @@ private struct NoteTitlebarActions: View {
         HStack(spacing: Theme.Spacing.xxs) {
             action("plus", "Create Note", "Create Note  ⌘N", notes.createNote)
             action("rectangle.stack", "Browse Notes", "Browse Notes  ⌘P", notes.searchNotes)
-            action("folder", "Open Notes Folder", "Open Notes Folder  ⌘O", notes.openNotesFolder)
+            action("clock.arrow.circlepath", "Version History", "Version History  ⌥⌘Y", notes.browseHistory)
+                .disabled(!notes.hasActiveNote)
         }
         .padding(Theme.Spacing.xs)
         .frosted(in: Capsule())

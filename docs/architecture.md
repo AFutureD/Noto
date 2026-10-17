@@ -147,10 +147,11 @@ Two values are not preferences:
 else.
 
 - The menu bar item: `MenuBarLabel` (the `text.page` symbol) and `MenuBarMenu` with Show Notes, New
-  Note, Search Notes, Keep on Top, Settings…, Check for Updates… and Quit. It shows in both Dock
+  Note, Search Notes, Version History…, Keep on Top, Settings…, Check for Updates… and Quit. It shows in both Dock
   modes, so the app is always reachable.
 - The main menu: `NotoApp`'s `.commands` put Check for Updates… after About, Settings… (⌘,) in the
-  app-settings group, and New Note (⌘N), Show Notes and Search Notes in the new-item group. The menu
+  app-settings group, and New Note (⌘N), Show Notes, Search Notes and Version History… (⌥⌘Y) in the
+  new-item group. The menu
   is declared, not assigned to `NSApp.mainMenu`, because SwiftUI rebuilds it on each scene change.
 - The note window: a persistent, titled, non-activating `NotesPanel`, managed by
   `NotesWindowController`. Its height fits the note up to 860pt, and AppKit autosaves the frame. Its
@@ -160,6 +161,9 @@ else.
   `NoteEmojiPickerWindowController`. The switcher takes key and dismisses when it resigns key. The bar
   menu and the emoji list never become key, so the editor keeps its caret.
   See [notes.md](features/notes.md).
+- The version browser: the system's Time Machine-like view. `NoteVersionDocument`, an `NSDocument`
+  used only for it, gives the note a stock document window while the browser is open; the note
+  window hides until it closes. See [history.md](features/history.md#the-version-browser).
 - The Settings window: a titled `NSWindow` with a preference toolbar, built by
   `SettingsWindowController` and hosting `SettingsView`. SwiftUI's `Settings` scene is unreliable for
   an accessory app. The window is built on first show and torn down on close, so its SwiftUI tree
@@ -234,15 +238,16 @@ Noto/
                     NotificationToken, Signposts, SyncLog (Logger.sync), NotesLog (Logger.notes)
   AppIcon.icon      the app icon, an Icon Composer document
   Assets.xcassets/  empty; actool compiles the icon into it
-  Info.plist        LSUIElement, the Sparkle keys, the iCloud container and the bundle keys; a build
-                    input
+  Info.plist        LSUIElement, the Sparkle keys, the iCloud container, the `.noto` package type and
+                    its document class, and the bundle keys; a build input
   Noto.entitlements sandbox off, iCloud Documents and key-value storage; read by code signing
   Features/
     Notes/
       Model/        pure: the harness inputs
       Service/      NotesRepository, NotesStore, CloudNotesLocation, NotesWatcher
       UI/           NotesCoordinator, NotesDialogs, NotesPanel, the window controllers, the editor
-                    host and its theme, the switcher, the formatting bar, the bar menus
+                    host and its theme, the switcher, the formatting bar, the bar menus, the
+                    version browser's document and its preview
     HotKeys/
       Model/        HotKeyCommand
       Service/      KeyShortcut, HotKeyCenter, HotKeyManager, ShortcutCaptureSession

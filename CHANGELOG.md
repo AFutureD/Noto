@@ -12,6 +12,21 @@ and the versions follow the version rule in [release.md](docs/release.md#the-ver
   a note already names in its folder show too.
 - Type `:` and two or more letters, such as `:smi`, to open a list of emoji. The arrows move the
   selection, and Return inserts the emoji.
+- Version History opens the macOS version browser, as in other document apps: the earlier versions
+  of a note, with their images, and Restore. Open it with the clock button in the title bar, ⌥⌘Y or
+  the menu bar item. For a note in iCloud, the versions of the last 3 days download first, so they
+  show without Load Version. A note that did not change gets no new version.
+
+### Changed
+
+- A note is now a `.noto` package: `<title>.noto/text.md` and `assets`. Finder shows it as one item;
+  Show Package Contents opens it. Noto changes each note folder to a package when it lists the
+  folder. In iCloud the old folder goes to the Trash. Update Noto on each Mac: Noto 0.4 shows a
+  package as a note named `<title>.noto`.
+- The title bar no longer has the Open Notes Folder button. ⌘O still reveals the note in Finder, and
+  Settings › General › Notes folder › Show in Finder opens the notes folder, also the iCloud one.
+- When you delete the Markdown of an image, Noto deletes the image file when you go to another note
+  or quit. A version keeps the image first.
 
 ## [0.4.0] - 2026-10-13
 

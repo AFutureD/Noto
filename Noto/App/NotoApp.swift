@@ -32,6 +32,8 @@ struct NotoApp: App {
                 .keyboardShortcut("n")
             Button("Show Notes") { AppCore.shared.notesCoordinator.show() }
             Button("Search Notes") { AppCore.shared.run(.searchNotes) }
+            Button("Version History…") { AppCore.shared.notesCoordinator.browseHistory() }
+                .keyboardShortcut("y", modifiers: [.command, .option])
         }
     }
 }

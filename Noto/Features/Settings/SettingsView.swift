@@ -49,13 +49,17 @@ private struct GeneralSettingsPane: View {
         Divider()
         SettingsRow("Notes folder") {
             HStack(spacing: Theme.Spacing.md) {
-                Button("Choose…", action: core.notesCoordinator.chooseNotesFolder)
-                if settings.notesFolder != nil {
-                    Button("Use Default", action: core.notesCoordinator.resetNotesFolder)
+                Group {
+                    Button("Choose…", action: core.notesCoordinator.chooseNotesFolder)
+                    if settings.notesFolder != nil {
+                        Button("Use Default", action: core.notesCoordinator.resetNotesFolder)
+                    }
                 }
+                // The folder applies again once sync is off, so it stays visible but cannot change.
+                .disabled(settings.syncsWithICloud)
+                // The folder in use, also the iCloud one: it shows while sync is on.
+                Button("Show in Finder", action: core.notesCoordinator.showNotesFolder)
             }
-            // The folder applies again once sync is off, so it stays visible but cannot change.
-            .disabled(settings.syncsWithICloud)
             SettingsCaption(notesFolderCaption)
         }
     }

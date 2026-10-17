@@ -18,8 +18,9 @@
   <img src="Resource/Screenshots/note-window.png" width="600" alt="The Noto note window with a rendered note.">
 </p>
 
-Noto edits a folder of notes in one window. Each note is a folder named for its title, with the
-Markdown in `text.md`. Noto lives in the menu bar, needs no account and has no database.
+Noto edits a folder of notes in one window. Each note is a `.noto` package named for its title, with
+the Markdown in `text.md` and its images in `assets`. Version History shows the earlier versions of a
+note and restores one. Noto lives in the menu bar, needs no account and has no database.
 
 ## Features
 

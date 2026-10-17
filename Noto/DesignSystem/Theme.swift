@@ -42,6 +42,8 @@ enum Theme {
         static let noteSearchHeight: CGFloat = 34
         /// The switcher popover, sized independently of a note window that can be 180pt tall.
         static let noteSwitcher = CGSize(width: 300, height: 240)
+        /// A window of the version browser when the note window has no frame to lend it.
+        static let versionWindow = CGSize(width: 440, height: 520)
         static let noteSwitcherEmptyHeight: CGFloat = 96
         static let noteSwitcherDrop: CGFloat = 56
         /// Fixed like every menu's width; the height is exactly the menu's rows.

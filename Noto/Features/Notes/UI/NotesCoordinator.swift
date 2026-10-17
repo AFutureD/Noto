@@ -9,6 +9,7 @@ final class NotesCoordinator {
         case editor
         case create
         case search
+        case history
     }
 
     private let store: NotesStore
@@ -20,6 +21,11 @@ final class NotesCoordinator {
         coordinator: self)
     @ObservationIgnored private lazy var barMenuController = NoteBarMenuWindowController(coordinator: self)
     @ObservationIgnored private lazy var emojiPickerController = NoteEmojiPickerWindowController(coordinator: self)
+    /// The note open in the system version browser; nil when the browser is closed.
+    @ObservationIgnored private var versionDocument: NoteVersionDocument?
+    @ObservationIgnored private var versionBrowserExit: NotificationToken?
+    /// Set while the draft saves and the recent iCloud versions download, so a second press waits.
+    @ObservationIgnored private var isOpeningHistory = false
     @ObservationIgnored private var loadTask: Task<Void, Never>?
     @ObservationIgnored private var issueTask: Task<Void, Never>?
     @ObservationIgnored private var operationTask: Task<Void, Never>?
@@ -104,7 +110,7 @@ final class NotesCoordinator {
 
     /// Quit waits on this so the 300 ms autosave debounce cannot swallow the last edit.
     func prepareForTermination() async {
-        await store.flush()
+        await store.finish()
     }
 
     /// The command is a toggle, like every other surface: a second press puts the panel away.
@@ -133,6 +139,63 @@ final class NotesCoordinator {
         request(.search)
     }
 
+    // MARK: - Version history
+
+    /// Opens the system version browser on the active note, from the title bar, ⌥⌘Y or a menu. The
+    /// note window steps aside for a window of the note; after Done or Restore, Noto reloads the note.
+    func browseHistory() {
+        guard windowController.isVisible, store.isLoaded else { return request(.history) }
+        guard versionDocument == nil, !isOpeningHistory, let package = store.activeFolderURL else { return }
+        closeBarMenu()
+        closeSwitcher(focusEditor: false)
+        isOpeningHistory = true
+        Task { [weak self] in
+            guard let self else { return }
+            defer { isOpeningHistory = false }
+            // The browser shows the note as it is on disk, so the draft saves first.
+            guard await store.flush() else { return }
+            await store.downloadRecentServerVersions()
+            let document: NoteVersionDocument
+            do {
+                document = try NoteVersionDocument(contentsOf: package, ofType: NoteVersionDocument.typeName)
+            } catch {
+                Logger.notes.error("could not open the version browser: \(error.localizedDescription, privacy: .public)")
+                _ = await dialogs.reportFailure("Couldn't Show Versions", error.localizedDescription, nil)
+                return
+            }
+            NoteVersionDocument.style = .init(
+                fonts: settings.fonts, highlight: settings.highlightColor, accent: settings.accentColor,
+                frame: windowController.frame)
+            versionDocument = document
+            document.makeWindowControllers()
+            guard let window = document.windowControllers.first?.window else { return finishHistory() }
+            versionBrowserExit = NotificationToken(
+                NotificationCenter.default.addObserver(
+                    forName: NSWindow.didExitVersionBrowserNotification, object: window, queue: .main
+                ) { [weak self] _ in
+                    MainActor.assumeIsolated { self?.finishHistory() }
+                },
+                center: .default)
+            windowController.hide(restoreFocus: false)
+            NSApp.activate()
+            document.showWindows()
+            document.browseVersions(nil)
+            Logger.notes.info("opened the version browser")
+        }
+    }
+
+    /// Done and Restore both end here. A restore replaced the package, and the reload shows it.
+    private func finishHistory() {
+        versionBrowserExit = nil
+        versionDocument?.close()
+        versionDocument = nil
+        Task { [weak self] in
+            guard let self else { return }
+            _ = await store.reload()
+            windowController.show(focusEditor: true)
+        }
+    }
+
     func openSwitcher() {
         guard store.isLoaded else { return }
         closeBarMenu()
@@ -157,6 +220,7 @@ final class NotesCoordinator {
     }
 
     func hide() {
+        guard versionDocument == nil else { return }
         closeBarMenu()
         presentationGeneration &+= 1
         pendingPresentation = nil
@@ -317,11 +381,17 @@ final class NotesCoordinator {
     }
 
     func openNotesFolder() {
-        guard let folderURL = store.activeFolderURL else {
-            NSWorkspace.shared.open(store.notesDirectory)
+        guard let folderURL = store.activeFolderURL else { return showNotesFolder() }
+        FileViewer.reveal(folderURL)
+    }
+
+    /// Settings › Notes folder › Show in Finder: the folder the notes are in now, also the iCloud
+    /// folder, which Finder shows as iCloud Drive › Noto.
+    func showNotesFolder() {
+        guard NSWorkspace.shared.open(store.notesDirectory) else {
+            Logger.notes.error("could not show the notes folder in Finder")
             return
         }
-        FileViewer.reveal(folderURL)
     }
 
     func moveToTopRight() {
@@ -415,6 +485,8 @@ final class NotesCoordinator {
     }
 
     private func request(_ presentation: Presentation) {
+        // The version browser owns the screen until Done or Restore.
+        guard versionDocument == nil else { return }
         closeBarMenu()
         pendingPresentation = presentation
         guard loadTask == nil else { return }
@@ -450,6 +522,10 @@ final class NotesCoordinator {
             // The switcher hangs off the note window, so that window has to exist first.
             windowController.show(focusEditor: false)
             openSwitcher()
+        case .history:
+            closeSwitcher(focusEditor: false)
+            windowController.show(focusEditor: false)
+            browseHistory()
         }
     }
 
@@ -463,7 +539,11 @@ final class NotesCoordinator {
         }
         guard !Task.isCancelled else { return }
         let local = NotesRepository(notesDirectory: store.notesDirectory)
-        let count = await Task.detached(priority: .userInitiated) { (try? local.list().count) ?? 0 }.value
+        // Plain folders become packages first, or the count would miss them.
+        let count = await Task.detached(priority: .userInitiated) {
+            _ = local.migrateLegacyNotes()
+            return (try? local.list().count) ?? 0
+        }.value
         var copies = false
         if count > 0 {
             copies = await dialogs.choose(

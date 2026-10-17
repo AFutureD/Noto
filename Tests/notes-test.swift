@@ -27,6 +27,12 @@ struct NotesTests {
         testNoteAssetPaths()
         try await testStoreImportsAssets()
         testEmojiCatalog()
+        try testLegacyFoldersMigrate()
+        try await testVersionsKeepTheWholeNote()
+        testAssetReferences()
+        try testDroppedAssetsGo()
+        try await testStoreDeletesDroppedImagesWhenTheSessionEnds()
+        try await testStoreAddsVersions()
 
         print(failures == 0 ? "Notes tests passed" : "\(failures) tests failed")
         exit(failures == 0 ? 0 : 1)
@@ -63,8 +69,8 @@ struct NotesTests {
         try stable.save(id: untitled.id, source: source, base: "")
         check("UTF-8 Markdown round-trips unchanged", try stable.load(untitled.id).source == source)
         check(
-            "the content lives in text.md inside the note folder",
-            stable.fileURL(for: untitled.id).path.hasSuffix("/Untitled/text.md"))
+            "the content lives in text.md inside the note package",
+            stable.fileURL(for: untitled.id).path.hasSuffix("/Untitled.noto/text.md"))
 
         check(
             "a save over the content it read keeps no copy",
@@ -76,8 +82,8 @@ struct NotesTests {
             "what another writer left is kept as a conflict copy",
             try copy.map { try stable.load($0).source } == "external"
                 && copy?.rawValue.hasPrefix("Untitled (Conflict ") == true)
-        if let copy { try FileManager.default.removeItem(at: stable.folderURL(for: copy)) }
-        try FileManager.default.removeItem(at: stable.folderURL(for: untitled.id))
+        if let copy { try FileManager.default.removeItem(at: stable.packageURL(for: copy)) }
+        try FileManager.default.removeItem(at: stable.packageURL(for: untitled.id))
         try stable.save(id: untitled.id, source: source, base: source)
         check(
             "a save recreates a note folder deleted elsewhere",
@@ -127,15 +133,15 @@ struct NotesTests {
 
         try stable.trash(id: plan.id)
         check(
-            "deletion moves the folder through the injected Trash operation",
+            "deletion moves the package through the injected Trash operation",
             FileManager.default.fileExists(
-                atPath: trashDirectory(in: root).appendingPathComponent(plan.id.rawValue).path))
+                atPath: trashDirectory(in: root).appendingPathComponent("\(plan.id.rawValue).noto").path))
 
         let outside = root.appendingPathComponent("outside.md")
         try Data("outside".utf8).write(to: outside)
         let symlinkID = NoteID(rawValue: "Linked")
         try FileManager.default.createDirectory(
-            at: stable.folderURL(for: symlinkID), withIntermediateDirectories: true)
+            at: stable.packageURL(for: symlinkID), withIntermediateDirectories: true)
         try FileManager.default.createSymbolicLink(
             at: stable.fileURL(for: symlinkID), withDestinationURL: outside)
         do {
@@ -404,7 +410,7 @@ struct NotesTests {
         check(
             "trashing another note moves it through the injected Trash operation",
             FileManager.default.fileExists(
-                atPath: trashDirectory(in: root).appendingPathComponent(projectID.rawValue).path))
+                atPath: trashDirectory(in: root).appendingPathComponent("\(projectID.rawValue).noto").path))
         check("trashing another note keeps the active note", store.activeID == firstID)
 
         for summary in store.summaries {
@@ -476,7 +482,7 @@ struct NotesTests {
             "an externally deleted active note selects a remaining note",
             store.activeID == other.id && store.source == "Another note" && selection.id == other.id)
 
-        try FileManager.default.removeItem(at: repository.folderURL(for: other.id))
+        try FileManager.default.removeItem(at: repository.packageURL(for: other.id))
         _ = await store.start()
         check(
             "deleting the last note externally clears the editor and persisted selection",
@@ -571,7 +577,7 @@ struct NotesTests {
         _ = await store.select(id)
         let first = await store.importAssets([image, image], into: id)
         check("each file gets its own free name", first == ["assets/shot.png", "assets/shot 2.png"])
-        let copied = local.folderURL(for: id).appendingPathComponent("assets/shot 2.png")
+        let copied = local.packageURL(for: id).appendingPathComponent("assets/shot 2.png")
         check("the copy lands in the note's assets folder", FileManager.default.fileExists(atPath: copied.path))
         check("the original stays where it was", FileManager.default.fileExists(atPath: image.path))
         let pastedFolder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
@@ -593,7 +599,7 @@ struct NotesTests {
         check(
             "a note copied to another folder brings its images",
             FileManager.default.fileExists(
-                atPath: cloud.folderURL(for: id).appendingPathComponent("assets/shot.png").path))
+                atPath: cloud.packageURL(for: id).appendingPathComponent("assets/shot.png").path))
     }
 
     private static func testEmojiCatalog() {
@@ -714,7 +720,7 @@ struct NotesTests {
             !cancelled && store.source == "Repaired externally" && store.editorEpoch == repairedEpoch)
 
         store.updateSource("Draft after a failed save")
-        let activeFolder = repository.folderURL(for: activeID)
+        let activeFolder = repository.packageURL(for: activeID)
         try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: activeFolder.path)
         defer {
             try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: activeFolder.path)
@@ -842,7 +848,7 @@ struct NotesTests {
         let store = NotesStore(repository: first)
         _ = await store.start()
         store.updateSource("unsaved plan")
-        let planFolder = first.folderURL(for: NoteID(rawValue: "Plan"))
+        let planFolder = first.packageURL(for: NoteID(rawValue: "Plan"))
         try fm.setAttributes([.posixPermissions: 0o555], ofItemAtPath: planFolder.path)
         await store.relocate(to: second)
         try fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: planFolder.path)
@@ -891,14 +897,218 @@ struct NotesTests {
                 && NoteAccentColor(hex: "#GG8000") == nil)
     }
 
-    /// Lays a note down as another app would: its folder, then `text.md` inside it.
+    private static func testLegacyFoldersMigrate() throws {
+        let root = temporaryRoot("migration")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let repository = try repository(in: root)
+        let fm = FileManager.default
+        try fm.createDirectory(at: repository.notesDirectory, withIntermediateDirectories: true)
+        func legacy(_ name: String, _ text: String, image: Bool = false) throws {
+            let folder = repository.notesDirectory.appendingPathComponent(name, isDirectory: true)
+            try fm.createDirectory(at: folder.appendingPathComponent("assets"), withIntermediateDirectories: true)
+            try Data(text.utf8).write(to: folder.appendingPathComponent("text.md"))
+            if image { try Data([1, 2, 3]).write(to: folder.appendingPathComponent("assets/a.png")) }
+        }
+        try legacy("Plan", "plan text", image: true)
+        try legacy("Twin", "same text")
+        try seed(repository, NoteID(rawValue: "Twin"), "same text")
+        try legacy("Clash", "old text")
+        try seed(repository, NoteID(rawValue: "Clash"), "new text")
+        try fm.createDirectory(
+            at: repository.notesDirectory.appendingPathComponent("Not a note"), withIntermediateDirectories: true)
+        check(
+            "a plain note folder is not listed before it migrates",
+            try !repository.list().contains { $0.id.rawValue == "Plan" })
+
+        let report = repository.migrateLegacyNotes()
+        check("each plain note folder migrates", Set(report.migrated.map(\.rawValue)) == ["Plan", "Twin", "Clash 2"])
+        check("nothing fails or waits on a local disk", report.failed.isEmpty && report.deferred.isEmpty)
+        check("a migrated note keeps its text", try repository.load(NoteID(rawValue: "Plan")).source == "plan text")
+        check(
+            "a migrated note keeps its images",
+            fm.fileExists(
+                atPath: repository.packageURL(for: NoteID(rawValue: "Plan")).appendingPathComponent("assets/a.png").path))
+        check(
+            "a local migration is a rename: the plain folder is gone",
+            !fm.fileExists(atPath: repository.notesDirectory.appendingPathComponent("Plan").path))
+        check(
+            "a folder that another Mac already migrated goes to the Trash",
+            try fm.fileExists(atPath: trashDirectory(in: root).appendingPathComponent("Twin").path)
+                && repository.load(NoteID(rawValue: "Twin")).source == "same text")
+        check(
+            "a folder with other text than the package of its name takes the next free name",
+            try repository.load(NoteID(rawValue: "Clash 2")).source == "old text"
+                && repository.load(NoteID(rawValue: "Clash")).source == "new text")
+        check(
+            "a folder without text.md is not a note and stays",
+            fm.fileExists(atPath: repository.notesDirectory.appendingPathComponent("Not a note").path))
+        check("a second migration finds nothing", repository.migrateLegacyNotes() == .init())
+        let mobileDocuments = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Mobile Documents/iCloud~app~huanan~noto/Documents/Plan")
+        check(
+            "a path in an iCloud container counts as iCloud, also when the process cannot see the container",
+            NotesRepository.isInICloud(mobileDocuments) && !NotesRepository.isInICloud(repository.notesDirectory))
+    }
+
+    private static func testVersionsKeepTheWholeNote() async throws {
+        let root = temporaryRoot("versions")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let repository = try repository(in: root)
+        let id = NoteID(rawValue: "History")
+        try seed(repository, id, "v1")
+        let assets = repository.packageURL(for: id).appendingPathComponent("assets", isDirectory: true)
+        try FileManager.default.createDirectory(at: assets, withIntermediateDirectories: true)
+        try Data([1]).write(to: assets.appendingPathComponent("a.png"))
+        try repository.snapshot(id: id)
+        try repository.save(id: id, source: "v2", base: "v1")
+        try FileManager.default.removeItem(at: assets.appendingPathComponent("a.png"))
+
+        let versions = NSFileVersion.otherVersionsOfItem(at: repository.packageURL(for: id)) ?? []
+        check("a snapshot is a version of the package", versions.count == 1)
+        if let version = versions.first {
+            check(
+                "a version keeps the text",
+                (try? String(contentsOf: version.url.appendingPathComponent("text.md"), encoding: .utf8)) == "v1")
+            check(
+                "a version keeps the images",
+                FileManager.default.fileExists(atPath: version.url.appendingPathComponent("assets/a.png").path))
+        }
+        let renamed = try repository.rename(id: id, title: "History Renamed")
+        check(
+            "a rename keeps the versions",
+            (NSFileVersion.otherVersionsOfItem(at: repository.packageURL(for: renamed)) ?? []).count == 1)
+        func count() -> Int { (NSFileVersion.otherVersionsOfItem(at: repository.packageURL(for: renamed)) ?? []).count }
+        try repository.snapshot(id: renamed)
+        check("a snapshot of a changed note adds a version", count() == 2)
+        try repository.snapshot(id: renamed)
+        check("a snapshot of the same note adds no version", count() == 2)
+        let image = repository.packageURL(for: renamed).appendingPathComponent("assets/b.png")
+        try Data([3]).write(to: image)
+        try repository.snapshot(id: renamed)
+        check("a snapshot after an image came adds a version", count() == 3)
+        try Data([4]).write(to: image)
+        try repository.snapshot(id: renamed, onlyOutsideICloud: true)
+        check("a note outside iCloud gets the snapshot that iCloud would skip, also for new image bytes", count() == 4)
+        let none = await repository.downloadServerVersions(
+            of: renamed, since: .distantPast, until: Date().addingTimeInterval(10))
+        check("a note outside iCloud has no server versions to download", none == 0)
+    }
+
+    private static func testAssetReferences() {
+        check("a path names its file", NoteAssets.isReferenced("a b.png", in: "![](assets/a%20b.png)"))
+        check("a written path names its file", NoteAssets.isReferenced("a b.png", in: "see assets/a b.png"))
+        check("case does not count", NoteAssets.isReferenced("Shot.PNG", in: "![](assets/shot.png)"))
+        check(
+            "Unicode normalization does not count",
+            NoteAssets.isReferenced("caf\u{E9}.png", in: "![](assets/cafe\u{301}.png)"))
+        check("a parenthesis is encoded", NoteAssets.isReferenced("x(1).png", in: NoteAssets.markdown(for: "assets/x(1).png")))
+        check("another file is not named", !NoteAssets.isReferenced("a.png", in: "![](assets/b.png)"))
+    }
+
+    private static func testDroppedAssetsGo() throws {
+        let root = temporaryRoot("dropped")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let repository = try repository(in: root)
+        let id = NoteID(rawValue: "Images")
+        let opened = "![](assets/kept.png)\n![](assets/dropped.png)"
+        try seed(repository, id, "![](assets/kept.png)\n![](assets/later.png)")
+        let assets = repository.packageURL(for: id).appendingPathComponent("assets", isDirectory: true)
+        try FileManager.default.createDirectory(at: assets, withIntermediateDirectories: true)
+        for name in ["kept.png", "dropped.png", "later.png", "pasted.png", "finder.png"] {
+            try Data([1]).write(to: assets.appendingPathComponent(name))
+        }
+        let removed = try repository.removeDroppedAssets(of: id, earlier: [opened], imported: ["pasted.png"])
+        check("a dropped and an imported image that the text no longer names go", removed == ["dropped.png", "pasted.png"])
+        for name in ["kept.png", "later.png", "finder.png"] {
+            check(
+                "an image the session did not drop stays: \(name)",
+                FileManager.default.fileExists(atPath: assets.appendingPathComponent(name).path))
+        }
+        let versions = NSFileVersion.otherVersionsOfItem(at: repository.packageURL(for: id)) ?? []
+        check(
+            "a version with the images comes before the delete",
+            versions.count == 1
+                && FileManager.default.fileExists(atPath: versions[0].url.appendingPathComponent("assets/dropped.png").path))
+        check(
+            "nothing to delete adds no version",
+            try repository.removeDroppedAssets(of: id, earlier: [opened], imported: []).isEmpty
+                && (NSFileVersion.otherVersionsOfItem(at: repository.packageURL(for: id)) ?? []).count == 1)
+    }
+
+    private static func testStoreDeletesDroppedImagesWhenTheSessionEnds() async throws {
+        let root = temporaryRoot("session")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let repository = try repository(in: root)
+        let id = NoteID(rawValue: "Album")
+        let other = NoteID(rawValue: "Other")
+        try seed(repository, other, "other")
+        try seed(repository, id, "![](assets/a.png)")
+        let assets = repository.packageURL(for: id).appendingPathComponent("assets", isDirectory: true)
+        try FileManager.default.createDirectory(at: assets, withIntermediateDirectories: true)
+        try Data([1]).write(to: assets.appendingPathComponent("a.png"))
+        let store = NotesStore(repository: repository, loadSelection: { id })
+        defer { store.stop() }
+        _ = await store.start()
+        check("the store opens the note with the image", store.activeID == id)
+        store.updateSource("no image now")
+        _ = await store.flush()
+        check(
+            "a removed reference keeps the file while the session lasts",
+            FileManager.default.fileExists(atPath: assets.appendingPathComponent("a.png").path))
+        _ = await store.select(other)
+        check(
+            "the switch to another note deletes the dropped image",
+            !FileManager.default.fileExists(atPath: assets.appendingPathComponent("a.png").path))
+        check("the other note opens", store.activeID == other)
+    }
+
+    private static func testStoreAddsVersions() async throws {
+        let root = temporaryRoot("snapshots")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let repository = try repository(in: root)
+        let id = NoteID(rawValue: "Diary")
+        try seed(repository, id, "opened")
+        let clock = ClockBox()
+        let store = NotesStore(repository: repository, loadSelection: { id }, now: { clock.now })
+        defer { store.stop() }
+        _ = await store.start()
+        func count() -> Int { (NSFileVersion.otherVersionsOfItem(at: repository.packageURL(for: id)) ?? []).count }
+        store.updateSource("first edit")
+        _ = await store.flush()
+        check("the first save of a session keeps the note as it was opened", count() == 1)
+        store.updateSource("second edit")
+        _ = await store.flush()
+        check("a save inside the interval adds no version", count() == 1)
+        clock.now = clock.now.addingTimeInterval(NotesStore.snapshotInterval)
+        store.updateSource("third edit")
+        _ = await store.flush()
+        check("a save after the interval adds one", count() == 2)
+
+        let fileURL = repository.fileURL(for: id)
+        let modified = try fileURL.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate
+        store.updateSource("third edit, then undone")
+        store.updateSource("third edit")
+        _ = await store.flush()
+        check(
+            "an edit that comes back to the text on disk writes nothing",
+            try fileURL.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate == modified
+                && !store.isDirty)
+        let first = (NSFileVersion.otherVersionsOfItem(at: repository.packageURL(for: id)) ?? [])
+            .min { ($0.modificationDate ?? .distantPast) < ($1.modificationDate ?? .distantPast) }
+        check(
+            "the first version is the note as it was opened",
+            first.map { (try? String(contentsOf: $0.url.appendingPathComponent("text.md"), encoding: .utf8)) == "opened" }
+                == true)
+    }
+
+    /// Lays a note down as another app would: its package, then `text.md` inside it.
     private static func seed(_ repository: NotesRepository, _ id: NoteID, _ text: String) throws {
         try seed(repository, id, Data(text.utf8))
     }
 
     private static func seed(_ repository: NotesRepository, _ id: NoteID, _ data: Data) throws {
         try FileManager.default.createDirectory(
-            at: repository.folderURL(for: id), withIntermediateDirectories: true)
+            at: repository.packageURL(for: id), withIntermediateDirectories: true)
         try data.write(to: repository.fileURL(for: id), options: .atomic)
     }
 
@@ -955,6 +1165,10 @@ struct NotesTests {
 
 private final class SelectionBox: @unchecked Sendable {
     var id: NoteID?
+}
+
+private final class ClockBox: @unchecked Sendable {
+    var now = Date(timeIntervalSinceReferenceDate: 800_000_000)
 }
 
 private enum TestFailure: Error {

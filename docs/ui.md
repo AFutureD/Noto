@@ -167,7 +167,7 @@ The title bar is a `noteTitlebar` (52-point) band that `NotesView` draws. `title
 `.hidden`, the real title bar is transparent with no separator, and the content ignores the safe
 area so AppKit does not inset it again. The band is a drag region: an `NSView` that calls
 `performDrag`, and on a double-click moves the window to the top-right. After it comes
-`NoteTitlebarActions`: three `BarButton`s (Create, Browse, Open Folder) in a `frosted(in: Capsule())`,
+`NoteTitlebarActions`: three `BarButton`s (Create, Browse, Version History) in a `frosted(in: Capsule())`,
 inset `md` from the trailing edge. The title is an overlay centred on the window, padded
 `noteTitleInset` on both sides, and not hit-testable, so a press on it reaches the drag region.
 `NotesWindowController.seatTrafficLights` moves the three lights `noteTrafficLightInset` in and
@@ -327,13 +327,14 @@ A pane:
 - `SettingsCaption` is a secondary line below a control.
 - A `Divider` separates groups of rows.
 - A dependent control is disabled, not hidden. Restore Editor Defaults is disabled while each Editor
-  setting is at its default. The Notes folder buttons are disabled while iCloud Sync is on.
+  setting is at its default. Choose… and Use Default are disabled while iCloud Sync is on; Show in Finder is not, because it only
+  shows the folder in use.
 
 The panes:
 
 | Pane | Rows |
 | --- | --- |
-| General | Window (Keep on top), Dock (Show in Dock), Updates (Check for updates automatically, Check Now, the version), Notes folder (Choose…, Use Default, the path) |
+| General | Window (Keep on top), Dock (Show in Dock), Updates (Check for updates automatically, Check Now, the version), Notes folder (Choose…, Use Default, Show in Finder, the path) |
 | Editor | Text font, Heading font, CJK font, Code font, Text size, Highlight (a colour well, Use Default), Accent (a colour well, Use Default), Formatting bar (Show formatting bar), Restore Editor Defaults |
 | Shortcuts | One row per `HotKeyCommand`, with a `ShortcutRecorder` and the command's subtitle |
 | Sync | iCloud Sync, a caption |
