@@ -5,11 +5,13 @@ and the versions follow the version rule in [release.md](docs/release.md#the-ver
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-17
+
 ### Added
 
 - Paste an image, or drop an image file on the editor, and the image shows in the note. Noto copies
-  the file into the `assets` folder of the note's folder and writes `![](assets/<name>)`. Images that
-  a note already names in its folder show too.
+  the file into the note's `assets` folder and writes `![](assets/<name>)`. Images that a note
+  already names in its `assets` folder show too.
 - Type `:` and two or more letters, such as `:smi`, to open a list of emoji. The arrows move the
   selection, and Return inserts the emoji.
 - Version History opens the macOS version browser, as in other document apps: the earlier versions
@@ -161,7 +163,8 @@ as an app of its own; see [NOTICE.md](NOTICE.md).
 - Show in Dock, off by default.
 - Updates through Sparkle.
 
-[Unreleased]: https://github.com/AFutureD/Noto/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/AFutureD/Noto/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/AFutureD/Noto/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/AFutureD/Noto/compare/v0.3.2...v0.4.0
 [0.3.2]: https://github.com/AFutureD/Noto/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/AFutureD/Noto/compare/v0.3.0...v0.3.1
